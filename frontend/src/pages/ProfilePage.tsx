@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { User, Calendar, Clock, LogOut, Phone, Edit2, Check, X, Package, Gift, MessageCircle, Coins } from 'lucide-react';
+import { User, Calendar, Clock, LogOut, Phone, Edit2, Check, X, Package, Gift, MessageCircle, Coins, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
@@ -11,6 +11,7 @@ import { bonusApi } from '../api/bonus';
 import { useAuthStore } from '../store/authStore';
 import LoadingScreen from '../components/LoadingScreen';
 import { useState, useCallback } from 'react';
+import { clearImageCache } from '../components/OptimizedImage';
 
 // Функция форматирования телефона
 const formatPhoneNumber = (value: string): string => {
@@ -111,6 +112,11 @@ export default function ProfilePage() {
   const handleCancelEdit = () => {
     setIsEditingPhone(false);
     setPhoneValue('');
+  };
+
+  const handleClearImageCache = () => {
+    clearImageCache();
+    toast.success('Кэш изображений очищен');
   };
 
   if (isLoading) {
@@ -297,6 +303,12 @@ export default function ProfilePage() {
               // Открыть ссылку в Telegram
               window.open('https://t.me/your_support_bot', '_blank');
             }}
+          />
+          <ActionButton
+            icon={<Trash2 className="w-5 h-5" />}
+            label="Очистить кэш изображений"
+            description="Для отладки загрузки картинок"
+            onClick={handleClearImageCache}
           />
         </motion.div>
       </div>

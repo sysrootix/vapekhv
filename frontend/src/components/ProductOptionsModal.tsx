@@ -1,7 +1,9 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Minus } from 'lucide-react';
+import { X, Plus, Minus, ShoppingCart } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
+import OptimizedImage from './OptimizedImage';
 
 // Дублируем интерфейсы, чтобы компонент был самодостаточным
 export interface ProductVariant {
@@ -34,6 +36,7 @@ interface ProductOptionsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAdd: (productId: string, quantity: number, selectedOptions: Record<string, string>) => void;
+  showCartPrompt?: boolean; // Показывать ли предложение перейти в корзину
 }
 
 export default function ProductOptionsModal({
@@ -41,9 +44,12 @@ export default function ProductOptionsModal({
   isOpen,
   onClose,
   onAdd,
+  showCartPrompt = true,
 }: ProductOptionsModalProps) {
+  const navigate = useNavigate();
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [quantity, setQuantity] = useState(1);
+  const [showGoToCart, setShowGoToCart] = useState(false);
 
   // Инициализация опций
   useEffect(() => {
@@ -56,6 +62,7 @@ export default function ProductOptionsModal({
       });
       setSelectedOptions(initial);
       setQuantity(1); // Сбрасываем количество при открытии
+      setShowGoToCart(false); // Сбрасываем состояние при открытии
     }
   }, [isOpen, product]);
 
@@ -110,6 +117,22 @@ export default function ProductOptionsModal({
     }
 
     onAdd(product.id, quantity, selectedOptions);
+
+    // Показываем предложение перейти в корзину
+    if (showCartPrompt) {
+      setShowGoToCart(true);
+    } else {
+      onClose();
+    }
+  };
+
+  const handleGoToCart = () => {
+    onClose();
+    navigate('/cart');
+  };
+
+  const handleContinueShopping = () => {
+    setShowGoToCart(false);
     onClose();
   };
 
@@ -128,7 +151,7 @@ export default function ProductOptionsModal({
             initial={{ opacity: 0, scale: 0.9, y: 50 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 50 }}
-            className="fixed inset-x-4 bottom-4 bg-tg-secondary-bg rounded-3xl p-6 z-[110] max-w-lg mx-auto max-h-[80vh] overflow-y-auto"
+            className="fixed inset-x-0 bottom-0 bg-tg-secondary-bg rounded-t-3xl p-6 z-[110] max-h-[85vh] overflow-y-auto"
           >
             <button
               onClick={onClose}
@@ -137,21 +160,24 @@ export default function ProductOptionsModal({
               <X className="w-5 h-5 text-tg-hint" />
             </button>
 
-            <div className="flex gap-4 mb-6 pr-8">
-              {product.imageUrl && (
-                <img
-                  src={product.imageUrl}
-                  alt={product.name}
-                  className="w-20 h-20 rounded-xl object-cover"
-                />
-              )}
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-tg-text">{product.name}</h3>
-                <p className="text-xl font-bold text-tg-button mt-1">
-                  {currentPrice.toLocaleString()}₽
-                </p>
-              </div>
-            </div>
+            {!showGoToCart ? (
+              <>
+                <div className="flex gap-4 mb-6 pr-8">
+                  {product.imageUrl && (
+                    <OptimizedImage
+                      src={product.imageUrl}
+                      alt={product.name}
+                      className="w-20 h-20 rounded-xl object-cover"
+                      priority
+                    />
+                  )}
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-tg-text">{product.name}</h3>
+                    <p className="text-xl font-bold text-tg-button mt-1">
+                      {currentPrice.toLocaleString()}₽
+                    </p>
+                  </div>
+                </div>
 
             {hasCharacteristics && (
               <div className="space-y-4 mb-6">
@@ -214,13 +240,38 @@ export default function ProductOptionsModal({
               </div>
             </div>
 
-            <button
-              onClick={handleAdd}
-              disabled={hasCharacteristics && (!selectedVariant || selectedVariant.stockCount < 1)}
-              className="w-full bg-tg-button text-tg-button-text py-4 rounded-xl font-semibold text-lg hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
-            >
-              Добавить • {(currentPrice * quantity).toLocaleString()}₽
-            </button>
+                <button
+                  onClick={handleAdd}
+                  disabled={hasCharacteristics && (!selectedVariant || selectedVariant.stockCount < 1)}
+                  className="w-full bg-tg-button text-tg-button-text py-4 rounded-xl font-semibold text-lg hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
+                >
+                  Добавить • {(currentPrice * quantity).toLocaleString()}₽
+                </button>
+              </>
+            ) : (
+              // Экран с предложением перейти в корзину
+              <div className="py-8 text-center">
+                <div className="w-16 h-16 bg-green-500 bg-opacity-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <ShoppingCart className="w-8 h-8 text-green-500" />
+                </div>
+                <h3 className="text-xl font-bold text-tg-text mb-2">Товар добавлен!</h3>
+                <p className="text-tg-hint mb-6">Перейти в корзину для оформления заказа?</p>
+                <div className="space-y-3">
+                  <button
+                    onClick={handleGoToCart}
+                    className="w-full bg-tg-button text-tg-button-text py-4 rounded-xl font-semibold text-lg hover:opacity-90 active:scale-95 transition-all"
+                  >
+                    Перейти в корзину
+                  </button>
+                  <button
+                    onClick={handleContinueShopping}
+                    className="w-full bg-tg-bg text-tg-text py-4 rounded-xl font-semibold text-lg hover:opacity-90 active:scale-95 transition-all"
+                  >
+                    Продолжить покупки
+                  </button>
+                </div>
+              </div>
+            )}
           </motion.div>
         </>
       )}

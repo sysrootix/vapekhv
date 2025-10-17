@@ -6,6 +6,7 @@ import { productApi } from '../api/product';
 import { cartApi } from '../api/cart';
 import LoadingScreen from '../components/LoadingScreen';
 import ProductOptionsModal, { Product } from '../components/ProductOptionsModal';
+import OptimizedImage from '../components/OptimizedImage';
 import ProductPlaceholder from '../components/ProductPlaceholder';
 import toast from 'react-hot-toast';
 import { useState, useEffect } from 'react';
@@ -99,13 +100,43 @@ export default function CatalogPage() {
     }
   };
 
-  const handleQuantityChange = (cartItemId: string, currentQuantity: number, delta: number) => {
+  const handleQuantityChange = async (cartItemId: string, currentQuantity: number, delta: number, productId: string) => {
     const newQuantity = currentQuantity + delta;
+
     if (newQuantity < 1) {
       removeFromCartMutation.mutate(cartItemId);
-    } else {
-      updateCartItemMutation.mutate({ cartItemId, quantity: newQuantity });
+      return;
     }
+
+    // Если увеличиваем количество - проверяем остаток
+    if (delta > 0) {
+      try {
+        const productDetails = await productApi.getProduct(productId);
+        const cartItem = cartData?.items?.find((item: any) => item.id === cartItemId);
+
+        let maxStock = productDetails.stockCount || 0;
+
+        // Если есть выбранные характеристики - проверяем остаток варианта
+        if (cartItem?.selectedOptions && productDetails.variants) {
+          const variant = productDetails.variants.find((v: any) =>
+            Object.entries(cartItem.selectedOptions).every(([key, value]) => v.characteristics[key] === value)
+          );
+          if (variant) {
+            maxStock = variant.stockCount;
+          }
+        }
+
+        if (newQuantity > maxStock) {
+          toast.error(`Доступно только ${maxStock} шт.`);
+          return;
+        }
+      } catch (error) {
+        toast.error('Ошибка при проверке остатка');
+        return;
+      }
+    }
+
+    updateCartItemMutation.mutate({ cartItemId, quantity: newQuantity });
   };
 
   // Получаем cartItem для товара
@@ -222,10 +253,11 @@ export default function CatalogPage() {
                 {/* Product Image */}
                 <div className="relative aspect-square bg-tg-bg">
                   {product.imageUrl ? (
-                    <img
+                    <OptimizedImage
                       src={product.imageUrl}
                       alt={product.name}
                       className="w-full h-full object-cover"
+                      priority={index < 4} // Первые 4 изображения загружаем сразу
                     />
                   ) : (
                     <ProductPlaceholder />
@@ -274,7 +306,7 @@ export default function CatalogPage() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleQuantityChange(cartItem.id, cartItem.quantity, -1);
+                                handleQuantityChange(cartItem.id, cartItem.quantity, -1, product.id);
                               }}
                               className="p-2.5 hover:bg-tg-hint hover:bg-opacity-10 rounded-lg transition-colors active:scale-95"
                             >
@@ -286,7 +318,7 @@ export default function CatalogPage() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleQuantityChange(cartItem.id, cartItem.quantity, 1);
+                                handleQuantityChange(cartItem.id, cartItem.quantity, 1, product.id);
                               }}
                               className="p-2.5 hover:bg-tg-hint hover:bg-opacity-10 rounded-lg transition-colors active:scale-95"
                             >
