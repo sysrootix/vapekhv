@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { logger } from '../config/logger';
 import { moySkladAPI } from './moysklad.api';
 import { imageService } from './image.service';
-import { MoySkladProductFolder, MoySkladProduct, MoySkladVariant } from '../types/moysklad.types';
+import { MoySkladProductFolder, MoySkladProduct } from '../types/moysklad.types';
 
 const prisma = new PrismaClient();
 
