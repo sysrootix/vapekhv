@@ -40,36 +40,56 @@ export class ImageService {
   }
 
   /**
-   * Скачать и сохранить изображение из МойСклад
+   * Скачать и сохранить изображение из МойСклад с повторными попытками
    * @returns Относительный путь к сохраненному файлу
    */
   async downloadAndSaveImage(imageUrl: string, originalName?: string): Promise<string> {
-    try {
-      // Генерируем уникальное имя файла
-      const fileName = this.generateFileName(imageUrl, originalName);
-      const filePath = path.join(this.uploadsDir, fileName);
+    const maxRetries = 2;
+    let lastError: any;
 
-      // Проверяем, существует ли уже файл
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        await fs.access(filePath);
-        logger.debug(`Изображение уже существует: ${fileName}`);
+        // Генерируем уникальное имя файла
+        const fileName = this.generateFileName(imageUrl, originalName);
+        const filePath = path.join(this.uploadsDir, fileName);
+
+        // Проверяем, существует ли уже файл
+        try {
+          await fs.access(filePath);
+          logger.debug(`Изображение уже существует: ${fileName}`);
+          return `/uploads/products/${fileName}`;
+        } catch {
+          // Файл не существует, продолжаем скачивание
+        }
+
+        // Скачиваем изображение
+        const imageBuffer = await moySkladAPI.downloadImage(imageUrl);
+
+        // Сохраняем файл
+        await fs.writeFile(filePath, imageBuffer);
+        logger.debug(`Изображение сохранено: ${fileName}`);
+
         return `/uploads/products/${fileName}`;
-      } catch {
-        // Файл не существует, продолжаем скачивание
+      } catch (error: any) {
+        lastError = error;
+
+        // Если это таймаут и не последняя попытка - повторяем
+        if (error.code === 'ECONNABORTED' || error.response?.status === 504) {
+          if (attempt < maxRetries) {
+            logger.warn(`Таймаут загрузки изображения ${imageUrl}, попытка ${attempt}/${maxRetries}`);
+            // Ждем перед повторной попыткой
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+            continue;
+          }
+        }
+
+        // Для других ошибок или последней попытки - прерываем
+        break;
       }
-
-      // Скачиваем изображение
-      const imageBuffer = await moySkladAPI.downloadImage(imageUrl);
-
-      // Сохраняем файл
-      await fs.writeFile(filePath, imageBuffer);
-      logger.debug(`Изображение сохранено: ${fileName}`);
-
-      return `/uploads/products/${fileName}`;
-    } catch (error) {
-      logger.error(`Ошибка скачивания изображения ${imageUrl}:`, error);
-      throw error;
     }
+
+    logger.error(`Не удалось скачать изображение ${imageUrl} после ${maxRetries} попыток`);
+    throw lastError;
   }
 
   /**
@@ -78,15 +98,26 @@ export class ImageService {
    */
   async downloadAndSaveImages(imageUrls: string[]): Promise<string[]> {
     const savedPaths: string[] = [];
+    let timeoutCount = 0;
 
     for (const url of imageUrls) {
       try {
         const savedPath = await this.downloadAndSaveImage(url);
         savedPaths.push(savedPath);
-      } catch (error) {
-        logger.error(`Не удалось скачать изображение ${url}:`, error);
+      } catch (error: any) {
+        // Подсчитываем таймауты
+        if (error.code === 'ECONNABORTED' || error.response?.status === 504) {
+          timeoutCount++;
+          logger.warn(`Таймаут загрузки изображения ${url.substring(0, 50)}... (пропускаем)`);
+        } else {
+          logger.error(`Не удалось скачать изображение ${url.substring(0, 50)}...`);
+        }
         // Продолжаем скачивание остальных изображений
       }
+    }
+
+    if (timeoutCount > 0) {
+      logger.warn(`Пропущено ${timeoutCount} изображений из-за таймаутов`);
     }
 
     return savedPaths;

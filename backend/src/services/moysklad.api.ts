@@ -96,7 +96,48 @@ export class MoySkladAPI {
   }
 
   /**
+   * Получить ассортимент (товары и модификации) с остатками
+   * Использует /entity/assortment для более эффективного получения данных
+   */
+  async getAssortment(): Promise<any[]> {
+    try {
+      const allItems: any[] = [];
+      let offset = 0;
+      const limit = moySkladConfig.maxLimit;
+
+      while (true) {
+        const response = await this.client.get<MoySkladListResponse<any>>(
+          '/entity/assortment',
+          {
+            params: {
+              limit,
+              offset,
+              groupBy: 'variant', // Товары и модификации с остатками
+              filter: 'archived=false', // Только неархивированные
+            },
+          }
+        );
+
+        allItems.push(...response.data.rows);
+
+        if (response.data.rows.length < limit) {
+          break;
+        }
+
+        offset += limit;
+      }
+
+      logger.info(`Получено ${allItems.length} позиций ассортимента из МойСклад`);
+      return allItems;
+    } catch (error) {
+      logger.error('Ошибка получения ассортимента из МойСклад:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Получить все товары (Product) с остатками
+   * @deprecated Используйте getAssortment() для лучшей производительности
    */
   async getProducts(): Promise<MoySkladProduct[]> {
     try {

@@ -128,16 +128,20 @@ export class SyncService {
   }
 
   /**
-   * Синхронизация товаров
+   * Синхронизация товаров (в обратном порядке - сначала новые)
    */
   private async syncProducts(): Promise<void> {
     try {
       logger.info('Синхронизация товаров...');
 
       const msProducts = await moySkladAPI.getProducts();
+
+      // Реверсируем массив, чтобы синхронизировать сначала новые товары (сверху)
+      const productsReversed = [...msProducts].reverse();
+
       let syncedCount = 0;
 
-      for (const msProduct of msProducts) {
+      for (const msProduct of productsReversed) {
         await this.syncProduct(msProduct);
         syncedCount++;
 
@@ -188,7 +192,7 @@ export class SyncService {
         ? msProduct.salePrices[0].value / 100 // МойСклад хранит цены в копейках
         : 0;
 
-      // Скачать изображения товара
+      // Скачать изображения товара (с обработкой таймаутов)
       let imageUrl: string | null = null;
       let images: string[] = [];
 
@@ -200,11 +204,18 @@ export class SyncService {
               .filter((img) => img.meta?.downloadHref)
               .map((img) => img.meta.downloadHref!);
 
+            // Скачиваем изображения, пропускаем те, что не удалось загрузить
             images = await imageService.downloadAndSaveImages(imageUrls);
             imageUrl = images[0] || null;
+
+            if (images.length > 0) {
+              logger.debug(`Загружено ${images.length} изображений для товара ${msProduct.name}`);
+            }
           }
-        } catch (error) {
-          logger.warn(`Не удалось скачать изображения для товара ${msProduct.name}`);
+        } catch (error: any) {
+          // Не прерываем синхронизацию при ошибках загрузки изображений
+          const errorMsg = error.response?.status === 504 ? 'таймаут' : 'ошибка';
+          logger.warn(`Не удалось скачать изображения для товара ${msProduct.name} (${errorMsg})`);
         }
       }
 
