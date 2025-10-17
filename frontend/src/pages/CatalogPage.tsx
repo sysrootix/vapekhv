@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search, ShoppingBag, Plus, Minus, Check } from 'lucide-react';
+import { Search, ShoppingBag, Plus, Minus } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { productApi } from '../api/product';
 import { cartApi } from '../api/cart';
@@ -8,7 +8,7 @@ import LoadingScreen from '../components/LoadingScreen';
 import ProductOptionsModal, { Product } from '../components/ProductOptionsModal';
 import ProductPlaceholder from '../components/ProductPlaceholder';
 import toast from 'react-hot-toast';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function CatalogPage() {
   const navigate = useNavigate();
@@ -45,15 +45,6 @@ export default function CatalogPage() {
     queryFn: cartApi.getCart,
   });
 
-  // Создаем мапу товаров в корзине
-  const cartItemsMap = useMemo(() => {
-    const map = new Map<string, number>();
-    cartData?.items?.forEach((item: any) => {
-      map.set(item.productId, item.quantity);
-    });
-    return map;
-  }, [cartData]);
-
   const addToCartMutation = useMutation({
     mutationFn: ({
       productId,
@@ -81,7 +72,7 @@ export default function CatalogPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
     },
-    onError: (error: any) => {
+    onError: () => {
       toast.error('Ошибка при обновлении корзины');
     },
   });

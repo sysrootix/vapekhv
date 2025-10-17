@@ -32,8 +32,10 @@ export function useTelegramApp() {
         // Expand app
         tg.expand();
 
-        // Disable vertical swipe to close
-        tg.disableVerticalSwipes();
+        // Disable vertical swipe to close (if available)
+        if (tg.disableVerticalSwipes) {
+          tg.disableVerticalSwipes();
+        }
 
         tg.ready();
       }

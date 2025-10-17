@@ -19,10 +19,17 @@ interface Window {
       expand: () => void;
       ready: () => void;
       close: () => void;
+      disableVerticalSwipes?: () => void;
       HapticFeedback: {
         impactOccurred: (style: string) => void;
         notificationOccurred: (type: string) => void;
         selectionChanged: () => void;
+      };
+      BackButton?: {
+        show: () => void;
+        hide: () => void;
+        onClick: (callback: () => void) => void;
+        offClick: (callback: () => void) => void;
       };
     };
   };
