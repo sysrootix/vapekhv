@@ -22,7 +22,7 @@ export default function DashboardPage() {
 
   const { data: featuredData, isLoading: loadingFeatured } = useQuery({
     queryKey: ['featured-products'],
-    queryFn: () => productApi.getProducts({ featured: true, limit: 6 }),
+    queryFn: () => productApi.getProducts({ limit: 6 }),
   });
 
   if (loadingCategories || loadingFeatured) {

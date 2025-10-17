@@ -74,8 +74,9 @@ export default function CatalogPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
     },
-    onError: () => {
-      toast.error('Ошибка при обновлении корзины');
+    onError: (error: any) => {
+      const message = error?.response?.data?.error || 'Ошибка при обновлении корзины';
+      toast.error(message);
     },
   });
 
@@ -140,8 +141,13 @@ export default function CatalogPage() {
     updateCartItemMutation.mutate({ cartItemId, quantity: newQuantity });
   };
 
-  // Получаем cartItem для товара
-  const getCartItemForProduct = (productId: string) => {
+  // Получаем cartItem для товара (только для товаров БЕЗ характеристик)
+  // Если у товара есть характеристики - не показываем счетчик, только кнопку "Добавить"
+  const getCartItemForProduct = (productId: string, hasCharacteristics: boolean) => {
+    if (hasCharacteristics) {
+      // Для товаров с характеристиками не показываем счетчик в каталоге
+      return null;
+    }
     return cartData?.items?.find((item: any) => item.productId === productId);
   };
 
@@ -300,7 +306,8 @@ export default function CatalogPage() {
                     {/* Кнопки - всегда на одном месте */}
                     {product.inStock ? (
                       (() => {
-                        const cartItem = getCartItemForProduct(product.id);
+                        const hasCharacteristics = product.characteristics && product.characteristics.length > 0;
+                        const cartItem = getCartItemForProduct(product.id, hasCharacteristics);
                         return cartItem ? (
                           // Товар в корзине - показываем счетчик
                           <div className="flex items-center justify-between bg-tg-bg rounded-xl p-1.5">

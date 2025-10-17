@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ShoppingCart, Trash2, Plus, Minus, Package } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cartApi } from '../api/cart';
+import { productApi } from '../api/product';
 import LoadingScreen from '../components/LoadingScreen';
 import toast from 'react-hot-toast';
 
@@ -21,8 +22,9 @@ export default function CartPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
     },
-    onError: () => {
-      toast.error('Ошибка обновления количества');
+    onError: (error: any) => {
+      const message = error?.response?.data?.error || 'Ошибка обновления количества';
+      toast.error(message);
     },
   });
 
@@ -44,6 +46,25 @@ export default function CartPage() {
       toast.success('Корзина очищена');
     },
   });
+
+  // Функция для получения максимального доступного количества для товара
+  const getMaxStock = async (item: any) => {
+    try {
+      const productDetails = await productApi.getProduct(item.productId);
+
+      // Если есть выбранные опции - ищем вариант
+      if (item.selectedOptions && productDetails.variants) {
+        const variant = productDetails.variants.find((v: any) =>
+          Object.entries(item.selectedOptions).every(([key, value]) => v.characteristics[key] === value)
+        );
+        return variant ? variant.stockCount : 0;
+      }
+
+      return productDetails.stockCount || 0;
+    } catch (error) {
+      return 0;
+    }
+  };
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -92,7 +113,11 @@ export default function CartPage() {
           </div>
           {cartItems.length > 0 && (
             <button
-              onClick={() => clearCartMutation.mutate()}
+              onClick={() => {
+                if (window.confirm('Вы уверены, что хотите очистить корзину?')) {
+                  clearCartMutation.mutate();
+                }
+              }}
               disabled={clearCartMutation.isPending}
               className="text-red-500 hover:text-red-600 transition-colors text-sm font-medium"
             >
@@ -170,14 +195,19 @@ export default function CartPage() {
                       </span>
 
                       <button
-                        onClick={() =>
+                        onClick={async () => {
+                          const maxStock = await getMaxStock(item);
+                          if (item.quantity >= maxStock) {
+                            toast.error(`Доступно только ${maxStock} шт.`);
+                            return;
+                          }
                           updateQuantityMutation.mutate({
                             id: item.id,
                             quantity: item.quantity + 1,
-                          })
-                        }
+                          });
+                        }}
                         disabled={updateQuantityMutation.isPending}
-                        className="p-1.5 bg-tg-bg rounded-lg text-tg-text hover:bg-opacity-80 transition-colors"
+                        className="p-1.5 bg-tg-bg rounded-lg text-tg-text hover:bg-opacity-80 transition-colors disabled:opacity-50"
                       >
                         <Plus className="w-4 h-4" />
                       </button>
