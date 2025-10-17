@@ -331,6 +331,13 @@ export class SyncService {
       const stock = this.stocksCache.get(msVariant.id) || { stock: 0, reserve: 0, quantity: 0 };
       const stockCount = stock.quantity;
 
+      // Логируем первые 3 варианта для отладки
+      const totalSynced = await prisma.productVariant.count();
+      if (totalSynced < 3) {
+        const hasStock = this.stocksCache.has(msVariant.id);
+        logger.debug(`Синхронизация варианта: id=${msVariant.id}, name=${msVariant.name}, hasStock=${hasStock}, quantity=${stockCount}`);
+      }
+
       // Получить цену варианта
       const price = msVariant.salePrices && msVariant.salePrices.length > 0
         ? msVariant.salePrices[0].value / 100

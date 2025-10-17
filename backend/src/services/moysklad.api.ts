@@ -136,47 +136,42 @@ export class MoySkladAPI {
   }
 
   /**
-   * Получить все остатки (товары и варианты) одним запросом
-   * Использует report/stock/all с группировкой по вариантам
+   * Получить все остатки (товары и варианты) включая нулевые
+   * Использует report/stock/all/current с параметром include=zeroLines
    */
   async getAllStocks(): Promise<Map<string, { stock: number; reserve: number; quantity: number }>> {
     try {
       const stockMap = new Map<string, { stock: number; reserve: number; quantity: number }>();
-      let offset = 0;
-      const limit = moySkladConfig.maxLimit;
 
-      while (true) {
-        const response = await this.client.get<MoySkladListResponse<any>>(
-          '/report/stock/all',
-          {
-            params: {
-              limit,
-              offset,
-              groupBy: 'variant', // Группировка по вариантам
-            },
-          }
-        );
+      // Краткий отчет возвращает все данные за один запрос
+      const response = await this.client.get<MoySkladListResponse<any>>(
+        '/report/stock/all/current',
+        {
+          params: {
+            include: 'zeroLines', // Включить позиции с нулевыми остатками
+            groupBy: 'variant', // Группировка по вариантам
+          },
+        }
+      );
 
-        // Заполняем Map с ID варианта/товара -> остатки
-        for (const item of response.data.rows) {
-          const id = item.meta?.href?.split('/').pop(); // Извлекаем ID из href
-          if (id) {
-            stockMap.set(id, {
-              stock: item.stock || 0,
-              reserve: item.reserve || 0,
-              quantity: item.quantity || 0,
-            });
+      // Заполняем Map с ID варианта/товара -> остатки
+      for (const item of response.data.rows) {
+        const id = item.meta?.href?.split('/').pop(); // Извлекаем ID из href
+        if (id) {
+          stockMap.set(id, {
+            stock: item.stock || 0,
+            reserve: item.reserve || 0,
+            quantity: item.quantity || 0,
+          });
+
+          // Логируем первые 5 записей для отладки
+          if (stockMap.size <= 5) {
+            logger.debug(`Остаток загружен: type=${item.meta?.type}, id=${id}, quantity=${item.quantity || 0}, name=${item.name}`);
           }
         }
-
-        if (response.data.rows.length < limit) {
-          break;
-        }
-
-        offset += limit;
       }
 
-      logger.info(`Получено остатков для ${stockMap.size} позиций`);
+      logger.info(`Получено остатков для ${stockMap.size} позиций (включая нулевые)`);
       return stockMap;
     } catch (error) {
       logger.error('Ошибка получения остатков:', error);
