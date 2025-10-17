@@ -8,6 +8,11 @@ export interface MoySkladMeta {
   downloadHref?: string;
 }
 
+// Обертка для ссылок с мета-информацией
+export interface MoySkladReference {
+  meta: MoySkladMeta;
+}
+
 export interface MoySkladListResponse<T> {
   context: MoySkladMeta;
   meta: {
@@ -31,8 +36,8 @@ export interface MoySkladProductFolder {
   description?: string;
   externalCode?: string;
   archived?: boolean;
-  productFolder?: MoySkladMeta; // Родительская категория
-  image?: MoySkladMeta;
+  productFolder?: MoySkladReference; // Родительская категория
+  image?: MoySkladReference;
   updated?: string;
 }
 
@@ -88,10 +93,10 @@ export interface MoySkladProduct {
   minPrice?: { value: number; currency: MoySkladMeta };
 
   // Изображения
-  images?: MoySkladMeta;
+  images?: MoySkladReference;
 
   // Категория
-  productFolder?: MoySkladMeta;
+  productFolder?: MoySkladReference;
 
   // Остатки (только при использовании expand=stock)
   stock?: number;
@@ -100,7 +105,7 @@ export interface MoySkladProduct {
   quantity?: number;
 
   // Модификации
-  modifications?: MoySkladMeta;
+  modifications?: MoySkladReference;
 
   // Прочее
   weight?: number;
@@ -121,7 +126,7 @@ export interface MoySkladVariant {
   archived?: boolean;
 
   // Ссылка на товар
-  product: MoySkladMeta;
+  product: MoySkladReference;
 
   // Характеристики модификации
   characteristics?: MoySkladCharacteristic[];
@@ -138,7 +143,7 @@ export interface MoySkladVariant {
   quantity?: number;
 
   // Изображения
-  images?: MoySkladMeta;
+  images?: MoySkladReference;
 
   // Прочее
   barcodes?: Array<{ ean13?: string }>;
