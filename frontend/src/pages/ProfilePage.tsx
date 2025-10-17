@@ -4,12 +4,13 @@ import { User, Calendar, Clock, LogOut, Phone, Edit2, Check, X, Package, Gift, M
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
+import { useTelegramBackButton } from '../hooks/useTelegramApp';
 import toast from 'react-hot-toast';
 import { userApi } from '../api/user';
 import { bonusApi } from '../api/bonus';
 import { useAuthStore } from '../store/authStore';
 import LoadingScreen from '../components/LoadingScreen';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 
 // Функция форматирования телефона
 const formatPhoneNumber = (value: string): string => {
@@ -54,6 +55,10 @@ export default function ProfilePage() {
   const queryClient = useQueryClient();
   const [isEditingPhone, setIsEditingPhone] = useState(false);
   const [phoneValue, setPhoneValue] = useState('');
+
+  // Telegram BackButton
+  const handleBack = useCallback(() => navigate('/'), [navigate]);
+  useTelegramBackButton(handleBack);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['profile'],

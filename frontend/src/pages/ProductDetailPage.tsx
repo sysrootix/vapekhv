@@ -6,8 +6,9 @@ import { productApi } from '../api/product';
 import { cartApi } from '../api/cart';
 import LoadingScreen from '../components/LoadingScreen';
 import ProductPlaceholder from '../components/ProductPlaceholder';
+import { useTelegramBackButton } from '../hooks/useTelegramApp';
 import toast from 'react-hot-toast';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -15,6 +16,10 @@ export default function ProductDetailPage() {
   const queryClient = useQueryClient();
   const [quantity, setQuantity] = useState(1);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
+
+  // Telegram BackButton
+  const handleBack = useCallback(() => navigate(-1), [navigate]);
+  useTelegramBackButton(handleBack);
 
   const { data: product, isLoading } = useQuery({
     queryKey: ['product', id],

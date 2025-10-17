@@ -31,6 +31,10 @@ export function useTelegramApp() {
 
         // Expand app
         tg.expand();
+
+        // Disable vertical swipe to close
+        tg.disableVerticalSwipes();
+
         tg.ready();
       }
 
@@ -69,5 +73,21 @@ export function useHapticFeedback() {
       haptic?.selectionChanged();
     },
   };
+}
+
+export function useTelegramBackButton(onClick: () => void) {
+  useEffect(() => {
+    const backButton = window.Telegram?.WebApp?.BackButton;
+
+    if (backButton) {
+      backButton.show();
+      backButton.onClick(onClick);
+
+      return () => {
+        backButton.offClick(onClick);
+        backButton.hide();
+      };
+    }
+  }, [onClick]);
 }
 

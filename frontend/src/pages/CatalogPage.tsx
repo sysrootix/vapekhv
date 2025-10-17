@@ -15,7 +15,6 @@ export default function CatalogPage() {
   const location = useLocation();
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -56,20 +55,19 @@ export default function CatalogPage() {
   }, [cartData]);
 
   const addToCartMutation = useMutation({
-    mutationFn: ({ 
-      productId, 
-      quantity, 
-      selectedOptions 
-    }: { 
-      productId: string; 
+    mutationFn: ({
+      productId,
+      quantity,
+      selectedOptions
+    }: {
+      productId: string;
       quantity: number;
       selectedOptions?: Record<string, string>;
-    }) => 
+    }) =>
       cartApi.addToCart(productId, quantity, selectedOptions),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
       toast.success('Товар добавлен в корзину');
-      setQuantities({});
     },
     onError: (error: any) => {
       const message = error?.response?.data?.error || 'Ошибка при добавлении в корзину';
@@ -77,13 +75,24 @@ export default function CatalogPage() {
     },
   });
 
-  const updateQuantity = (productId: string, delta: number) => {
-    setQuantities(prev => {
-      const current = prev[productId] || 1;
-      const newValue = Math.max(1, current + delta);
-      return { ...prev, [productId]: newValue };
-    });
-  };
+  const updateCartItemMutation = useMutation({
+    mutationFn: ({ cartItemId, quantity }: { cartItemId: string; quantity: number }) =>
+      cartApi.updateCartItem(cartItemId, quantity),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cart'] });
+    },
+    onError: (error: any) => {
+      toast.error('Ошибка при обновлении корзины');
+    },
+  });
+
+  const removeFromCartMutation = useMutation({
+    mutationFn: (cartItemId: string) => cartApi.removeFromCart(cartItemId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cart'] });
+      toast.success('Товар удален из корзины');
+    },
+  });
 
   const handleAddToCart = (product: any) => {
     // Если у товара есть характеристики - открываем модальное окно
@@ -94,9 +103,23 @@ export default function CatalogPage() {
       // Иначе добавляем напрямую
       addToCartMutation.mutate({
         productId: product.id,
-        quantity: quantities[product.id] || 1,
+        quantity: 1,
       });
     }
+  };
+
+  const handleQuantityChange = (cartItemId: string, currentQuantity: number, delta: number) => {
+    const newQuantity = currentQuantity + delta;
+    if (newQuantity < 1) {
+      removeFromCartMutation.mutate(cartItemId);
+    } else {
+      updateCartItemMutation.mutate({ cartItemId, quantity: newQuantity });
+    }
+  };
+
+  // Получаем cartItem для товара
+  const getCartItemForProduct = (productId: string) => {
+    return cartData?.items?.find((item: any) => item.productId === productId);
   };
 
   const handleModalAdd = (productId: string, quantity: number, selectedOptions: Record<string, string>) => {
@@ -239,7 +262,7 @@ export default function CatalogPage() {
                   )}
 
                   {/* Цена */}
-                  <div className="flex items-baseline gap-1.5 mb-1">
+                  <div className="flex items-baseline gap-1.5 mb-3">
                     <span className="text-lg font-bold text-tg-text">
                       {product.price.toLocaleString()}₽
                     </span>
@@ -250,61 +273,53 @@ export default function CatalogPage() {
                     )}
                   </div>
 
-                  {/* Статус "В корзине" - фиксированная высота */}
-                  <div className="h-5 mb-2 flex items-center">
-                    {cartItemsMap.has(product.id) && (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-green-500" />
-                        <span className="text-xs font-medium text-green-500 ml-1">
-                          В корзине
-                        </span>
-                      </>
-                    )}
-                  </div>
-
                   {/* Кнопки - всегда на одном месте */}
                   {product.inStock ? (
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center justify-center gap-1 bg-tg-bg rounded-lg p-1">
+                    (() => {
+                      const cartItem = getCartItemForProduct(product.id);
+                      return cartItem ? (
+                        // Товар в корзине - показываем счетчик
+                        <div className="flex items-center justify-between bg-tg-bg rounded-xl p-1.5">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleQuantityChange(cartItem.id, cartItem.quantity, -1);
+                            }}
+                            className="p-2.5 hover:bg-tg-hint hover:bg-opacity-10 rounded-lg transition-colors active:scale-95"
+                          >
+                            <Minus className="w-5 h-5 text-tg-text" />
+                          </button>
+                          <span className="px-4 text-base font-semibold text-tg-text min-w-[32px] text-center">
+                            {cartItem.quantity}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleQuantityChange(cartItem.id, cartItem.quantity, 1);
+                            }}
+                            className="p-2.5 hover:bg-tg-hint hover:bg-opacity-10 rounded-lg transition-colors active:scale-95"
+                          >
+                            <Plus className="w-5 h-5 text-tg-text" />
+                          </button>
+                        </div>
+                      ) : (
+                        // Товар не в корзине - показываем кнопку "Добавить"
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            updateQuantity(product.id, -1);
+                            handleAddToCart(product);
                           }}
-                          className="p-1 hover:bg-tg-hint hover:bg-opacity-10 rounded-lg transition-colors"
-                          disabled={cartItemsMap.has(product.id)}
+                          disabled={addToCartMutation.isPending}
+                          className="w-full bg-tg-button text-tg-button-text py-2.5 rounded-xl text-sm font-medium hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
                         >
-                          <Minus className="w-3.5 h-3.5 text-tg-text" />
+                          Добавить
                         </button>
-                        <span className="px-3 text-sm font-medium text-tg-text min-w-[24px] text-center">
-                          {quantities[product.id] || 1}
-                        </span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            updateQuantity(product.id, 1);
-                          }}
-                          className="p-1 hover:bg-tg-hint hover:bg-opacity-10 rounded-lg transition-colors"
-                          disabled={cartItemsMap.has(product.id)}
-                        >
-                          <Plus className="w-3.5 h-3.5 text-tg-text" />
-                        </button>
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleAddToCart(product);
-                        }}
-                        disabled={addToCartMutation.isPending || cartItemsMap.has(product.id)}
-                        className="w-full bg-tg-button text-tg-button-text py-2 rounded-lg text-sm font-medium hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
-                      >
-                        {cartItemsMap.has(product.id) ? 'В корзине' : 'Добавить'}
-                      </button>
-                    </div>
+                      );
+                    })()
                   ) : (
                     <button
                       disabled
-                      className="w-full bg-tg-secondary-bg text-tg-hint py-2 rounded-lg text-sm font-medium cursor-not-allowed"
+                      className="w-full bg-tg-secondary-bg text-tg-hint py-2.5 rounded-xl text-sm font-medium cursor-not-allowed"
                     >
                       Нет в наличии
                     </button>
