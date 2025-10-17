@@ -167,6 +167,7 @@ export class MoySkladAPI {
           params: {
             filter: `productid=${productId}`,
             limit: moySkladConfig.maxLimit,
+            expand: 'stock', // Получаем остатки сразу с вариантами
           },
         }
       );

@@ -284,8 +284,8 @@ export class SyncService {
         return;
       }
 
-      // Получить остатки варианта
-      const stock = await moySkladAPI.getVariantStock(msVariant.id);
+      // Получить остатки из варианта (если был expand=stock) или из полей напрямую
+      const stockCount = msVariant.quantity || msVariant.stock || 0;
 
       // Получить цену варианта
       const price = msVariant.salePrices && msVariant.salePrices.length > 0
@@ -307,8 +307,8 @@ export class SyncService {
           moySkladId: msVariant.id,
           sku: msVariant.code || null,
           price,
-          stockCount: stock.quantity,
-          inStock: stock.quantity > 0,
+          stockCount,
+          inStock: stockCount > 0,
           characteristics,
           productId: product.id,
           moySkladUpdated: msVariant.updated ? new Date(msVariant.updated) : new Date(),
@@ -316,14 +316,14 @@ export class SyncService {
         update: {
           sku: msVariant.code || null,
           price,
-          stockCount: stock.quantity,
-          inStock: stock.quantity > 0,
+          stockCount,
+          inStock: stockCount > 0,
           characteristics,
           moySkladUpdated: msVariant.updated ? new Date(msVariant.updated) : new Date(),
         },
       });
 
-      logger.debug(`Вариант синхронизирован: ${msVariant.name}`);
+      logger.debug(`Вариант синхронизирован: ${msVariant.name} (остатки: ${stockCount})`);
     } catch (error) {
       logger.error(`Ошибка синхронизации варианта ${msVariant.name}:`, error);
     }
