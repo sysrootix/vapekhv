@@ -292,44 +292,53 @@ export default function ProductDetailPage() {
                 <div className="space-y-5">
                   <h2 className="text-lg font-semibold text-tg-text">Выберите вариант</h2>
 
-                  {product.characteristics!.map((char: any) => (
-                    <div key={char.id}>
-                      <label className="block text-sm font-medium text-tg-text mb-3">
-                        {char.name}
-                        {char.required && <span className="text-red-500 ml-1">*</span>}
-                      </label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {char.values.map((value: string) => {
-                          const available = isValueAvailable(char.name, value);
-                          const isSelected = selectedOptions[char.name] === value;
+                  {product.characteristics!.map((char: any) => {
+                    // Определяем максимальную длину значения
+                    const maxLength = Math.max(...char.values.map((v: string) => v.length));
+                    // Если есть длинные значения (>15 символов) - делаем 2 колонки, иначе 3
+                    const gridCols = maxLength > 15 ? 'grid-cols-2' : 'grid-cols-3';
 
-                          return (
-                            <button
-                              key={value}
-                              onClick={() => {
-                                if (available) {
-                                  setSelectedOptions((prev) => ({
-                                    ...prev,
-                                    [char.name]: value,
-                                  }));
-                                }
-                              }}
-                              disabled={!available}
-                              className={`px-4 py-3 rounded-xl text-sm font-medium transition-all ${
-                                isSelected
-                                  ? 'bg-tg-button text-tg-button-text shadow-lg scale-105'
-                                  : available
-                                  ? 'bg-tg-bg text-tg-text hover:bg-opacity-80'
-                                  : 'bg-tg-bg text-tg-hint opacity-40 cursor-not-allowed'
-                              }`}
-                            >
-                              {value}
-                            </button>
-                          );
-                        })}
+                    return (
+                      <div key={char.id}>
+                        <label className="block text-sm font-medium text-tg-text mb-3">
+                          {char.name}
+                          {char.required && <span className="text-red-500 ml-1">*</span>}
+                        </label>
+                        <div className={`grid ${gridCols} gap-2`}>
+                          {char.values.map((value: string) => {
+                            const available = isValueAvailable(char.name, value);
+                            const isSelected = selectedOptions[char.name] === value;
+                            // Уменьшаем шрифт для очень длинных значений
+                            const textSize = value.length > 20 ? 'text-xs' : 'text-sm';
+
+                            return (
+                              <button
+                                key={value}
+                                onClick={() => {
+                                  if (available) {
+                                    setSelectedOptions((prev) => ({
+                                      ...prev,
+                                      [char.name]: value,
+                                    }));
+                                  }
+                                }}
+                                disabled={!available}
+                                className={`px-4 py-3 rounded-xl ${textSize} font-medium transition-all break-words hyphens-auto ${
+                                  isSelected
+                                    ? 'bg-tg-button text-tg-button-text shadow-lg scale-105'
+                                    : available
+                                    ? 'bg-tg-bg text-tg-text hover:bg-opacity-80'
+                                    : 'bg-tg-bg text-tg-hint opacity-40 cursor-not-allowed'
+                                }`}
+                              >
+                                {value}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   
                   {/* Stock Info */}
                   {selectedVariant && (

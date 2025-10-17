@@ -200,16 +200,23 @@ export default function ProductOptionsModal({
             {hasCharacteristics && (
               <div className="space-y-4 mb-6">
                 {product.characteristics!.map((char) => {
+                  // Определяем максимальную длину значения
+                  const maxLength = Math.max(...char.values.map(v => v.length));
+                  // Если есть длинные значения (>15 символов) - делаем 2 колонки, иначе 3
+                  const gridCols = maxLength > 15 ? 'grid-cols-2' : 'grid-cols-3';
+
                   return (
                     <div key={char.id}>
                       <label className="block text-sm font-medium text-tg-text mb-2">
                         {char.name}
                         {char.required && <span className="text-red-500 ml-1">*</span>}
                       </label>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className={`grid ${gridCols} gap-2`}>
                         {char.values.map((value) => {
                           const available = isValueAvailable(char.name, value);
                           const isSelected = selectedOptions[char.name] === value;
+                          // Уменьшаем шрифт для очень длинных значений
+                          const textSize = value.length > 20 ? 'text-xs' : 'text-sm';
 
                           return (
                             <button
@@ -220,7 +227,7 @@ export default function ProductOptionsModal({
                                 }
                               }}
                               disabled={!available}
-                              className={`px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+                              className={`px-3 py-2 rounded-xl ${textSize} font-medium transition-all break-words hyphens-auto ${
                                 isSelected
                                   ? 'bg-tg-button text-tg-button-text'
                                   : available
