@@ -132,6 +132,15 @@ export default function CartPage() {
                   <h3 className="text-tg-text font-medium mb-1 line-clamp-2">
                     {item.product.name}
                   </h3>
+                  {item.selectedOptions && (
+                    <div className="text-xs text-tg-hint mb-2">
+                      {Object.entries(item.selectedOptions).map(([key, value]: [string, any]) => (
+                        <span key={key} className="mr-2">
+                          {key}: {value}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   {item.product.category && (
                     <p className="text-xs text-tg-hint mb-2">{item.product.category.name}</p>
                   )}
