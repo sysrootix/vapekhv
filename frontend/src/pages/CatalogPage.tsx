@@ -242,7 +242,7 @@ export default function CatalogPage() {
                   <div className="flex-1" />
 
                   {/* Цена и статус - фиксированная высота */}
-                  <div className="mb-2">
+                  <div className="mb-2 min-h-[52px] flex flex-col justify-end">
                     <div className="flex items-baseline gap-1.5">
                       <span className="text-lg font-bold text-tg-text">
                         {product.price.toLocaleString()}₽
@@ -253,14 +253,16 @@ export default function CatalogPage() {
                         </span>
                       )}
                     </div>
-                    {cartItemsMap.has(product.id) && (
-                      <div className="flex items-center gap-1 mt-1">
-                        <Check className="w-3.5 h-3.5 text-green-500" />
-                        <span className="text-xs font-medium text-green-500">
-                          В корзине
-                        </span>
-                      </div>
-                    )}
+                    <div className="h-5 flex items-center mt-1">
+                      {cartItemsMap.has(product.id) && (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-green-500" />
+                          <span className="text-xs font-medium text-green-500 ml-1">
+                            В корзине
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   {/* Кнопки - всегда на одном месте */}
