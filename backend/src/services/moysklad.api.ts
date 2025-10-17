@@ -247,24 +247,38 @@ export class MoySkladAPI {
   }
 
   /**
-   * Получить модификации (варианты) товара
+   * Получить ВСЕ модификации (варианты) без фильтрации
    */
-  async getProductVariants(productId: string): Promise<MoySkladVariant[]> {
+  async getAllVariants(): Promise<MoySkladVariant[]> {
     try {
-      const response = await this.client.get<MoySkladListResponse<MoySkladVariant>>(
-        `/entity/variant`,
-        {
-          params: {
-            filter: `product=https://api.moysklad.ru/api/remap/1.2/entity/product/${productId}`,
-            limit: moySkladConfig.maxLimit,
-          },
-        }
-      );
+      const allVariants: MoySkladVariant[] = [];
+      let offset = 0;
+      const limit = moySkladConfig.maxLimit;
 
-      logger.debug(`Получено ${response.data.rows.length} вариантов для товара ${productId}`);
-      return response.data.rows;
+      while (true) {
+        const response = await this.client.get<MoySkladListResponse<MoySkladVariant>>(
+          `/entity/variant`,
+          {
+            params: {
+              limit,
+              offset,
+            },
+          }
+        );
+
+        allVariants.push(...response.data.rows);
+
+        if (response.data.rows.length < limit) {
+          break;
+        }
+
+        offset += limit;
+      }
+
+      logger.info(`Получено ${allVariants.length} вариантов из МойСклад`);
+      return allVariants;
     } catch (error) {
-      logger.error(`Ошибка получения вариантов товара ${productId}:`);
+      logger.error('Ошибка получения вариантов:', error);
       return [];
     }
   }

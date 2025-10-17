@@ -12,6 +12,7 @@ const prisma = new PrismaClient();
 export class SyncService {
   private isSyncing = false;
   private stocksCache: Map<string, { stock: number; reserve: number; quantity: number }> = new Map();
+  private variantsCache: Map<string, any[]> = new Map(); // productId -> variants[]
 
   /**
    * Главный метод синхронизации
@@ -33,10 +34,25 @@ export class SyncService {
       this.stocksCache = await moySkladAPI.getAllStocks();
       logger.info(`Загружено остатков для ${this.stocksCache.size} позиций`);
 
-      // 2. Синхронизация категорий
+      // 2. Получить все варианты и сгруппировать по товарам
+      logger.info('Загрузка вариантов...');
+      const allVariants = await moySkladAPI.getAllVariants();
+      for (const variant of allVariants) {
+        // Извлекаем productId из href в variant.product
+        const productId = variant.product?.meta?.href?.split('/').pop();
+        if (productId) {
+          if (!this.variantsCache.has(productId)) {
+            this.variantsCache.set(productId, []);
+          }
+          this.variantsCache.get(productId)!.push(variant);
+        }
+      }
+      logger.info(`Загружено ${allVariants.length} вариантов для ${this.variantsCache.size} товаров`);
+
+      // 3. Синхронизация категорий
       await this.syncCategories();
 
-      // 3. Синхронизация товаров
+      // 4. Синхронизация товаров
       await this.syncProducts();
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
@@ -47,6 +63,7 @@ export class SyncService {
     } finally {
       this.isSyncing = false;
       this.stocksCache.clear();
+      this.variantsCache.clear();
     }
   }
 
@@ -277,8 +294,13 @@ export class SyncService {
    */
   private async syncProductVariants(msProductId: string): Promise<void> {
     try {
-      // Получить варианты товара
-      const msVariants = await moySkladAPI.getProductVariants(msProductId);
+      // Получить варианты товара из кеша
+      const msVariants = this.variantsCache.get(msProductId) || [];
+
+      if (msVariants.length === 0) {
+        logger.debug(`Нет вариантов для товара ${msProductId}`);
+        return;
+      }
 
       // Найти товар в БД
       const product = await prisma.product.findUnique({
