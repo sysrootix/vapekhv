@@ -76,31 +76,23 @@ export default function ProductOptionsModal({
     ) || null;
   }, [selectedOptions, product]);
 
-  // Получить доступные значения для каждой характеристики
-  const getAvailableValues = useMemo(() => {
-    if (!product?.variants || !product?.characteristics) {
-      return {};
-    }
+  // Проверить доступность конкретного значения характеристики
+  const isValueAvailable = (charName: string, value: string): boolean => {
+    if (!product?.variants) return false;
 
-    const availableValues: Record<string, Set<string>> = {};
+    // Создаем временные selectedOptions с проверяемым значением
+    const tempOptions = { ...selectedOptions, [charName]: value };
 
-    product.characteristics.forEach(char => {
-      availableValues[char.name] = new Set();
+    // Ищем хотя бы один вариант с остатком > 0, который соответствует tempOptions
+    return product.variants.some(variant => {
+      if (variant.stockCount === 0) return false;
+
+      // Проверяем, соответствует ли вариант всем выбранным характеристикам
+      return Object.entries(tempOptions).every(([key, val]) =>
+        variant.characteristics[key] === val
+      );
     });
-
-    // Проходим по всем вариантам с остатком > 0
-    product.variants.forEach(variant => {
-      if (variant.stockCount > 0) {
-        Object.entries(variant.characteristics).forEach(([key, value]) => {
-          if (availableValues[key]) {
-            availableValues[key].add(value as string);
-          }
-        });
-      }
-    });
-
-    return availableValues;
-  }, [product]);
+  };
 
   // Блокировка скролла
   useEffect(() => {
@@ -208,7 +200,6 @@ export default function ProductOptionsModal({
             {hasCharacteristics && (
               <div className="space-y-4 mb-6">
                 {product.characteristics!.map((char) => {
-                  const availableForChar = getAvailableValues[char.name] || new Set();
                   return (
                     <div key={char.id}>
                       <label className="block text-sm font-medium text-tg-text mb-2">
@@ -217,20 +208,24 @@ export default function ProductOptionsModal({
                       </label>
                       <div className="grid grid-cols-3 gap-2">
                         {char.values.map((value) => {
-                          const isAvailable = availableForChar.has(value);
-                          // Скрываем недоступные варианты
-                          if (!isAvailable) return null;
+                          const available = isValueAvailable(char.name, value);
+                          const isSelected = selectedOptions[char.name] === value;
 
                           return (
                             <button
                               key={value}
-                              onClick={() =>
-                                setSelectedOptions((prev) => ({ ...prev, [char.name]: value }))
-                              }
+                              onClick={() => {
+                                if (available) {
+                                  setSelectedOptions((prev) => ({ ...prev, [char.name]: value }));
+                                }
+                              }}
+                              disabled={!available}
                               className={`px-3 py-2 rounded-xl text-sm font-medium transition-all ${
-                                selectedOptions[char.name] === value
+                                isSelected
                                   ? 'bg-tg-button text-tg-button-text'
-                                  : 'bg-tg-bg text-tg-text hover:bg-opacity-80'
+                                  : available
+                                  ? 'bg-tg-bg text-tg-text hover:bg-opacity-80'
+                                  : 'bg-tg-bg text-tg-hint opacity-40 cursor-not-allowed'
                               }`}
                             >
                               {value}

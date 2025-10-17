@@ -74,12 +74,30 @@ export default function ProductDetailPage() {
   // Поиск выбранного варианта при изменении опций
   useEffect(() => {
     if (product?.variants && Object.keys(selectedOptions).length > 0) {
-      const foundVariant = product.variants.find(variant => 
+      const foundVariant = product.variants.find(variant =>
         Object.entries(selectedOptions).every(([key, value]) => variant.characteristics[key] === value)
       );
       setSelectedVariant(foundVariant || null);
     }
   }, [selectedOptions, product]);
+
+  // Проверить доступность конкретного значения характеристики
+  const isValueAvailable = useCallback((charName: string, value: string): boolean => {
+    if (!product?.variants) return false;
+
+    // Создаем временные selectedOptions с проверяемым значением
+    const tempOptions = { ...selectedOptions, [charName]: value };
+
+    // Ищем хотя бы один вариант с остатком > 0, который соответствует tempOptions
+    return product.variants.some(variant => {
+      if (variant.stockCount === 0) return false;
+
+      // Проверяем, соответствует ли вариант всем выбранным характеристикам
+      return Object.entries(tempOptions).every(([key, val]) =>
+        variant.characteristics[key] === val
+      );
+    });
+  }, [product, selectedOptions]);
 
   // Общий запас (учитывая варианты)
   const totalStock = useMemo(() => {
@@ -273,7 +291,7 @@ export default function ProductDetailPage() {
               {hasCharacteristics && (
                 <div className="space-y-5">
                   <h2 className="text-lg font-semibold text-tg-text">Выберите вариант</h2>
-                  
+
                   {product.characteristics!.map((char: any) => (
                     <div key={char.id}>
                       <label className="block text-sm font-medium text-tg-text mb-3">
@@ -281,24 +299,34 @@ export default function ProductDetailPage() {
                         {char.required && <span className="text-red-500 ml-1">*</span>}
                       </label>
                       <div className="grid grid-cols-3 gap-2">
-                        {char.values.map((value: string) => (
-                          <button
-                            key={value}
-                            onClick={() =>
-                              setSelectedOptions((prev) => ({
-                                ...prev,
-                                [char.name]: value,
-                              }))
-                            }
-                            className={`px-4 py-3 rounded-xl text-sm font-medium transition-all ${
-                              selectedOptions[char.name] === value
-                                ? 'bg-tg-button text-tg-button-text shadow-lg scale-105'
-                                : 'bg-tg-bg text-tg-text hover:bg-opacity-80'
-                            }`}
-                          >
-                            {value}
-                          </button>
-                        ))}
+                        {char.values.map((value: string) => {
+                          const available = isValueAvailable(char.name, value);
+                          const isSelected = selectedOptions[char.name] === value;
+
+                          return (
+                            <button
+                              key={value}
+                              onClick={() => {
+                                if (available) {
+                                  setSelectedOptions((prev) => ({
+                                    ...prev,
+                                    [char.name]: value,
+                                  }));
+                                }
+                              }}
+                              disabled={!available}
+                              className={`px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                                isSelected
+                                  ? 'bg-tg-button text-tg-button-text shadow-lg scale-105'
+                                  : available
+                                  ? 'bg-tg-bg text-tg-text hover:bg-opacity-80'
+                                  : 'bg-tg-bg text-tg-hint opacity-40 cursor-not-allowed'
+                              }`}
+                            >
+                              {value}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   ))}
