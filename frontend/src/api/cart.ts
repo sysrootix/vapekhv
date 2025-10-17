@@ -7,6 +7,7 @@ export interface CartItem {
   userId: string;
   productId: string;
   product: Product;
+  selectedOptions?: Record<string, any>;
   createdAt: string;
   updatedAt: string;
 }
