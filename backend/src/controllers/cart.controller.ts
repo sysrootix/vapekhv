@@ -121,11 +121,32 @@ class CartController {
       let cartItem;
 
       if (existingItem) {
+        // Проверяем максимальный остаток для суммарного количества
+        const newTotalQuantity = existingItem.quantity + quantity;
+        let maxStock = product.stockCount;
+
+        if (selectedOptions && Object.keys(selectedOptions).length > 0) {
+          const variant = await prisma.productVariant.findFirst({
+            where: {
+              productId: product.id,
+              characteristics: { equals: selectedOptions },
+            }
+          });
+
+          if (variant) {
+            maxStock = variant.stockCount;
+          }
+        }
+
+        if (newTotalQuantity > maxStock) {
+          throw new AppError(`Доступно только ${maxStock} шт. (у вас уже ${existingItem.quantity} в корзине)`, 400);
+        }
+
         // Обновить количество
         cartItem = await prisma.cartItem.update({
           where: { id: existingItem.id },
           data: {
-            quantity: existingItem.quantity + quantity,
+            quantity: newTotalQuantity,
           },
           include: {
             product: true,
@@ -171,10 +192,35 @@ class CartController {
 
       const cartItem = await prisma.cartItem.findFirst({
         where: { id, userId },
+        include: {
+          product: true,
+        },
       });
 
       if (!cartItem) {
         throw new AppError('Элемент корзины не найден', 404);
+      }
+
+      // Проверка остатков
+      let maxStock = cartItem.product.stockCount;
+
+      // Если есть выбранные опции - проверяем вариант
+      if (cartItem.selectedOptions && typeof cartItem.selectedOptions === 'object') {
+        const variant = await prisma.productVariant.findFirst({
+          where: {
+            productId: cartItem.productId,
+            characteristics: { equals: cartItem.selectedOptions },
+          },
+        });
+
+        if (variant) {
+          maxStock = variant.stockCount;
+        }
+      }
+
+      // Проверяем, что запрашиваемое количество не превышает остаток
+      if (quantity > maxStock) {
+        throw new AppError(`Доступно только ${maxStock} шт.`, 400);
       }
 
       const updated = await prisma.cartItem.update({

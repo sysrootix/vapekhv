@@ -72,6 +72,20 @@ class ProductController {
                 id: true,
                 name: true,
                 slug: true,
+                parent: {
+                  select: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                    parent: {
+                      select: {
+                        id: true,
+                        name: true,
+                        slug: true,
+                      },
+                    },
+                  },
+                },
               },
             },
             characteristics: {
@@ -119,7 +133,15 @@ class ProductController {
           isActive: true,
         },
         include: {
-          category: true,
+          category: {
+            include: {
+              parent: {
+                include: {
+                  parent: true,
+                },
+              },
+            },
+          },
           characteristics: {
             orderBy: { sortOrder: 'asc' },
           },

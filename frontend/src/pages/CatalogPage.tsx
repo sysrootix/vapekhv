@@ -8,6 +8,7 @@ import LoadingScreen from '../components/LoadingScreen';
 import ProductOptionsModal, { Product } from '../components/ProductOptionsModal';
 import OptimizedImage from '../components/OptimizedImage';
 import ProductPlaceholder from '../components/ProductPlaceholder';
+import { getCategoryPathString } from '../utils/categoryPath';
 import toast from 'react-hot-toast';
 import { useState, useEffect } from 'react';
 
@@ -281,7 +282,7 @@ export default function CatalogPage() {
                   </h3>
 
                   {product.category && (
-                    <p className="text-xs text-tg-hint mb-2">{product.category.name}</p>
+                    <p className="text-xs text-tg-hint mb-2">{getCategoryPathString(product.category)}</p>
                   )}
                   <div className="mt-auto">
                     {/* Цена */}

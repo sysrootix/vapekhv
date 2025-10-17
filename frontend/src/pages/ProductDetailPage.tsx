@@ -1,12 +1,13 @@
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ShoppingCart, Plus, Minus, Check } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, Plus, Minus } from 'lucide-react';
 import { productApi, ProductVariant } from '../api/product';
 import { cartApi } from '../api/cart';
 import LoadingScreen from '../components/LoadingScreen';
 import ProductPlaceholder from '../components/ProductPlaceholder';
 import { useTelegramBackButton } from '../hooks/useTelegramApp';
+import { getCategoryPathString } from '../utils/categoryPath';
 import toast from 'react-hot-toast';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 
@@ -33,7 +34,8 @@ export default function ProductDetailPage() {
     queryFn: cartApi.getCart,
   });
 
-  const isInCart = cartData?.items?.some((item: any) => item.productId === id);
+  // Убрали проверку isInCart - теперь можно добавлять разные варианты товара
+  // const isInCart = cartData?.items?.some((item: any) => item.productId === id);
 
   const addToCartMutation = useMutation({
     mutationFn: ({
@@ -203,10 +205,10 @@ export default function ProductDetailPage() {
             transition={{ delay: 0.1 }}
           >
             <h1 className="text-2xl font-bold text-tg-text mb-3">{product.name}</h1>
-            
+
             {product.category && (
               <div className="inline-block px-3 py-1 bg-tg-secondary-bg text-tg-hint text-sm rounded-full mb-4">
-                {product.category.name}
+                {getCategoryPathString(product.category)}
               </div>
             )}
 
@@ -221,12 +223,7 @@ export default function ProductDetailPage() {
               )}
             </div>
 
-            {isInCart && (
-              <div className="inline-flex items-center gap-2 bg-green-500 bg-opacity-20 px-4 py-2 rounded-full">
-                <Check className="w-5 h-5 text-green-500" />
-                <span className="text-sm font-medium text-green-500">В корзине</span>
-              </div>
-            )}
+            {/* Убрали индикатор "В корзине" чтобы не мешать добавлять другие варианты */}
           </motion.div>
 
           {/* Description */}
@@ -243,7 +240,7 @@ export default function ProductDetailPage() {
           )}
 
           {/* Characteristics and Quantity */}
-          {!isOutOfStock && !isInCart && (
+          {!isOutOfStock && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -324,7 +321,7 @@ export default function ProductDetailPage() {
       </div>
 
       {/* Bottom Bar - Add to Cart */}
-      {!isOutOfStock && !isInCart && (
+      {!isOutOfStock && (
         <motion.div
           initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}

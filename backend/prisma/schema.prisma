@@ -74,6 +74,11 @@ model Category {
   sortOrder   Int       @default(0)
   isActive    Boolean   @default(true)
 
+  // Иерархия категорий
+  parentId    String?
+  parent      Category? @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children    Category[] @relation("CategoryHierarchy")
+
   // МойСклад интеграция
   moySkladId  String?   @unique // ID из МойСклад
   moySkladUpdated DateTime? // Время последнего обновления из МойСклад
@@ -85,6 +90,7 @@ model Category {
 
   @@map("categories")
   @@index([moySkladId])
+  @@index([parentId])
 }
 
 model Product {
