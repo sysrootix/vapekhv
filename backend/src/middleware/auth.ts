@@ -1,16 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { logger } from '../config/logger';
+import { prisma } from '../config/database';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 export interface AuthRequest extends Request {
-  userId?: string;
-  telegramId?: number;
-  user?: {
-    id: string;
-    telegramId: number;
-  };
+  user?: any; // TODO: Replace with a proper User type from Prisma
 }
 
 export const authMiddleware = async (
@@ -31,12 +27,16 @@ export const authMiddleware = async (
       telegramId: number;
     };
 
-    req.userId = decoded.userId;
-    req.telegramId = decoded.telegramId;
-    req.user = {
-      id: decoded.userId,
-      telegramId: decoded.telegramId,
-    };
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+    });
+
+    if (!user) {
+      res.status(401).json({ error: 'Пользователь из токена не найден' });
+      return;
+    }
+
+    req.user = user;
 
     next();
   } catch (error) {
