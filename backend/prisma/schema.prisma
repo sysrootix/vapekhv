@@ -139,6 +139,7 @@ model ProductCharacteristic {
   updatedAt   DateTime @updatedAt
 
   @@map("product_characteristics")
+  @@unique([productId, name])
   @@index([productId])
 }
 

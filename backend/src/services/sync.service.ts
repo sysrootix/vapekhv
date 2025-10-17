@@ -294,29 +294,42 @@ export class SyncService {
    */
   private async syncProductVariants(msProductId: string): Promise<void> {
     try {
-      // Получить варианты товара из кеша
       const msVariants = this.variantsCache.get(msProductId) || [];
+      if (msVariants.length === 0) return;
 
-      if (msVariants.length === 0) {
-        logger.debug(`Нет вариантов для товара ${msProductId}`);
-        return;
-      }
-
-      // Найти товар в БД
-      const product = await prisma.product.findUnique({
-        where: { moySkladId: msProductId },
-      });
-
+      const product = await prisma.product.findUnique({ where: { moySkladId: msProductId } });
       if (!product) {
         logger.warn(`Товар не найден для синхронизации вариантов ${msProductId}`);
         return;
       }
 
+      const characteristicsMap = new Map<string, Set<string>>();
+
       for (const msVariant of msVariants) {
+        if (msVariant.characteristics) {
+          for (const char of msVariant.characteristics) {
+            if (!characteristicsMap.has(char.name)) {
+              characteristicsMap.set(char.name, new Set());
+            }
+            characteristicsMap.get(char.name)!.add(char.value);
+          }
+        }
         await this.syncVariant(msVariant, product.id);
       }
 
-      logger.debug(`Синхронизировано ${msVariants.length} вариантов для товара ${msProductId}`);
+      for (const [name, values] of characteristicsMap.entries()) {
+        await prisma.productCharacteristic.upsert({
+          where: { productId_name: { productId: product.id, name } },
+          create: {
+            name,
+            values: Array.from(values),
+            productId: product.id,
+          },
+          update: { values: Array.from(values) },
+        });
+      }
+
+      logger.debug(`Синхронизировано ${msVariants.length} вариантов и ${characteristicsMap.size} характеристик для товара ${msProductId}`);
     } catch (error) {
       logger.error(`Ошибка синхронизации вариантов товара ${msProductId}:`, error);
     }
