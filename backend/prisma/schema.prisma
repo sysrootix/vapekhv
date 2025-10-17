@@ -1,0 +1,221 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String   @id @default(cuid())
+  telegramId        BigInt   @unique
+  username          String?
+  firstName         String?
+  lastName          String?
+  phone             String?
+  photoUrl          String?
+  languageCode      String?
+  isPremium         Boolean  @default(false)
+  isBot             Boolean  @default(false)
+  
+  // Бонусная программа
+  bonusPoints       Int      @default(0)
+  totalSpent        Float    @default(0)
+  firstOrderDiscount Boolean @default(true) // 10% на первый заказ
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  lastLoginAt       DateTime @default(now())
+
+  cartItems         CartItem[]
+  orders            Order[]
+  bonusTransactions BonusTransaction[]
+
+  @@map("users")
+  @@index([telegramId])
+}
+
+model BonusTransaction {
+  id          String              @id @default(cuid())
+  amount      Int                 // Количество бонусов (может быть отрицательным при списании)
+  type        BonusTransactionType
+  description String?
+  
+  userId      String
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  orderId     String?
+  
+  createdAt   DateTime            @default(now())
+
+  @@map("bonus_transactions")
+  @@index([userId])
+  @@index([createdAt])
+}
+
+enum BonusTransactionType {
+  EARNED      // Начислено за покупку
+  SPENT       // Списано при оплате
+  GIFT        // Подарок от администратора
+  EXPIRED     // Истекли
+  REFUND      // Возврат при отмене заказа
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  imageUrl    String?
+  sortOrder   Int       @default(0)
+  isActive    Boolean   @default(true)
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  products    Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  price       Float
+  oldPrice    Float?
+  imageUrl    String?
+  images      String[]  @default([])
+  inStock     Boolean   @default(true)
+  stockCount  Int       @default(0)
+  isActive    Boolean   @default(true)
+  isFeatured  Boolean   @default(false)
+  
+  categoryId  String
+  category    Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  cartItems       CartItem[]
+  orderItems      OrderItem[]
+  variants        ProductVariant[]
+  characteristics ProductCharacteristic[]
+
+  @@map("products")
+  @@index([categoryId])
+  @@index([slug])
+}
+
+model ProductCharacteristic {
+  id          String   @id @default(cuid())
+  name        String   // например "Вкус", "Цвет", "Размер"
+  values      String[] // например ["Шоколад", "Ваниль", "Клубника"]
+  required    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("product_characteristics")
+  @@index([productId])
+}
+
+model ProductVariant {
+  id                String   @id @default(cuid())
+  sku               String?  @unique
+  price             Float?   // Если null, используется цена продукта
+  oldPrice          Float?
+  stockCount        Int      @default(0)
+  inStock           Boolean  @default(true)
+  characteristics   Json     // {"Вкус": "Шоколад", "Размер": "M"}
+  
+  productId         String
+  product           Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("product_variants")
+  @@index([productId])
+}
+
+model CartItem {
+  id              String   @id @default(cuid())
+  quantity        Int      @default(1)
+  selectedOptions Json?    // {"Вкус": "Шоколад", "Размер": "M"}
+  
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("cart_items")
+  @@index([userId])
+  @@index([productId])
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  orderNumber     String      @unique
+  status          OrderStatus @default(PENDING)
+  totalAmount     Float
+  bonusUsed       Int         @default(0) // Сколько бонусов использовано
+  bonusEarned     Int         @default(0) // Сколько бонусов начислено
+  
+  userId          String
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  deliveryAddress String?
+  deliveryPhone   String?
+  comment         String?
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  
+  items           OrderItem[]
+
+  @@map("orders")
+  @@index([userId])
+  @@index([orderNumber])
+}
+
+model OrderItem {
+  id              String   @id @default(cuid())
+  quantity        Int
+  price           Float
+  selectedOptions Json?    // {"Вкус": "Шоколад", "Размер": "M"}
+  
+  orderId         String
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  
+  createdAt       DateTime @default(now())
+
+  @@map("order_items")
+  @@index([orderId])
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+

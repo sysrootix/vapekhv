@@ -1,0 +1,43 @@
+{
+  "name": "vapekhv-telegram-app",
+  "version": "1.0.0",
+  "description": "Telegram Web App with React + Node.js + PostgreSQL",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "build": "npm run build --workspace=frontend && npm run build --workspace=backend",
+    "build:backend": "npm run build --workspace=backend",
+    "build:frontend": "npm run build --workspace=frontend",
+    "start": "pm2 start ecosystem.config.js",
+    "stop": "pm2 stop ecosystem.config.js",
+    "restart": "pm2 restart ecosystem.config.js",
+    "logs": "pm2 logs",
+    "status": "pm2 status",
+    "setup": "./scripts/setup.sh",
+    "init-db": "./scripts/init-db.sh",
+    "generate-secret": "node scripts/generate-jwt-secret.js",
+    "prisma:studio": "npm run prisma:studio --workspace=backend",
+    "prisma:migrate": "npm run prisma:migrate --workspace=backend",
+    "prisma:generate": "npm run prisma:generate --workspace=backend",
+    "lint": "npm run lint --workspace=frontend && npm run lint --workspace=backend",
+    "clean": "rm -rf node_modules backend/node_modules frontend/node_modules backend/dist frontend/dist",
+    "reinstall": "npm run clean && npm install",
+    "deploy": "./scripts/deploy.sh",
+    "deploy:frontend": "npm run build:frontend && sudo cp -r frontend/dist/* /var/www/vapekhv/ && sudo systemctl reload nginx"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "pm2": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}
+

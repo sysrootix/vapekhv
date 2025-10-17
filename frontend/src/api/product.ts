@@ -1,0 +1,81 @@
+import { apiClient } from './client';
+
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  imageUrl?: string;
+  sortOrder: number;
+  isActive: boolean;
+  _count?: {
+    products: number;
+  };
+}
+
+export interface ProductCharacteristic {
+  id: string;
+  name: string;
+  values: string[];
+  required: boolean;
+}
+
+export interface Product {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  price: number;
+  oldPrice?: number;
+  imageUrl?: string;
+  images: string[];
+  inStock: boolean;
+  stockCount: number;
+  isActive: boolean;
+  isFeatured: boolean;
+  categoryId: string;
+  category?: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+  characteristics?: ProductCharacteristic[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProductsResponse {
+  products: Product[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export const productApi = {
+  getCategories: async (): Promise<Category[]> => {
+    const response = await apiClient.get<Category[]>('/categories');
+    return response.data;
+  },
+
+  getProducts: async (params?: {
+    categoryId?: string;
+    search?: string;
+    featured?: boolean;
+    limit?: number;
+    offset?: number;
+  }): Promise<ProductsResponse> => {
+    const response = await apiClient.get<ProductsResponse>('/products', { params });
+    return response.data;
+  },
+
+  getProduct: async (id: string): Promise<Product> => {
+    const response = await apiClient.get<Product>(`/products/${id}`);
+    return response.data;
+  },
+
+  getProductById: async (id: string): Promise<Product> => {
+    const response = await apiClient.get<Product>(`/products/${id}`);
+    return response.data;
+  },
+};
+
