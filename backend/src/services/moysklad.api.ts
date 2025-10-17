@@ -145,7 +145,7 @@ export class MoySkladAPI {
       const stockMap = new Map<string, { stock: number; reserve: number; quantity: number }>();
 
       // Краткий отчет возвращает простой массив, а не объект с rows
-      const response = await this.client.get<Array<{ assortmentId: string; stock: number }>>(
+      const response = await this.client.get<Array<{ assortmentId: string; quantity: number }>>(
         '/report/stock/all/current',
         {
           params: {
@@ -162,15 +162,16 @@ export class MoySkladAPI {
       // Заполняем Map с ID -> остатки
       for (const item of items) {
         if (item.assortmentId) {
+          const quantity = item.quantity || 0;
           stockMap.set(item.assortmentId, {
-            stock: item.stock || 0,
+            stock: quantity,
             reserve: 0, // Краткий отчет не содержит reserve
-            quantity: item.stock || 0, // В кратком отчете stock = quantity
+            quantity: quantity,
           });
 
           // Логируем первые 5 записей для отладки
           if (stockMap.size <= 5) {
-            logger.debug(`Остаток загружен: id=${item.assortmentId}, quantity=${item.stock || 0}`);
+            logger.debug(`Остаток загружен: id=${item.assortmentId}, quantity=${quantity}`);
           }
         }
       }

@@ -44,52 +44,49 @@ export class ImageService {
    * @returns Относительный путь к сохраненному файлу
    */
   async downloadAndSaveImage(imageUrl: string, originalName?: string): Promise<string> {
-    const maxRetries = 2;
+    const maxRetries = 3; // Увеличим количество попыток
+    const baseDelay = 1000; // Начальная задержка в мс
     let lastError: any;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        // Генерируем уникальное имя файла
         const fileName = this.generateFileName(imageUrl, originalName);
         const filePath = path.join(this.uploadsDir, fileName);
 
-        // Проверяем, существует ли уже файл
         try {
           await fs.access(filePath);
           logger.debug(`Изображение уже существует: ${fileName}`);
           return `/uploads/products/${fileName}`;
         } catch {
-          // Файл не существует, продолжаем скачивание
+          // Файл не существует, продолжаем
         }
 
-        // Скачиваем изображение
         const imageBuffer = await moySkladAPI.downloadImage(imageUrl);
-
-        // Сохраняем файл
         await fs.writeFile(filePath, imageBuffer);
         logger.debug(`Изображение сохранено: ${fileName}`);
-
         return `/uploads/products/${fileName}`;
+
       } catch (error: any) {
         lastError = error;
+        const isTimeout = error.code === 'ECONNABORTED' || error.response?.status === 504;
 
-        // Если это таймаут и не последняя попытка - повторяем
-        if (error.code === 'ECONNABORTED' || error.response?.status === 504) {
-          if (attempt < maxRetries) {
-            logger.warn(`Таймаут загрузки изображения ${imageUrl}, попытка ${attempt}/${maxRetries}`);
-            // Ждем перед повторной попыткой
-            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
-            continue;
-          }
+        if (isTimeout && attempt < maxRetries) {
+          // Экспоненциальная задержка с джиттером
+          const delay = baseDelay * Math.pow(2, attempt - 1) + Math.random() * 1000;
+          logger.warn(
+            `Таймаут загрузки изображения ${imageUrl}, попытка ${attempt}/${maxRetries}. Повтор через ${(delay / 1000).toFixed(1)}с...`
+          );
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
         }
 
-        // Для других ошибок или последней попытки - прерываем
+        // Прерываем для других ошибок или после последней попытки
         break;
       }
     }
 
-    logger.error(`Не удалось скачать изображение ${imageUrl} после ${maxRetries} попыток`);
-    throw lastError;
+    logger.error(`Не удалось скачать изображение ${imageUrl} после ${maxRetries} попыток.`);
+    throw lastError; // Пробрасываем последнюю ошибку
   }
 
   /**
