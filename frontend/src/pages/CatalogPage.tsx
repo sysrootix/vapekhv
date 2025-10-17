@@ -242,18 +242,20 @@ export default function CatalogPage() {
                   <div className="flex-1" />
 
                   {/* Цена и статус - фиксированная высота */}
-                  <div className="mb-2 min-h-[52px] flex flex-col justify-end">
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="text-lg font-bold text-tg-text">
-                        {product.price.toLocaleString()}₽
-                      </span>
-                      {product.oldPrice && (
-                        <span className="text-xs text-tg-hint line-through">
-                          {product.oldPrice.toLocaleString()}₽
+                  <div className="mb-2 h-[60px] flex flex-col justify-end">
+                    <div className="flex flex-col gap-0.5 mb-1">
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-lg font-bold text-tg-text leading-none">
+                          {product.price.toLocaleString()}₽
                         </span>
-                      )}
+                        {product.oldPrice && (
+                          <span className="text-xs text-tg-hint line-through leading-none">
+                            {product.oldPrice.toLocaleString()}₽
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="h-5 flex items-center mt-1">
+                    <div className="h-5 flex items-center">
                       {cartItemsMap.has(product.id) && (
                         <>
                           <Check className="w-3.5 h-3.5 text-green-500" />
