@@ -229,7 +229,7 @@ export default function CatalogPage() {
                 </div>
 
                 {/* Product Info */}
-                <div className="p-3 flex flex-col h-full">
+                <div className="p-3 flex flex-col">
                   <h3 className="text-tg-text font-medium text-sm line-clamp-2 mb-1">
                     {product.name}
                   </h3>
@@ -238,33 +238,28 @@ export default function CatalogPage() {
                     <p className="text-xs text-tg-hint mb-2">{product.category.name}</p>
                   )}
 
-                  {/* Spacer для выравнивания */}
-                  <div className="flex-1" />
+                  {/* Цена */}
+                  <div className="flex items-baseline gap-1.5 mb-1">
+                    <span className="text-lg font-bold text-tg-text">
+                      {product.price.toLocaleString()}₽
+                    </span>
+                    {product.oldPrice && (
+                      <span className="text-xs text-tg-hint line-through">
+                        {product.oldPrice.toLocaleString()}₽
+                      </span>
+                    )}
+                  </div>
 
-                  {/* Цена и статус - фиксированная высота */}
-                  <div className="mb-2 h-[60px] flex flex-col justify-end">
-                    <div className="flex flex-col gap-0.5 mb-1">
-                      <div className="flex items-baseline gap-1.5">
-                        <span className="text-lg font-bold text-tg-text leading-none">
-                          {product.price.toLocaleString()}₽
+                  {/* Статус "В корзине" - фиксированная высота */}
+                  <div className="h-5 mb-2 flex items-center">
+                    {cartItemsMap.has(product.id) && (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-green-500" />
+                        <span className="text-xs font-medium text-green-500 ml-1">
+                          В корзине
                         </span>
-                        {product.oldPrice && (
-                          <span className="text-xs text-tg-hint line-through leading-none">
-                            {product.oldPrice.toLocaleString()}₽
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="h-5 flex items-center">
-                      {cartItemsMap.has(product.id) && (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-green-500" />
-                          <span className="text-xs font-medium text-green-500 ml-1">
-                            В корзине
-                          </span>
-                        </>
-                      )}
-                    </div>
+                      </>
+                    )}
                   </div>
 
                   {/* Кнопки - всегда на одном месте */}
