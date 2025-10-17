@@ -46,7 +46,7 @@ class ProductController {
         where.isFeatured = true;
       }
 
-      const [products, total] = await Promise.all([
+      const [productsData, total] = await Promise.all([
         prisma.product.findMany({
           where,
           include: {
@@ -68,6 +68,13 @@ class ProductController {
         }),
         prisma.product.count({ where }),
       ]);
+
+      const products = productsData.map(p => {
+        const inStock = p.variants.length > 0
+          ? p.variants.some(v => v.stockCount > 0)
+          : p.stockCount > 0;
+        return { ...p, inStock };
+      });
 
       res.json({
         products,
@@ -107,7 +114,11 @@ class ProductController {
         throw new AppError('Продукт не найден', 404);
       }
 
-      res.json(product);
+      const inStock = product.variants.length > 0
+        ? product.variants.some(v => v.stockCount > 0)
+        : product.stockCount > 0;
+
+      res.json({ ...product, inStock });
     } catch (error) {
       if (error instanceof AppError) throw error;
       logger.error('Ошибка при получении продукта:', error);
