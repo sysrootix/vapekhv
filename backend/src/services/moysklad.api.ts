@@ -136,27 +136,51 @@ export class MoySkladAPI {
   }
 
   /**
-   * Получить ассортимент конкретного товара с вариантами и остатками
-   * @param productId ID товара в МойСклад
+   * Получить все остатки (товары и варианты) одним запросом
+   * Использует report/stock/all с группировкой по вариантам
    */
-  async getProductAssortment(productId: string): Promise<any[]> {
+  async getAllStocks(): Promise<Map<string, { stock: number; reserve: number; quantity: number }>> {
     try {
-      const response = await this.client.get<MoySkladListResponse<any>>(
-        '/entity/assortment',
-        {
-          params: {
-            filter: `product=https://api.moysklad.ru/api/remap/1.2/entity/product/${productId}`,
-            groupBy: 'variant', // Группировка по вариантам для получения остатков
-            limit: moySkladConfig.maxLimit,
-          },
-        }
-      );
+      const stockMap = new Map<string, { stock: number; reserve: number; quantity: number }>();
+      let offset = 0;
+      const limit = moySkladConfig.maxLimit;
 
-      logger.debug(`Получено ${response.data.rows.length} вариантов с остатками для товара ${productId}`);
-      return response.data.rows;
+      while (true) {
+        const response = await this.client.get<MoySkladListResponse<any>>(
+          '/report/stock/all',
+          {
+            params: {
+              limit,
+              offset,
+              groupBy: 'variant', // Группировка по вариантам
+            },
+          }
+        );
+
+        // Заполняем Map с ID варианта/товара -> остатки
+        for (const item of response.data.rows) {
+          const id = item.meta?.href?.split('/').pop(); // Извлекаем ID из href
+          if (id) {
+            stockMap.set(id, {
+              stock: item.stock || 0,
+              reserve: item.reserve || 0,
+              quantity: item.quantity || 0,
+            });
+          }
+        }
+
+        if (response.data.rows.length < limit) {
+          break;
+        }
+
+        offset += limit;
+      }
+
+      logger.info(`Получено остатков для ${stockMap.size} позиций`);
+      return stockMap;
     } catch (error) {
-      logger.error(`Ошибка получения ассортимента товара ${productId}:`, error);
-      return [];
+      logger.error('Ошибка получения остатков:', error);
+      return new Map();
     }
   }
 
