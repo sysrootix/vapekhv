@@ -306,7 +306,7 @@ export default function CatalogPage() {
                     {/* Кнопки - всегда на одном месте */}
                     {product.inStock ? (
                       (() => {
-                        const hasCharacteristics = product.characteristics && product.characteristics.length > 0;
+                        const hasCharacteristics = !!(product.characteristics && product.characteristics.length > 0);
                         const cartItem = getCartItemForProduct(product.id, hasCharacteristics);
                         return cartItem ? (
                           // Товар в корзине - показываем счетчик
