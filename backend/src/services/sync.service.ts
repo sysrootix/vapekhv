@@ -295,8 +295,9 @@ export class SyncService {
         return;
       }
 
-      // Получить остатки из варианта (если был expand=stock) или из полей напрямую
-      const stockCount = msVariant.quantity || msVariant.stock || 0;
+      // Получить остатки варианта из отдельного запроса
+      const stock = await moySkladAPI.getVariantStock(msVariant.id);
+      const stockCount = stock.quantity;
 
       // Получить цену варианта
       const price = msVariant.salePrices && msVariant.salePrices.length > 0

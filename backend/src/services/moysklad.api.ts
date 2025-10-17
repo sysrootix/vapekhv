@@ -208,7 +208,6 @@ export class MoySkladAPI {
           params: {
             filter: `productid=${productId}`,
             limit: moySkladConfig.maxLimit,
-            expand: 'stock', // Получаем остатки сразу с вариантами
           },
         }
       );
@@ -228,7 +227,7 @@ export class MoySkladAPI {
     try {
       const response = await this.client.get(`/report/stock/bystore`, {
         params: {
-          filter: `variant=https://api.moysklad.ru/api/remap/1.2/entity/variant/${variantId}`,
+          filter: `variantid=${variantId}`,
         },
       });
 
@@ -239,7 +238,7 @@ export class MoySkladAPI {
         quantity: stockData.quantity || 0,
       };
     } catch (error) {
-      logger.error(`Ошибка получения остатков варианта ${variantId}:`, error);
+      logger.error(`Ошибка получения остатков варианта ${variantId}:`);
       return { stock: 0, reserve: 0, quantity: 0 };
     }
   }
