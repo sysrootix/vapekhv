@@ -4,10 +4,14 @@ import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import path from 'path';
 import { logger } from './config/logger';
 import { connectDatabase } from './config/database';
 import { errorHandler } from './middleware/errorHandler';
 import { initBot, stopBot } from './services/bot.service';
+import { validateMoySkladConfig } from './config/moysklad';
+import { schedulerService } from './services/scheduler.service';
+import { syncService } from './services/sync.service';
 
 // Routes
 import authRoutes from './routes/auth.routes';
@@ -43,6 +47,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/api/', limiter);
 
+// Статические файлы (изображения товаров)
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 // Health check
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -69,8 +76,25 @@ const startServer = async () => {
     // Connect to database
     await connectDatabase();
 
+    // Validate MoySklad configuration
+    try {
+      validateMoySkladConfig();
+      logger.info('✅ МойСклад конфигурация валидна');
+    } catch (error) {
+      logger.warn('⚠️ МойСклад не настроен, синхронизация отключена');
+    }
+
     // Initialize Telegram bot
     initBot();
+
+    // Start sync scheduler
+    schedulerService.start();
+
+    // Initial sync on startup
+    logger.info('🔄 Запуск первоначальной синхронизации с МойСклад...');
+    syncService.syncCatalog().catch((error) => {
+      logger.error('Ошибка первоначальной синхронизации:', error);
+    });
 
     app.listen(PORT, () => {
       logger.info(`🚀 Server is running on port ${PORT}`);
@@ -86,12 +110,14 @@ const startServer = async () => {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully');
+  schedulerService.stop();
   await stopBot();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
   logger.info('SIGINT received, shutting down gracefully');
+  schedulerService.stop();
   await stopBot();
   process.exit(0);
 });

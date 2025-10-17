@@ -73,13 +73,18 @@ model Category {
   imageUrl    String?
   sortOrder   Int       @default(0)
   isActive    Boolean   @default(true)
-  
+
+  // МойСклад интеграция
+  moySkladId  String?   @unique // ID из МойСклад
+  moySkladUpdated DateTime? // Время последнего обновления из МойСклад
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  
+
   products    Product[]
 
   @@map("categories")
+  @@index([moySkladId])
 }
 
 model Product {
@@ -95,13 +100,20 @@ model Product {
   stockCount  Int       @default(0)
   isActive    Boolean   @default(true)
   isFeatured  Boolean   @default(false)
-  
+
   categoryId  String
   category    Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  
+
+  // МойСклад интеграция
+  moySkladId  String?   @unique // ID из МойСклад
+  moySkladUpdated DateTime? // Время последнего обновления из МойСклад
+  article     String?   // Артикул товара
+  code        String?   // Код товара
+  externalCode String?  // Внешний код
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  
+
   cartItems       CartItem[]
   orderItems      OrderItem[]
   variants        ProductVariant[]
@@ -110,6 +122,7 @@ model Product {
   @@map("products")
   @@index([categoryId])
   @@index([slug])
+  @@index([moySkladId])
 }
 
 model ProductCharacteristic {
@@ -137,15 +150,20 @@ model ProductVariant {
   stockCount        Int      @default(0)
   inStock           Boolean  @default(true)
   characteristics   Json     // {"Вкус": "Шоколад", "Размер": "M"}
-  
+
   productId         String
   product           Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  
+
+  // МойСклад интеграция
+  moySkladId        String?  @unique // ID модификации из МойСклад
+  moySkladUpdated   DateTime? // Время последнего обновления из МойСклад
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
   @@map("product_variants")
   @@index([productId])
+  @@index([moySkladId])
 }
 
 model CartItem {
