@@ -8,7 +8,18 @@ class ProductController {
   async getCategories(_req: Request, res: Response) {
     try {
       const categories = await prisma.category.findMany({
-        where: { isActive: true },
+        where: {
+          isActive: true,
+          products: {
+            some: {
+              isActive: true,
+              OR: [
+                { stockCount: { gt: 0 } },
+                { variants: { some: { stockCount: { gt: 0 } } } },
+              ],
+            },
+          },
+        },
         orderBy: { sortOrder: 'asc' },
         include: {
           _count: {
@@ -29,7 +40,13 @@ class ProductController {
     try {
       const { categoryId, search, featured, limit = '50', offset = '0' } = req.query;
 
-      const where: any = { isActive: true };
+      const where: any = {
+        isActive: true,
+        OR: [
+          { stockCount: { gt: 0 } },
+          { variants: { some: { stockCount: { gt: 0 } } } },
+        ],
+      };
 
       if (categoryId) {
         where.categoryId = categoryId;
