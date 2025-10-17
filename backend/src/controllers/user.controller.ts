@@ -7,12 +7,12 @@ import { AppError } from '../middleware/errorHandler';
 class UserController {
   async getProfile(req: AuthRequest, res: Response) {
     try {
-      if (!req.userId) {
+      if (!req.user?.id) {
         throw new AppError('Пользователь не авторизован', 401);
       }
 
       const user = await prisma.user.findUnique({
-        where: { id: req.userId },
+        where: { id: req.user.id },
         select: {
           id: true,
           telegramId: true,
@@ -50,7 +50,7 @@ class UserController {
 
   async updateProfile(req: AuthRequest, res: Response) {
     try {
-      if (!req.userId) {
+      if (!req.user?.id) {
         throw new AppError('Пользователь не авторизован', 401);
       }
 
@@ -62,7 +62,7 @@ class UserController {
       }
 
       const user = await prisma.user.update({
-        where: { id: req.userId },
+        where: { id: req.user.id },
         data: {
           phone: phone || null,
           updatedAt: new Date(),
