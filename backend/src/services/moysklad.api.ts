@@ -179,7 +179,7 @@ export class MoySkladAPI {
    */
   async getProductStock(productId: string): Promise<{ stock: number; reserve: number; quantity: number }> {
     try {
-      const response = await this.client.get(`/report/stock/bystore`, {
+      const response = await this.client.get(`/report/stock/all`, {
         params: {
           filter: `product=https://api.moysklad.ru/api/remap/1.2/entity/product/${productId}`,
         },
@@ -192,7 +192,7 @@ export class MoySkladAPI {
         quantity: stockData.quantity || 0,
       };
     } catch (error) {
-      logger.error(`Ошибка получения остатков товара ${productId}:`, error);
+      logger.error(`Ошибка получения остатков товара ${productId}:`);
       return { stock: 0, reserve: 0, quantity: 0 };
     }
   }
@@ -225,9 +225,9 @@ export class MoySkladAPI {
    */
   async getVariantStock(variantId: string): Promise<{ stock: number; reserve: number; quantity: number }> {
     try {
-      const response = await this.client.get(`/report/stock/bystore`, {
+      const response = await this.client.get(`/report/stock/all`, {
         params: {
-          filter: `variantid=${variantId}`,
+          filter: `variant=https://api.moysklad.ru/api/remap/1.2/entity/variant/${variantId}`,
         },
       });
 
