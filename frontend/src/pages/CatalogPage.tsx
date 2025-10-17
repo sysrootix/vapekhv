@@ -217,7 +217,7 @@ export default function CatalogPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
                 onClick={() => navigate(`/product/${product.id}`)}
-                className="bg-tg-secondary-bg rounded-2xl overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+                className="bg-tg-secondary-bg rounded-2xl overflow-hidden cursor-pointer hover:opacity-90 transition-opacity flex flex-col"
               >
                 {/* Product Image */}
                 <div className="relative aspect-square bg-tg-bg">
@@ -243,7 +243,7 @@ export default function CatalogPage() {
                 </div>
 
                 {/* Product Info */}
-                <div className="p-3 flex flex-col">
+                <div className="p-3 flex flex-col flex-grow">
                   <h3 className="text-tg-text font-medium text-sm line-clamp-2 mb-1">
                     {product.name}
                   </h3>
@@ -251,71 +251,71 @@ export default function CatalogPage() {
                   {product.category && (
                     <p className="text-xs text-tg-hint mb-2">{product.category.name}</p>
                   )}
-
-                  {/* Цена */}
-                  <div className="flex items-baseline gap-1.5 mb-3">
-                    <span className="text-lg font-bold text-tg-text">
-                      {product.price.toLocaleString()}₽
-                    </span>
-                    {product.oldPrice && (
-                      <span className="text-xs text-tg-hint line-through">
-                        {product.oldPrice.toLocaleString()}₽
+                  <div className="mt-auto">
+                    {/* Цена */}
+                    <div className="flex items-baseline gap-1.5 mb-3">
+                      <span className="text-lg font-bold text-tg-text">
+                        {product.price.toLocaleString()}₽
                       </span>
+                      {product.oldPrice && (
+                        <span className="text-xs text-tg-hint line-through">
+                          {product.oldPrice.toLocaleString()}₽
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Кнопки - всегда на одном месте */}
+                    {product.inStock ? (
+                      (() => {
+                        const cartItem = getCartItemForProduct(product.id);
+                        return cartItem ? (
+                          // Товар в корзине - показываем счетчик
+                          <div className="flex items-center justify-between bg-tg-bg rounded-xl p-1.5">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleQuantityChange(cartItem.id, cartItem.quantity, -1);
+                              }}
+                              className="p-2.5 hover:bg-tg-hint hover:bg-opacity-10 rounded-lg transition-colors active:scale-95"
+                            >
+                              <Minus className="w-5 h-5 text-tg-text" />
+                            </button>
+                            <span className="px-4 text-base font-semibold text-tg-text min-w-[32px] text-center">
+                              {cartItem.quantity}
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleQuantityChange(cartItem.id, cartItem.quantity, 1);
+                              }}
+                              className="p-2.5 hover:bg-tg-hint hover:bg-opacity-10 rounded-lg transition-colors active:scale-95"
+                            >
+                              <Plus className="w-5 h-5 text-tg-text" />
+                            </button>
+                          </div>
+                        ) : (
+                          // Товар не в корзине - показываем кнопку "Добавить"
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAddToCart(product);
+                            }}
+                            disabled={addToCartMutation.isPending}
+                            className="w-full bg-tg-button text-tg-button-text py-2.5 rounded-xl text-sm font-medium hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
+                          >
+                            Добавить
+                          </button>
+                        );
+                      })()
+                    ) : (
+                      <button
+                        disabled
+                        className="w-full bg-tg-secondary-bg text-tg-hint py-2.5 rounded-xl text-sm font-medium cursor-not-allowed"
+                      >
+                        Нет в наличии
+                      </button>
                     )}
                   </div>
-
-                  {/* Кнопки - всегда на одном месте */}
-                  {product.inStock ? (
-                    (() => {
-                      const cartItem = getCartItemForProduct(product.id);
-                      return cartItem ? (
-                        // Товар в корзине - показываем счетчик
-                        <div className="flex items-center justify-between bg-tg-bg rounded-xl p-1.5">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleQuantityChange(cartItem.id, cartItem.quantity, -1);
-                            }}
-                            className="p-2.5 hover:bg-tg-hint hover:bg-opacity-10 rounded-lg transition-colors active:scale-95"
-                          >
-                            <Minus className="w-5 h-5 text-tg-text" />
-                          </button>
-                          <span className="px-4 text-base font-semibold text-tg-text min-w-[32px] text-center">
-                            {cartItem.quantity}
-                          </span>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleQuantityChange(cartItem.id, cartItem.quantity, 1);
-                            }}
-                            className="p-2.5 hover:bg-tg-hint hover:bg-opacity-10 rounded-lg transition-colors active:scale-95"
-                          >
-                            <Plus className="w-5 h-5 text-tg-text" />
-                          </button>
-                        </div>
-                      ) : (
-                        // Товар не в корзине - показываем кнопку "Добавить"
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleAddToCart(product);
-                          }}
-                          disabled={addToCartMutation.isPending}
-                          className="w-full bg-tg-button text-tg-button-text py-2.5 rounded-xl text-sm font-medium hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
-                        >
-                          Добавить
-                        </button>
-                      );
-                    })()
-                  ) : (
-                    <button
-                      disabled
-                      className="w-full bg-tg-secondary-bg text-tg-hint py-2.5 rounded-xl text-sm font-medium cursor-not-allowed"
-                    >
-                      Нет в наличии
-                    </button>
-                  )}
-                </div>
               </motion.div>
             ))}
           </div>

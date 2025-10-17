@@ -75,8 +75,26 @@ class CartController {
         throw new AppError('Продукт не найден', 404);
       }
 
-      if (!product.inStock) {
-        throw new AppError('Продукт отсутствует в наличии', 400);
+      // Если есть опции - ищем вариант и проверяем его наличие
+      if (selectedOptions && Object.keys(selectedOptions).length > 0) {
+        const variant = await prisma.productVariant.findFirst({
+          where: {
+            productId: product.id,
+            characteristics: selectedOptions,
+          }
+        });
+
+        if (!variant) {
+          throw new AppError('Выбранный вариант не найден', 404);
+        }
+
+        if (!variant.inStock || variant.stockCount < quantity) {
+          throw new AppError('Выбранный вариант отсутствует в наличии', 400);
+        }
+      } else { // Иначе проверяем наличие основного продукта
+        if (!product.inStock || product.stockCount < quantity) {
+          throw new AppError('Продукт отсутствует в наличии', 400);
+        }
       }
 
       // Проверить обязательные характеристики
