@@ -11,7 +11,8 @@ export class ImageService {
   private uploadsDir: string;
 
   constructor() {
-    this.uploadsDir = path.join(__dirname, '../../uploads/products');
+    // Используем переменную окружения или дефолтный путь
+    this.uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, '../../uploads/products');
     this.ensureUploadsDirExists();
   }
 

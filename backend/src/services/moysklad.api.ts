@@ -165,7 +165,7 @@ export class MoySkladAPI {
         `/entity/variant`,
         {
           params: {
-            filter: `product=https://api.moysklad.ru/api/remap/1.2/entity/product/${productId}`,
+            filter: `productid=${productId}`,
             limit: moySkladConfig.maxLimit,
           },
         }
@@ -174,7 +174,7 @@ export class MoySkladAPI {
       logger.debug(`Получено ${response.data.rows.length} вариантов для товара ${productId}`);
       return response.data.rows;
     } catch (error) {
-      logger.error(`Ошибка получения вариантов товара ${productId}:`, error);
+      logger.error(`Ошибка получения вариантов товара ${productId}:`);
       return [];
     }
   }

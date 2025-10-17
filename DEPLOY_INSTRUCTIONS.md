@@ -1,5 +1,23 @@
 # Инструкции по деплою интеграции с МойСклад
 
+## Последние исправления (17.10.2025)
+
+### Исправленные баги:
+
+1. **TypeScript ошибки компиляции** - исправлена типизация `MoySkladReference` для полей с `meta`
+2. **Ошибка фильтрации вариантов** - изменен фильтр с `product=...` на `productid=...` согласно API МойСклад
+3. **Circular structure error в логах** - добавлена безопасная сериализация с `safeStringify()`
+4. **Изображения не загружаются (404)** - добавлена переменная `UPLOADS_DIR` для корректного пути
+
+### Что нужно сделать на сервере:
+
+1. Добавить в `.env`: `UPLOADS_DIR=/var/www/vapekhv/uploads/products`
+2. Создать директорию: `sudo mkdir -p /var/www/vapekhv/uploads/products`
+3. Установить права: `sudo chown -R $USER:$USER /var/www/vapekhv/uploads && sudo chmod -R 755 /var/www/vapekhv/uploads`
+4. Выполнить полную пересборку (см. ниже)
+
+---
+
 ## Проблема: Код не компилируется
 
 Если синхронизация не работает после обновления - скорее всего код не скомпилирован.
@@ -238,16 +256,43 @@ SELECT id, name, price, "stockCount", "moySkladId" FROM products;
 2. Есть ли у товаров категории
 3. Логи синхронизации: `pm2 logs vapekhv-backend`
 
-### Изображения не загружаются
+### Изображения не загружаются (404 ошибка)
 
-Проверить директорию:
+**Проблема**: Изображения сохраняются в неправильную директорию.
+
+**Решение**: Настроить переменную окружения `UPLOADS_DIR`
 
 ```bash
-ls -la ~/shop/backend/uploads/products/
+# Открыть .env
+nano ~/shop/backend/.env
+```
 
-# Создать директорию если нет
-mkdir -p ~/shop/backend/uploads/products
-chmod -R 755 ~/shop/backend/uploads
+Добавить строку:
+
+```env
+UPLOADS_DIR=/var/www/vapekhv/uploads/products
+```
+
+Создать директорию и установить права:
+
+```bash
+# Создать директорию для изображений
+sudo mkdir -p /var/www/vapekhv/uploads/products
+sudo chown -R $USER:$USER /var/www/vapekhv/uploads
+sudo chmod -R 755 /var/www/vapekhv/uploads
+```
+
+Перезапустить backend:
+
+```bash
+pm2 restart vapekhv-backend --update-env
+```
+
+Проверить:
+
+```bash
+# После синхронизации проверить, что изображения сохранены
+ls -la /var/www/vapekhv/uploads/products/
 ```
 
 Проверить в браузере:
