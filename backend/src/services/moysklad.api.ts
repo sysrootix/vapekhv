@@ -136,6 +136,31 @@ export class MoySkladAPI {
   }
 
   /**
+   * Получить ассортимент конкретного товара с вариантами и остатками
+   * @param productId ID товара в МойСклад
+   */
+  async getProductAssortment(productId: string): Promise<any[]> {
+    try {
+      const response = await this.client.get<MoySkladListResponse<any>>(
+        '/entity/assortment',
+        {
+          params: {
+            filter: `product=https://api.moysklad.ru/api/remap/1.2/entity/product/${productId}`,
+            groupBy: 'variant', // Группировка по вариантам для получения остатков
+            limit: moySkladConfig.maxLimit,
+          },
+        }
+      );
+
+      logger.debug(`Получено ${response.data.rows.length} вариантов с остатками для товара ${productId}`);
+      return response.data.rows;
+    } catch (error) {
+      logger.error(`Ошибка получения ассортимента товара ${productId}:`, error);
+      return [];
+    }
+  }
+
+  /**
    * Получить все товары (Product) с остатками
    * @deprecated Используйте getAssortment() для лучшей производительности
    */
@@ -206,7 +231,7 @@ export class MoySkladAPI {
         `/entity/variant`,
         {
           params: {
-            filter: `productid=${productId}`,
+            filter: `product=https://api.moysklad.ru/api/remap/1.2/entity/product/${productId}`,
             limit: moySkladConfig.maxLimit,
           },
         }

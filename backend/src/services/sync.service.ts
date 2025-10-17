@@ -266,78 +266,84 @@ export class SyncService {
   }
 
   /**
-   * Синхронизировать варианты товара
+   * Синхронизировать варианты товара с остатками
+   * Использует оптимизированный метод через API ассортимента
    */
   private async syncProductVariants(msProductId: string): Promise<void> {
     try {
-      const msVariants = await moySkladAPI.getProductVariants(msProductId);
+      // Получить варианты товара с остатками за один запрос
+      const assortmentItems = await moySkladAPI.getProductAssortment(msProductId);
 
-      for (const msVariant of msVariants) {
-        await this.syncVariant(msVariant, msProductId);
-      }
-    } catch (error) {
-      logger.error(`Ошибка синхронизации вариантов товара ${msProductId}:`, error);
-    }
-  }
-
-  /**
-   * Синхронизировать один вариант товара
-   */
-  private async syncVariant(msVariant: MoySkladVariant, msProductId: string): Promise<void> {
-    try {
       // Найти товар в БД
       const product = await prisma.product.findUnique({
         where: { moySkladId: msProductId },
       });
 
       if (!product) {
-        logger.warn(`Товар не найден для варианта ${msVariant.name}`);
+        logger.warn(`Товар не найден для синхронизации вариантов ${msProductId}`);
         return;
       }
 
-      // Получить остатки варианта из отдельного запроса
-      const stock = await moySkladAPI.getVariantStock(msVariant.id);
-      const stockCount = stock.quantity;
+      for (const item of assortmentItems) {
+        // Проверяем, что это именно вариант (модификация)
+        if (item.meta?.type === 'variant') {
+          await this.syncVariantFromAssortment(item, product.id);
+        }
+      }
+
+      logger.debug(`Синхронизировано ${assortmentItems.length} вариантов для товара ${msProductId}`);
+    } catch (error) {
+      logger.error(`Ошибка синхронизации вариантов товара ${msProductId}:`, error);
+    }
+  }
+
+  /**
+   * Синхронизировать вариант товара из данных ассортимента
+   */
+  private async syncVariantFromAssortment(assortmentItem: any, productId: string): Promise<void> {
+    try {
+      // Получить остатки из ответа API (уже включены в assortment)
+      const stockCount = assortmentItem.stock || 0;
 
       // Получить цену варианта
-      const price = msVariant.salePrices && msVariant.salePrices.length > 0
-        ? msVariant.salePrices[0].value / 100
+      const price = assortmentItem.salePrices && assortmentItem.salePrices.length > 0
+        ? assortmentItem.salePrices[0].value / 100
         : null;
 
       // Преобразовать характеристики варианта в JSON
       const characteristics: Record<string, string> = {};
-      if (msVariant.characteristics) {
-        for (const char of msVariant.characteristics) {
+      if (assortmentItem.characteristics) {
+        for (const char of assortmentItem.characteristics) {
           characteristics[char.name] = char.value;
         }
       }
 
       // Создать или обновить вариант
       await prisma.productVariant.upsert({
-        where: { moySkladId: msVariant.id },
+        where: { moySkladId: assortmentItem.id },
         create: {
-          moySkladId: msVariant.id,
-          sku: msVariant.code || null,
+          moySkladId: assortmentItem.id,
+          sku: assortmentItem.code || null,
           price,
           stockCount,
           inStock: stockCount > 0,
           characteristics,
-          productId: product.id,
-          moySkladUpdated: msVariant.updated ? new Date(msVariant.updated) : new Date(),
+          productId,
+          moySkladUpdated: assortmentItem.updated ? new Date(assortmentItem.updated) : new Date(),
         },
         update: {
-          sku: msVariant.code || null,
+          sku: assortmentItem.code || null,
           price,
           stockCount,
           inStock: stockCount > 0,
           characteristics,
-          moySkladUpdated: msVariant.updated ? new Date(msVariant.updated) : new Date(),
+          moySkladUpdated: assortmentItem.updated ? new Date(assortmentItem.updated) : new Date(),
         },
       });
 
-      logger.debug(`Вариант синхронизирован: ${msVariant.name} (остатки: ${stockCount})`);
+      logger.debug(`Вариант синхронизирован: ${assortmentItem.name} (остатки: ${stockCount})`);
     } catch (error) {
-      logger.error(`Ошибка синхронизации варианта ${msVariant.name}:`, error);
+      logger.error(`Ошибка синхронизации варианта ${assortmentItem.name}:`, error);
     }
   }
 
