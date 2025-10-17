@@ -76,25 +76,31 @@ const startServer = async () => {
     // Connect to database
     await connectDatabase();
 
-    // Validate MoySklad configuration
-    try {
-      validateMoySkladConfig();
-      logger.info('✅ МойСклад конфигурация валидна');
-    } catch (error) {
-      logger.warn('⚠️ МойСклад не настроен, синхронизация отключена');
-    }
-
     // Initialize Telegram bot
     initBot();
 
-    // Start sync scheduler
-    schedulerService.start();
+    // Validate MoySklad configuration
+    let moySkladEnabled = false;
+    try {
+      validateMoySkladConfig();
+      logger.info('✅ МойСклад конфигурация валидна');
+      moySkladEnabled = true;
+    } catch (error) {
+      logger.warn('⚠️ МойСклад не настроен, синхронизация отключена');
+      logger.warn('💡 Добавьте MOYSKLAD_TOKEN в .env для включения синхронизации');
+    }
 
-    // Initial sync on startup
-    logger.info('🔄 Запуск первоначальной синхронизации с МойСклад...');
-    syncService.syncCatalog().catch((error) => {
-      logger.error('Ошибка первоначальной синхронизации:', error);
-    });
+    // Start sync scheduler and initial sync if MoySklad is enabled
+    if (moySkladEnabled) {
+      // Start sync scheduler
+      schedulerService.start();
+
+      // Initial sync on startup (non-blocking)
+      logger.info('🔄 Запуск первоначальной синхронизации с МойСклад...');
+      syncService.syncCatalog().catch((error) => {
+        logger.error('Ошибка первоначальной синхронизации:', error);
+      });
+    }
 
     app.listen(PORT, () => {
       logger.info(`🚀 Server is running on port ${PORT}`);
