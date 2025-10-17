@@ -1,5 +1,7 @@
 # VapeKHV - Telegram Web App Store
 
+Используй context7.
+
 ## 🎯 О проекте
 
 VapeKHV - это Telegram Web App для магазина вейп-продукции с интеграцией Telegram авторизации, каталогом товаров, корзиной и системой лояльности.

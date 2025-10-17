@@ -119,7 +119,7 @@ export default function CatalogPage() {
         // Если есть выбранные характеристики - проверяем остаток варианта
         if (cartItem?.selectedOptions && productDetails.variants) {
           const variant = productDetails.variants.find((v: any) =>
-            Object.entries(cartItem.selectedOptions).every(([key, value]) => v.characteristics[key] === value)
+            Object.entries(cartItem.selectedOptions || {}).every(([key, value]) => v.characteristics[key] === value)
           );
           if (variant) {
             maxStock = variant.stockCount;
