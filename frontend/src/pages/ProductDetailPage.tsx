@@ -2,13 +2,13 @@ import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ShoppingCart, Plus, Minus, Check } from 'lucide-react';
-import { productApi } from '../api/product';
+import { productApi, ProductVariant } from '../api/product';
 import { cartApi } from '../api/cart';
 import LoadingScreen from '../components/LoadingScreen';
 import ProductPlaceholder from '../components/ProductPlaceholder';
 import { useTelegramBackButton } from '../hooks/useTelegramApp';
 import toast from 'react-hot-toast';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -16,6 +16,7 @@ export default function ProductDetailPage() {
   const queryClient = useQueryClient();
   const [quantity, setQuantity] = useState(1);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
 
   // Telegram BackButton
   const handleBack = useCallback(() => navigate(-1), [navigate]);
@@ -32,20 +33,18 @@ export default function ProductDetailPage() {
     queryFn: cartApi.getCart,
   });
 
-  // Проверяем, есть ли товар в корзине
   const isInCart = cartData?.items?.some((item: any) => item.productId === id);
 
   const addToCartMutation = useMutation({
-    mutationFn: ({ 
-      productId, 
-      quantity, 
-      selectedOptions 
-    }: { 
-      productId: string; 
+    mutationFn: ({
+      productId,
+      quantity,
+      selectedOptions,
+    }: {
+      productId: string;
       quantity: number;
       selectedOptions?: Record<string, string>;
-    }) => 
-      cartApi.addToCart(productId, quantity, selectedOptions),
+    }) => cartApi.addToCart(productId, quantity, selectedOptions),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
       toast.success('Товар добавлен в корзину');
@@ -56,9 +55,9 @@ export default function ProductDetailPage() {
     },
   });
 
-  // Инициализируем выбранные опции при загрузке товара
+  // Инициализация опций и поиск варианта
   useEffect(() => {
-    if (product?.characteristics) {
+    if (product?.characteristics && product.variants) {
       const initial: Record<string, string> = {};
       product.characteristics.forEach((char: any) => {
         if (char.values.length > 0) {
@@ -67,6 +66,26 @@ export default function ProductDetailPage() {
       });
       setSelectedOptions(initial);
     }
+    setQuantity(1);
+  }, [product]);
+
+  // Поиск выбранного варианта при изменении опций
+  useEffect(() => {
+    if (product?.variants && Object.keys(selectedOptions).length > 0) {
+      const foundVariant = product.variants.find(variant => 
+        Object.entries(selectedOptions).every(([key, value]) => variant.characteristics[key] === value)
+      );
+      setSelectedVariant(foundVariant || null);
+    }
+  }, [selectedOptions, product]);
+
+  // Общий запас (учитывая варианты)
+  const totalStock = useMemo(() => {
+    if (!product) return 0;
+    if (product.variants && product.variants.length > 0) {
+      return product.variants.reduce((sum, v) => sum + v.stockCount, 0);
+    }
+    return product.stockCount;
   }, [product]);
 
   if (isLoading) {
@@ -90,15 +109,23 @@ export default function ProductDetailPage() {
   }
 
   const hasCharacteristics = product.characteristics && product.characteristics.length > 0;
+  const isOutOfStock = totalStock === 0;
 
   const handleAddToCart = () => {
-    // Проверяем что все обязательные характеристики выбраны
     if (hasCharacteristics) {
       const requiredChars = product.characteristics!.filter((c: any) => c.required);
       const allSelected = requiredChars.every((char: any) => selectedOptions[char.name]);
       
       if (!allSelected) {
         toast.error('Выберите все обязательные характеристики');
+        return;
+      }
+      if (!selectedVariant) {
+        toast.error('Такой вариант товара не найден');
+        return;
+      }
+      if (selectedVariant.stockCount < quantity) {
+        toast.error('Недостаточно товара в наличии');
         return;
       }
     }
@@ -109,6 +136,8 @@ export default function ProductDetailPage() {
       selectedOptions: hasCharacteristics ? selectedOptions : undefined,
     });
   };
+
+  const currentPrice = selectedVariant?.price ?? product.price;
 
   return (
     <div className="min-h-screen bg-tg-bg pb-32">
@@ -153,10 +182,10 @@ export default function ProductDetailPage() {
           )}
           {product.oldPrice && (
             <div className="absolute top-4 right-4 bg-red-500 text-white text-sm font-bold px-3 py-1.5 rounded-xl shadow-lg">
-              -{Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100)}%
+              -{Math.round(((product.oldPrice - currentPrice) / product.oldPrice) * 100)}%
             </div>
           )}
-          {!product.inStock && (
+          {isOutOfStock && (
             <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center">
               <span className="text-white text-xl font-semibold bg-red-500 px-6 py-3 rounded-2xl">
                 Нет в наличии
@@ -183,7 +212,7 @@ export default function ProductDetailPage() {
 
             <div className="flex items-baseline gap-3 mb-2">
               <span className="text-3xl font-bold text-tg-button">
-                {product.price.toLocaleString()} ₽
+                {currentPrice.toLocaleString()} ₽
               </span>
               {product.oldPrice && (
                 <span className="text-xl text-tg-hint line-through">
@@ -214,7 +243,7 @@ export default function ProductDetailPage() {
           )}
 
           {/* Characteristics and Quantity */}
-          {product.inStock && !isInCart && (
+          {!isOutOfStock && !isInCart && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -255,7 +284,15 @@ export default function ProductDetailPage() {
                     </div>
                   ))}
                   
-                  {/* Divider */}
+                  {/* Stock Info */}
+                  {selectedVariant && (
+                    <div className="text-center pt-2">
+                      <span className="text-tg-hint">
+                        В наличии: {selectedVariant.stockCount} шт.
+                      </span>
+                    </div>
+                  )}
+                  
                   <div className="border-t border-tg-bg"></div>
                 </div>
               )}
@@ -287,7 +324,7 @@ export default function ProductDetailPage() {
       </div>
 
       {/* Bottom Bar - Add to Cart */}
-      {product.inStock && !isInCart && (
+      {!isOutOfStock && !isInCart && (
         <motion.div
           initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}
@@ -297,11 +334,11 @@ export default function ProductDetailPage() {
           <div className="max-w-4xl mx-auto">
             <button
               onClick={handleAddToCart}
-              disabled={addToCartMutation.isPending}
+              disabled={addToCartMutation.isPending || (hasCharacteristics && !selectedVariant)}
               className="w-full bg-tg-button text-tg-button-text py-4 rounded-2xl font-semibold text-lg hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
             >
               <ShoppingCart className="w-6 h-6" />
-              Добавить в корзину • {(product.price * quantity).toLocaleString()} ₽
+              Добавить в корзину • {(currentPrice * quantity).toLocaleString()} ₽
             </button>
           </div>
         </motion.div>
@@ -309,4 +346,3 @@ export default function ProductDetailPage() {
     </div>
   );
 }
-

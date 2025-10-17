@@ -1,6 +1,17 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Plus, Minus } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import toast from 'react-hot-toast';
+
+// Дублируем интерфейсы, чтобы компонент был самодостаточным
+export interface ProductVariant {
+  id: string;
+  sku?: string;
+  price?: number;
+  stockCount: number;
+  inStock: boolean;
+  characteristics: Record<string, string>;
+}
 
 export interface ProductCharacteristic {
   id: string;
@@ -15,6 +26,7 @@ export interface Product {
   price: number;
   imageUrl?: string;
   characteristics?: ProductCharacteristic[];
+  variants?: ProductVariant[];
 }
 
 interface ProductOptionsModalProps {
@@ -33,9 +45,9 @@ export default function ProductOptionsModal({
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [quantity, setQuantity] = useState(1);
 
+  // Инициализация опций
   useEffect(() => {
-    if (product && product.characteristics) {
-      // Инициализируем первыми значениями
+    if (isOpen && product?.characteristics) {
       const initial: Record<string, string> = {};
       product.characteristics.forEach(char => {
         if (char.values.length > 0) {
@@ -43,18 +55,27 @@ export default function ProductOptionsModal({
         }
       });
       setSelectedOptions(initial);
+      setQuantity(1); // Сбрасываем количество при открытии
     }
-    setQuantity(1);
-  }, [product]);
+  }, [isOpen, product]);
 
-  // Блокируем скролл когда модальное окно открыто
+  // Поиск выбранного варианта
+  const selectedVariant = useMemo(() => {
+    if (!product?.variants || Object.keys(selectedOptions).length === 0) {
+      return null;
+    }
+    return product.variants.find(variant => 
+      Object.entries(selectedOptions).every(([key, value]) => variant.characteristics[key] === value)
+    ) || null;
+  }, [selectedOptions, product]);
+
+  // Блокировка скролла
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
     }
-    
     return () => {
       document.body.style.overflow = 'unset';
     };
@@ -63,14 +84,27 @@ export default function ProductOptionsModal({
   if (!product) return null;
 
   const hasCharacteristics = product.characteristics && product.characteristics.length > 0;
+  const currentPrice = selectedVariant?.price ?? product.price;
+  const maxQuantity = selectedVariant?.stockCount ?? 100; // 100 как fallback
 
   const handleAdd = () => {
-    // Проверяем что все обязательные характеристики выбраны
     if (hasCharacteristics) {
       const requiredChars = product.characteristics!.filter(c => c.required);
       const allSelected = requiredChars.every(char => selectedOptions[char.name]);
-      
       if (!allSelected) {
+        toast.error('Выберите все обязательные опции');
+        return;
+      }
+      if (!selectedVariant) {
+        toast.error('Такой вариант товара не найден');
+        return;
+      }
+      if (selectedVariant.stockCount < 1) {
+        toast.error('Этого варианта нет в наличии');
+        return;
+      }
+      if (quantity > selectedVariant.stockCount) {
+        toast.error(`Максимальное количество для этого варианта: ${selectedVariant.stockCount}`);
         return;
       }
     }
@@ -83,7 +117,6 @@ export default function ProductOptionsModal({
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -91,15 +124,12 @@ export default function ProductOptionsModal({
             onClick={onClose}
             className="fixed inset-0 bg-black bg-opacity-50 z-[100]"
           />
-
-          {/* Modal */}
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 50 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 50 }}
             className="fixed inset-x-4 bottom-4 bg-tg-secondary-bg rounded-3xl p-6 z-[110] max-w-lg mx-auto max-h-[80vh] overflow-y-auto"
           >
-            {/* Close button */}
             <button
               onClick={onClose}
               className="absolute top-4 right-4 p-2 rounded-full hover:bg-tg-bg transition-colors"
@@ -107,7 +137,6 @@ export default function ProductOptionsModal({
               <X className="w-5 h-5 text-tg-hint" />
             </button>
 
-            {/* Product info */}
             <div className="flex gap-4 mb-6 pr-8">
               {product.imageUrl && (
                 <img
@@ -119,12 +148,11 @@ export default function ProductOptionsModal({
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-tg-text">{product.name}</h3>
                 <p className="text-xl font-bold text-tg-button mt-1">
-                  {product.price.toLocaleString()}₽
+                  {currentPrice.toLocaleString()}₽
                 </p>
               </div>
             </div>
 
-            {/* Characteristics */}
             {hasCharacteristics && (
               <div className="space-y-4 mb-6">
                 {product.characteristics!.map((char) => (
@@ -138,10 +166,7 @@ export default function ProductOptionsModal({
                         <button
                           key={value}
                           onClick={() =>
-                            setSelectedOptions((prev) => ({
-                              ...prev,
-                              [char.name]: value,
-                            }))
+                            setSelectedOptions((prev) => ({ ...prev, [char.name]: value }))
                           }
                           className={`px-3 py-2 rounded-xl text-sm font-medium transition-all ${
                             selectedOptions[char.name] === value
@@ -155,10 +180,17 @@ export default function ProductOptionsModal({
                     </div>
                   </div>
                 ))}
+                 {/* Stock Info */}
+                 {selectedVariant && (
+                    <div className="text-center pt-2">
+                      <span className={`text-sm ${selectedVariant.stockCount > 0 ? 'text-tg-hint' : 'text-red-500'}`}>
+                        В наличии: {selectedVariant.stockCount} шт.
+                      </span>
+                    </div>
+                  )}
               </div>
             )}
 
-            {/* Quantity selector */}
             <div className="mb-6">
               <label className="block text-sm font-medium text-tg-text mb-2">
                 Количество
@@ -174,7 +206,7 @@ export default function ProductOptionsModal({
                   {quantity}
                 </span>
                 <button
-                  onClick={() => setQuantity((q) => q + 1)}
+                  onClick={() => setQuantity((q) => Math.min(maxQuantity, q + 1))}
                   className="p-2 bg-tg-bg rounded-lg hover:bg-opacity-80 transition-colors"
                 >
                   <Plus className="w-5 h-5 text-tg-text" />
@@ -182,12 +214,12 @@ export default function ProductOptionsModal({
               </div>
             </div>
 
-            {/* Add button */}
             <button
               onClick={handleAdd}
-              className="w-full bg-tg-button text-tg-button-text py-4 rounded-xl font-semibold text-lg hover:opacity-90 active:scale-95 transition-all"
+              disabled={hasCharacteristics && (!selectedVariant || selectedVariant.stockCount < 1)}
+              className="w-full bg-tg-button text-tg-button-text py-4 rounded-xl font-semibold text-lg hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
             >
-              Добавить в корзину • {(product.price * quantity).toLocaleString()}₽
+              Добавить • {(currentPrice * quantity).toLocaleString()}₽
             </button>
           </motion.div>
         </>
@@ -195,4 +227,3 @@ export default function ProductOptionsModal({
     </AnimatePresence>
   );
 }
-

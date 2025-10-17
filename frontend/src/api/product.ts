@@ -20,6 +20,15 @@ export interface ProductCharacteristic {
   required: boolean;
 }
 
+export interface ProductVariant {
+  id: string;
+  sku?: string;
+  price?: number;
+  stockCount: number;
+  inStock: boolean;
+  characteristics: Record<string, string>;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -40,6 +49,7 @@ export interface Product {
     slug: string;
   };
   characteristics?: ProductCharacteristic[];
+  variants?: ProductVariant[];
   createdAt: string;
   updatedAt: string;
 }
