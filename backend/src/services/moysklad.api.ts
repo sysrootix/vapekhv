@@ -145,13 +145,13 @@ export class MoySkladAPI {
       const stockMap = new Map<string, { stock: number; reserve: number; quantity: number }>();
 
       // Краткий отчет возвращает простой массив, а не объект с rows
-      const response = await this.client.get<Array<{ assortmentId: string; stock: number }>>(
+      const response = await this.client.get<Array<{ assortmentId: string; quantity: number }>>(
         '/report/stock/all/current',
         {
           params: {
             include: 'zeroLines', // Включить позиции с нулевыми остатками
             groupBy: 'variant', // Группировка по вариантам
-            stockType: 'stock', // Получить физический остаток
+            stockType: 'quantity', // Получить доступное количество
           },
         }
       );
@@ -162,7 +162,7 @@ export class MoySkladAPI {
       // Заполняем Map с ID -> остатки
       for (const item of items) {
         if (item.assortmentId) {
-          const quantity = item.stock || 0;
+          const quantity = item.quantity || 0;
           stockMap.set(item.assortmentId, {
             stock: quantity,
             reserve: 0, // Краткий отчет не содержит reserve

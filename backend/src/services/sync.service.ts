@@ -329,6 +329,7 @@ export class SyncService {
     try {
       // Получить остатки из кеша
       const stock = this.stocksCache.get(msVariant.id) || { stock: 0, reserve: 0, quantity: 0 };
+      logger.info(`Syncing variant ${msVariant.id}, stock from cache: ${JSON.stringify(stock)}`);
       const stockCount = stock.quantity;
 
       // Логируем первые 3 варианта для отладки
