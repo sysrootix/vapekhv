@@ -43,6 +43,16 @@ export default function BottomNav() {
     },
   ];
 
+  const handleNavClick = (path: string, isActive: boolean) => {
+    if (isActive) {
+      // Если уже на этой странице - скроллим вверх
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      // Иначе переходим на страницу
+      navigate(path);
+    }
+  };
+
   return (
     <motion.nav
       initial={{ y: 100 }}
@@ -55,7 +65,7 @@ export default function BottomNav() {
           return (
             <button
               key={item.path}
-              onClick={() => navigate(item.path)}
+              onClick={() => handleNavClick(item.path, item.active)}
               className="flex-1 flex flex-col items-center justify-center py-2 px-1 relative"
             >
               {/* Active Indicator */}

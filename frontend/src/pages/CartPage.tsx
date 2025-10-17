@@ -5,11 +5,14 @@ import { useNavigate } from 'react-router-dom';
 import { cartApi } from '../api/cart';
 import { productApi } from '../api/product';
 import LoadingScreen from '../components/LoadingScreen';
+import ConfirmModal from '../components/ConfirmModal';
 import toast from 'react-hot-toast';
+import { useState } from 'react';
 
 export default function CartPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['cart'],
@@ -113,11 +116,7 @@ export default function CartPage() {
           </div>
           {cartItems.length > 0 && (
             <button
-              onClick={() => {
-                if (window.confirm('Вы уверены, что хотите очистить корзину?')) {
-                  clearCartMutation.mutate();
-                }
-              }}
+              onClick={() => setShowClearConfirm(true)}
               disabled={clearCartMutation.isPending}
               className="text-red-500 hover:text-red-600 transition-colors text-sm font-medium"
             >
@@ -263,6 +262,21 @@ export default function CartPage() {
           </button>
         </div>
       </motion.div>
+
+      {/* Confirm Clear Modal */}
+      <ConfirmModal
+        isOpen={showClearConfirm}
+        title="Очистить корзину?"
+        message="Все товары будут удалены из корзины. Это действие нельзя отменить."
+        confirmText="Да, очистить"
+        cancelText="Отмена"
+        onConfirm={() => {
+          clearCartMutation.mutate();
+          setShowClearConfirm(false);
+        }}
+        onCancel={() => setShowClearConfirm(false)}
+        danger={true}
+      />
     </div>
   );
 }

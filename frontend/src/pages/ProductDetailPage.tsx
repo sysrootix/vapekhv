@@ -90,6 +90,25 @@ export default function ProductDetailPage() {
     return product.stockCount;
   }, [product]);
 
+  // Количество выбранного варианта уже в корзине
+  const quantityInCart = useMemo(() => {
+    if (!cartData?.items || !selectedOptions || Object.keys(selectedOptions).length === 0) {
+      return 0;
+    }
+
+    const cartItem = cartData.items.find((item: any) => {
+      if (item.productId !== id) return false;
+      if (!item.selectedOptions) return false;
+
+      // Сравниваем выбранные опции
+      return Object.entries(selectedOptions).every(
+        ([key, value]) => item.selectedOptions[key] === value
+      );
+    });
+
+    return cartItem ? cartItem.quantity : 0;
+  }, [cartData, selectedOptions, id]);
+
   if (isLoading) {
     return <LoadingScreen />;
   }
@@ -112,6 +131,9 @@ export default function ProductDetailPage() {
 
   const hasCharacteristics = product.characteristics && product.characteristics.length > 0;
   const isOutOfStock = totalStock === 0;
+
+  // Проверяем, доступен ли выбранный вариант
+  const isSelectedVariantOutOfStock = hasCharacteristics && selectedVariant && selectedVariant.stockCount === 0;
 
   const handleAddToCart = () => {
     if (hasCharacteristics) {
@@ -283,13 +305,23 @@ export default function ProductDetailPage() {
                   
                   {/* Stock Info */}
                   {selectedVariant && (
-                    <div className="text-center pt-2">
-                      <span className="text-tg-hint">
+                    <div className="text-center pt-2 space-y-1">
+                      <span className={`block ${selectedVariant.stockCount === 0 ? 'text-red-500 font-semibold' : 'text-tg-hint'}`}>
                         В наличии: {selectedVariant.stockCount} шт.
                       </span>
+                      {selectedVariant.stockCount === 0 && (
+                        <span className="text-red-500 text-sm block">
+                          Этого варианта нет в наличии
+                        </span>
+                      )}
+                      {quantityInCart > 0 && (
+                        <span className="text-tg-button text-sm block">
+                          В корзине: {quantityInCart} шт.
+                        </span>
+                      )}
                     </div>
                   )}
-                  
+
                   <div className="border-t border-tg-bg"></div>
                 </div>
               )}
@@ -331,11 +363,15 @@ export default function ProductDetailPage() {
           <div className="max-w-4xl mx-auto">
             <button
               onClick={handleAddToCart}
-              disabled={addToCartMutation.isPending || (hasCharacteristics && !selectedVariant)}
+              disabled={addToCartMutation.isPending || (hasCharacteristics && (!selectedVariant || selectedVariant.stockCount === 0))}
               className="w-full bg-tg-button text-tg-button-text py-4 rounded-2xl font-semibold text-lg hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
             >
               <ShoppingCart className="w-6 h-6" />
-              Добавить в корзину • {(currentPrice * quantity).toLocaleString()} ₽
+              {isSelectedVariantOutOfStock ? (
+                'Нет в наличии'
+              ) : (
+                <>Добавить в корзину • {(currentPrice * quantity).toLocaleString()} ₽</>
+              )}
             </button>
           </div>
         </motion.div>
