@@ -80,7 +80,7 @@ class CartController {
         const variant = await prisma.productVariant.findFirst({
           where: {
             productId: product.id,
-            characteristics: selectedOptions,
+            characteristics: { equals: selectedOptions },
           }
         });
 
