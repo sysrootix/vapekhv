@@ -316,6 +316,7 @@ export default function CatalogPage() {
                       </button>
                     )}
                   </div>
+                </div>
               </motion.div>
             ))}
           </div>
