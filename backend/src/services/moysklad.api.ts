@@ -138,35 +138,39 @@ export class MoySkladAPI {
   /**
    * Получить все остатки (товары и варианты) включая нулевые
    * Использует report/stock/all/current с параметром include=zeroLines
+   * Возвращает простой массив [{assortmentId, stock}]
    */
   async getAllStocks(): Promise<Map<string, { stock: number; reserve: number; quantity: number }>> {
     try {
       const stockMap = new Map<string, { stock: number; reserve: number; quantity: number }>();
 
-      // Краткий отчет возвращает все данные за один запрос
-      const response = await this.client.get<MoySkladListResponse<any>>(
+      // Краткий отчет возвращает простой массив, а не объект с rows
+      const response = await this.client.get<Array<{ assortmentId: string; stock: number }>>(
         '/report/stock/all/current',
         {
           params: {
             include: 'zeroLines', // Включить позиции с нулевыми остатками
             groupBy: 'variant', // Группировка по вариантам
+            stockType: 'quantity', // Получить доступное количество
           },
         }
       );
 
-      // Заполняем Map с ID варианта/товара -> остатки
-      for (const item of response.data.rows) {
-        const id = item.meta?.href?.split('/').pop(); // Извлекаем ID из href
-        if (id) {
-          stockMap.set(id, {
+      // response.data - это массив, а не объект с полем rows
+      const items = Array.isArray(response.data) ? response.data : [];
+
+      // Заполняем Map с ID -> остатки
+      for (const item of items) {
+        if (item.assortmentId) {
+          stockMap.set(item.assortmentId, {
             stock: item.stock || 0,
-            reserve: item.reserve || 0,
-            quantity: item.quantity || 0,
+            reserve: 0, // Краткий отчет не содержит reserve
+            quantity: item.stock || 0, // В кратком отчете stock = quantity
           });
 
           // Логируем первые 5 записей для отладки
           if (stockMap.size <= 5) {
-            logger.debug(`Остаток загружен: type=${item.meta?.type}, id=${id}, quantity=${item.quantity || 0}, name=${item.name}`);
+            logger.debug(`Остаток загружен: id=${item.assortmentId}, quantity=${item.stock || 0}`);
           }
         }
       }
