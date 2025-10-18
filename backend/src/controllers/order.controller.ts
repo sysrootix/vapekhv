@@ -927,7 +927,7 @@ class OrderController {
                 userId,
                 productId: product.id,
                 quantity: quantityToAdd,
-                selectedOptions: item.selectedOptions ?? null,
+                ...(item.selectedOptions && { selectedOptions: item.selectedOptions }),
               },
             });
           }
