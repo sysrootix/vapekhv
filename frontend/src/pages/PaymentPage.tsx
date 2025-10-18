@@ -2,11 +2,12 @@ import { motion } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, CreditCard, Upload, Clock, CheckCircle, Copy } from 'lucide-react';
-import { orderApi } from '../api/order';
+import { orderApi, Order } from '../api/order';
 import LoadingScreen from '../components/LoadingScreen';
 import toast from 'react-hot-toast';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTelegramBackButton } from '../hooks/useTelegramApp';
+import { Query } from '@tanstack/react-query';
 
 // Платежные реквизиты
 const PAYMENT_CARD_NUMBER = '2200 7006 8906 2428';
@@ -28,9 +29,9 @@ export default function PaymentPage() {
     queryKey: ['order', orderId],
     queryFn: () => orderApi.getOrder(orderId!),
     enabled: !!orderId,
-    refetchInterval: (data) => {
+    refetchInterval: (query: Query<Order, Error, Order, (string | undefined)[]>) => {
       // Обновляем каждые 10 секунд если статус PENDING_PAYMENT
-      return data?.status === 'PENDING_PAYMENT' ? 10000 : false;
+      return query.state.data?.status === 'PENDING_PAYMENT' ? 10000 : false;
     },
   });
 
