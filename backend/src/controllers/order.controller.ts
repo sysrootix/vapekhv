@@ -4,7 +4,7 @@ import { AuthRequest } from '../middleware/auth';
 import { prisma } from '../config/database';
 import { logger } from '../config/logger';
 import { AppError } from '../middleware/errorHandler';
-import { sendPaymentNotification } from '../services/payment-notification.service';
+import { sendPaymentNotification, sendOrderStatusNotification } from '../services/payment-notification.service';
 
 
 // Константы для доставки
@@ -545,30 +545,7 @@ class OrderController {
           });
         }
 
-        // Начислить бонусы за покупку
-        if (order.bonusEarned > 0) {
-          await tx.user.update({
-            where: { id: order.userId },
-            data: {
-              bonusPoints: {
-                increment: order.bonusEarned,
-              },
-              totalSpent: {
-                increment: order.totalAmount - order.deliveryCost,
-              },
-            },
-          });
-
-          await tx.bonusTransaction.create({
-            data: {
-              userId: order.userId,
-              amount: order.bonusEarned,
-              type: 'EARNED',
-              description: `Начислено за заказ ${order.orderNumber}`,
-              orderId: order.id,
-            },
-          });
-        }
+        // НЕ начисляем бонусы здесь - это будет сделано при статусе DELIVERED
 
         // Уменьшить остатки товаров
         for (const item of order.items) {
@@ -614,6 +591,108 @@ class OrderController {
       if (error instanceof AppError) throw error;
       logger.error('Ошибка при подтверждении оплаты:', error);
       throw new AppError('Не удалось подтвердить оплату', 500);
+    }
+  }
+
+  // Обновить статус заказа (для админов)
+  async updateOrderStatus(req: AuthRequest, res: Response) {
+    try {
+      const { id: orderId } = req.params;
+      const { status } = req.body;
+
+      if (!status) {
+        throw new AppError('Укажите статус заказа', 400);
+      }
+
+      const validStatuses = ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'];
+      if (!validStatuses.includes(status)) {
+        throw new AppError('Некорректный статус заказа', 400);
+      }
+
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          items: {
+            include: {
+              product: true,
+            },
+          },
+          user: true,
+        },
+      });
+
+      if (!order) {
+        throw new AppError('Заказ не найден', 404);
+      }
+
+      // Обновить статус заказа с начислением бонусов для DELIVERED
+      const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        // Обновить статус заказа
+        const updatedOrder = await tx.order.update({
+          where: { id: orderId },
+          data: { status },
+          include: {
+            items: {
+              include: {
+                product: true,
+              },
+            },
+            user: true,
+          },
+        });
+
+        // Начислить бонусы ТОЛЬКО при статусе DELIVERED и если они еще не начислены
+        if (status === 'DELIVERED' && order.bonusEarned > 0 && order.status !== 'DELIVERED') {
+          // Проверяем, не были ли уже начислены бонусы
+          const existingTransaction = await tx.bonusTransaction.findFirst({
+            where: {
+              orderId: order.id,
+              type: 'EARNED',
+            },
+          });
+
+          if (!existingTransaction) {
+            await tx.user.update({
+              where: { id: order.userId },
+              data: {
+                bonusPoints: {
+                  increment: order.bonusEarned,
+                },
+                totalSpent: {
+                  increment: order.totalAmount - order.deliveryCost,
+                },
+              },
+            });
+
+            await tx.bonusTransaction.create({
+              data: {
+                userId: order.userId,
+                amount: order.bonusEarned,
+                type: 'EARNED',
+                description: `Начислено за доставленный заказ ${order.orderNumber}`,
+                orderId: order.id,
+              },
+            });
+          }
+        }
+
+        return updatedOrder;
+      });
+
+      // Отправить уведомление пользователю об изменении статуса
+      try {
+        await sendOrderStatusNotification(updated, status);
+      } catch (error) {
+        logger.error('Ошибка отправки уведомления пользователю:', error);
+      }
+
+      logger.info(`Статус заказа ${order.orderNumber} изменен на ${status}`);
+
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      logger.error('Ошибка при обновлении статуса заказа:', error);
+      throw new AppError('Не удалось обновить статус заказа', 500);
     }
   }
 }

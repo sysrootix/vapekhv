@@ -101,30 +101,7 @@ const handleAdminAction = async (query: TelegramBot.CallbackQuery) => {
           });
         }
 
-        // Начислить бонусы за покупку
-        if (order.bonusEarned > 0) {
-          await tx.user.update({
-            where: { id: order.userId },
-            data: {
-              bonusPoints: {
-                increment: order.bonusEarned,
-              },
-              totalSpent: {
-                increment: order.totalAmount - order.deliveryCost,
-              },
-            },
-          });
-
-          await tx.bonusTransaction.create({
-            data: {
-              userId: order.userId,
-              amount: order.bonusEarned,
-              type: 'EARNED',
-              description: `Начислено за заказ ${order.orderNumber}`,
-              orderId: order.id,
-            },
-          });
-        }
+        // НЕ начисляем бонусы здесь - это будет сделано при статусе DELIVERED
 
         // Уменьшить остатки товаров
         for (const item of order.items) {
@@ -185,6 +162,26 @@ const handleAdminAction = async (query: TelegramBot.CallbackQuery) => {
         text: '✅ Заказ подтвержден!',
       });
 
+      // Отправить уведомление пользователю о подтверждении
+      try {
+        const updatedOrder = await prisma.order.findUnique({
+          where: { id: orderId },
+          include: {
+            items: {
+              include: {
+                product: true,
+              },
+            },
+            user: true,
+          },
+        });
+        if (updatedOrder) {
+          await sendOrderStatusNotification(updatedOrder, 'CONFIRMED');
+        }
+      } catch (error) {
+        logger.error('Ошибка отправки уведомления пользователю:', error);
+      }
+
       logger.info(`✅ Заказ ${order.orderNumber} подтвержден админом @${query.from?.username}`);
 
     } else if (action === 'cancel') {
@@ -226,6 +223,26 @@ const handleAdminAction = async (query: TelegramBot.CallbackQuery) => {
         text: '❌ Заказ отменён!',
       });
 
+      // Отправить уведомление пользователю об отмене
+      try {
+        const updatedOrder = await prisma.order.findUnique({
+          where: { id: orderId },
+          include: {
+            items: {
+              include: {
+                product: true,
+              },
+            },
+            user: true,
+          },
+        });
+        if (updatedOrder) {
+          await sendOrderStatusNotification(updatedOrder, 'CANCELLED');
+        }
+      } catch (error) {
+        logger.error('Ошибка отправки уведомления пользователю:', error);
+      }
+
       logger.info(`❌ Заказ ${order.orderNumber} отменён админом @${query.from?.username}`);
     }
   } catch (error) {
@@ -234,6 +251,69 @@ const handleAdminAction = async (query: TelegramBot.CallbackQuery) => {
       text: '❌ Произошла ошибка',
       show_alert: true,
     });
+  }
+};
+
+// Отправить уведомление пользователю об изменении статуса заказа
+export const sendOrderStatusNotification = async (order: any, status: string) => {
+  if (!bot) {
+    logger.warn('Telegram bot не инициализирован, уведомление пользователю не отправлено');
+    return;
+  }
+
+  try {
+    const statusMessages: { [key: string]: string } = {
+      CONFIRMED: '✅ <b>Заказ подтвержден</b>\n\nВаш заказ подтвержден и принят в обработку.',
+      PROCESSING: '🔄 <b>Заказ в обработке</b>\n\nВаш заказ находится в обработке.',
+      SHIPPED: '📦 <b>Заказ отправлен</b>\n\nВаш заказ отправлен курьером.',
+      DELIVERED: '✅ <b>Заказ доставлен</b>\n\nВаш заказ успешно доставлен!',
+      CANCELLED: '❌ <b>Заказ отменен</b>\n\nВаш заказ был отменен.',
+    };
+
+    const statusText = statusMessages[status] || 'ℹ️ Статус заказа обновлен';
+
+    // Форматирование даты доставки
+    let deliveryDateText = 'Не указана';
+    if (order.deliveryTime === 'Ближайшее время') {
+      deliveryDateText = 'Ближайшее время';
+    } else if (order.deliveryDate) {
+      deliveryDateText = `${order.deliveryDate}${order.deliveryTime && order.deliveryTime !== 'Ближайшее время' ? ', ' + order.deliveryTime : ''}`;
+    }
+
+    const items = order.items
+      .map((item: any) => {
+        const options = item.selectedOptions
+          ? Object.entries(item.selectedOptions)
+              .map(([key, value]) => `${key}: ${value}`)
+              .join(', ')
+          : '';
+        return `${item.product.name} × ${item.quantity}${options ? `\n(${options})` : ''}`;
+      })
+      .join('\n');
+
+    const message = `
+${statusText}
+
+📦 Заказ: <b>#${order.orderNumber}</b>
+📅 ${new Date(order.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+
+${items}
+
+💰 Итого: <b>${order.totalAmount.toLocaleString()}₽</b>
+${status === 'DELIVERED' && order.bonusEarned > 0 ? `\n⭐️ <b>НАЧИСЛЕНО</b> бонусов: ${order.bonusEarned}` : ''}
+
+📍 ${order.deliveryAddress || 'Адрес не указан'}
+📞 ${order.deliveryPhone || 'Телефон не указан'}
+📅 ${deliveryDateText}
+`;
+
+    await bot.sendMessage(order.user.telegramId, message, {
+      parse_mode: 'HTML',
+    });
+
+    logger.info(`📨 Уведомление о статусе "${status}" отправлено пользователю ${order.user.telegramId}`);
+  } catch (error) {
+    logger.error('Ошибка отправки уведомления пользователю:', error);
   }
 };
 
@@ -256,6 +336,18 @@ export const sendPaymentNotification = async (order: any) => {
       })
       .join('\n');
 
+    // Форматирование даты доставки
+    let deliveryDateText = 'Не указана';
+    if (order.deliveryTime === 'Ближайшее время') {
+      deliveryDateText = 'Ближайшее время';
+    } else if (order.deliveryDate) {
+      deliveryDateText = `${order.deliveryDate} ${order.deliveryTime || ''}`;
+    }
+
+    // Добавляем +10 часов для хабаровского времени
+    const khabarovskTime = new Date(order.createdAt);
+    khabarovskTime.setHours(khabarovskTime.getHours() + 10);
+
     const message = `
 🔔 <b>НОВАЯ ОПЛАТА</b>
 
@@ -266,17 +358,17 @@ export const sendPaymentNotification = async (order: any) => {
 
 💰 Сумма: <b>${order.totalAmount.toLocaleString()}₽</b>
 ${order.bonusUsed > 0 ? `🎁 Использовано бонусов: ${order.bonusUsed}\n` : ''}
-${order.bonusEarned > 0 ? `⭐️ К начислению: ${order.bonusEarned} Бонусов\n` : ''}
+${order.bonusEarned > 0 ? `⭐️ К начислению: ${order.bonusEarned}\n` : ''}
 
 📍 Адрес: ${order.deliveryAddress || 'Не указан'}
 📞 Телефон: ${order.deliveryPhone || 'Не указан'}
-📅 Дата доставки: ${order.deliveryDate || 'Не указана'} ${order.deliveryTime || ''}
+📅 Дата доставки: ${deliveryDateText}
 ${order.comment ? `💬 Комментарий: ${order.comment}\n` : ''}
 
 🛒 Товары:
 ${items}
 
-⏰ Создан: ${new Date(order.createdAt).toLocaleString('ru-RU')}
+⏰ Создан: ${khabarovskTime.toLocaleString('ru-RU')}
 `;
 
     // Отправить чек если есть

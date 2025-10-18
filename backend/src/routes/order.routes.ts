@@ -13,6 +13,7 @@ router.get('/:id', orderController.getOrder);
 router.post('/create', orderController.createOrder);
 router.post('/:id/upload-receipt', upload.single('receipt'), orderController.uploadReceipt);
 router.post('/:id/confirm-payment', orderController.confirmPayment);
+router.put('/:id/status', orderController.updateOrderStatus);
 router.post('/:id/cancel', orderController.cancelOrder);
 
 export default router;
