@@ -104,6 +104,9 @@ const startServer = async () => {
     // Start payment expiration checker (always enabled)
     schedulerService.startPaymentCheck();
 
+    // Start stock notification checker (always enabled)
+    schedulerService.startStockNotificationCheck();
+
     // Start sync scheduler and initial sync if MoySklad is enabled
     if (moySkladEnabled) {
       // Start sync scheduler

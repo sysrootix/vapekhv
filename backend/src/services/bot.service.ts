@@ -281,6 +281,54 @@ export const initBot = () => {
   logger.info('✅ Telegram бот успешно запущен');
 };
 
+/**
+ * Отправить уведомление о поступлении товара
+ */
+export const sendStockNotification = async (
+  telegramId: bigint,
+  productName: string,
+  productId: string
+): Promise<void> => {
+  try {
+    const message = `
+🔔 <b>Товар поступил в наличие!</b>
+
+<b>${productName}</b> снова доступен для заказа.
+
+Нажмите кнопку ниже, чтобы перейти к товару и оформить заказ.
+    `.trim();
+
+    await bot.sendMessage(
+      Number(telegramId),
+      message,
+      {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: '🛍️ Посмотреть товар',
+                web_app: { url: `${WEBAPP_URL}/product/${productId}` },
+              },
+            ],
+            [
+              {
+                text: '📦 Перейти в каталог',
+                web_app: { url: `${WEBAPP_URL}/catalog` },
+              },
+            ],
+          ],
+        },
+      }
+    );
+
+    logger.info(`🔔 Уведомление о товаре "${productName}" отправлено пользователю ${telegramId}`);
+  } catch (error) {
+    logger.error(`Ошибка отправки уведомления пользователю ${telegramId}:`, error);
+    throw error;
+  }
+};
+
 // Функция для остановки бота
 export const stopBot = async () => {
   try {

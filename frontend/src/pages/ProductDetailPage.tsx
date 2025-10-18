@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ShoppingCart, Plus, Minus } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, Plus, Minus, Bell, BellOff } from 'lucide-react';
 import { productApi, ProductVariant } from '../api/product';
 import { cartApi } from '../api/cart';
 import LoadingScreen from '../components/LoadingScreen';
@@ -34,6 +34,15 @@ export default function ProductDetailPage() {
     queryFn: cartApi.getCart,
   });
 
+  // Проверка подписки на уведомление о наличии
+  const { data: notificationData } = useQuery({
+    queryKey: ['stockNotification', id],
+    queryFn: () => productApi.checkStockNotificationSubscription(id!),
+    enabled: !!id,
+  });
+
+  const isSubscribed = notificationData?.subscribed ?? false;
+
   // Убрали проверку isInCart - теперь можно добавлять разные варианты товара
   // const isInCart = cartData?.items?.some((item: any) => item.productId === id);
 
@@ -53,6 +62,32 @@ export default function ProductDetailPage() {
     },
     onError: (error: any) => {
       const message = error?.response?.data?.error || 'Ошибка при добавлении в корзину';
+      toast.error(message);
+    },
+  });
+
+  // Подписаться на уведомление о наличии
+  const subscribeNotificationMutation = useMutation({
+    mutationFn: () => productApi.subscribeToStockNotification(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stockNotification', id] });
+      toast.success('Вы подписаны на уведомление о поступлении');
+    },
+    onError: (error: any) => {
+      const message = error?.response?.data?.message || 'Ошибка при подписке';
+      toast.error(message);
+    },
+  });
+
+  // Отписаться от уведомления
+  const unsubscribeNotificationMutation = useMutation({
+    mutationFn: () => productApi.unsubscribeFromStockNotification(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stockNotification', id] });
+      toast.success('Вы отписались от уведомления');
+    },
+    onError: (error: any) => {
+      const message = error?.response?.data?.message || 'Ошибка при отписке';
       toast.error(message);
     },
   });
@@ -389,30 +424,56 @@ export default function ProductDetailPage() {
         </div>
       </div>
 
-      {/* Bottom Bar - Add to Cart */}
-      {!isOutOfStock && (
-        <motion.div
-          initial={{ opacity: 0, y: 50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="fixed bottom-0 left-0 right-0 bg-tg-secondary-bg border-t border-tg-bg p-4 z-20"
-        >
-          <div className="max-w-4xl mx-auto">
+      {/* Bottom Bar - Add to Cart or Stock Notification */}
+      <motion.div
+        initial={{ opacity: 0, y: 50 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5 }}
+        className="fixed bottom-0 left-0 right-0 bg-tg-secondary-bg border-t border-tg-bg p-4 z-20"
+      >
+        <div className="max-w-4xl mx-auto">
+          {isOutOfStock || isSelectedVariantOutOfStock ? (
+            // Кнопка подписки/отписки от уведомлений
+            <button
+              onClick={() => {
+                if (isSubscribed) {
+                  unsubscribeNotificationMutation.mutate();
+                } else {
+                  subscribeNotificationMutation.mutate();
+                }
+              }}
+              disabled={subscribeNotificationMutation.isPending || unsubscribeNotificationMutation.isPending}
+              className={`w-full py-4 rounded-2xl font-semibold text-lg hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-3 ${
+                isSubscribed
+                  ? 'bg-tg-bg text-tg-text border-2 border-tg-button'
+                  : 'bg-tg-button text-tg-button-text'
+              }`}
+            >
+              {isSubscribed ? (
+                <>
+                  <BellOff className="w-6 h-6" />
+                  Отписаться от уведомления
+                </>
+              ) : (
+                <>
+                  <Bell className="w-6 h-6" />
+                  Уведомить о поступлении
+                </>
+              )}
+            </button>
+          ) : (
+            // Кнопка добавления в корзину
             <button
               onClick={handleAddToCart}
               disabled={addToCartMutation.isPending || (hasCharacteristics && (!selectedVariant || selectedVariant.stockCount === 0))}
               className="w-full bg-tg-button text-tg-button-text py-4 rounded-2xl font-semibold text-lg hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
             >
               <ShoppingCart className="w-6 h-6" />
-              {isSelectedVariantOutOfStock ? (
-                'Нет в наличии'
-              ) : (
-                <>Добавить в корзину • {(currentPrice * quantity).toLocaleString()} ₽</>
-              )}
+              Добавить в корзину • {(currentPrice * quantity).toLocaleString()} ₽
             </button>
-          </div>
-        </motion.div>
-      )}
+          )}
+        </div>
+      </motion.div>
     </div>
   );
 }
