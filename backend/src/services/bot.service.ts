@@ -118,7 +118,7 @@ export const initBot = () => {
       helpText += `💰 Оплачивайте до 50% заказа бонусами\n`;
       helpText += `🎁 Копите бонусы на следующие покупки\n\n`;
       helpText += `━━━━━━━━━━━━━━━━━━━\n\n`;
-      helpText += `📞 <b>Поддержка:</b> @support`;
+      helpText += `📞 <b>Поддержка:</b> @vapekhv_admin`;
 
       // Добавляем админские команды для администраторов
       if (isAdmin(chatId)) {
