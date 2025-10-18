@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { AuthRequest } from '../middleware/auth';
 import { prisma } from '../config/database';
 import { logger } from '../config/logger';
 import { AppError } from '../middleware/errorHandler';
@@ -38,7 +39,17 @@ class ProductController {
   // Получить все продукты с фильтрацией
   async getProducts(req: Request, res: Response) {
     try {
-      const { categoryId, search, featured, limit = '50', offset = '0' } = req.query;
+      const {
+        categoryId,
+        search,
+        featured,
+        sortBy = 'createdAt',
+        sortOrder = 'desc',
+        minPrice,
+        maxPrice,
+        limit = '50',
+        offset = '0'
+      } = req.query;
 
       const where: any = {
         isActive: true,
@@ -62,6 +73,29 @@ class ProductController {
       if (featured === 'true') {
         where.isFeatured = true;
       }
+
+      // Фильтр по цене
+      if (minPrice || maxPrice) {
+        where.price = {};
+        if (minPrice) {
+          where.price.gte = parseFloat(minPrice as string);
+        }
+        if (maxPrice) {
+          where.price.lte = parseFloat(maxPrice as string);
+        }
+      }
+
+      // Определяем сортировку
+      let orderByClause: any = { createdAt: 'desc' };
+      if (sortBy === 'price') {
+        orderByClause = { price: sortOrder };
+      } else if (sortBy === 'name') {
+        orderByClause = { name: sortOrder };
+      } else if (sortBy === 'createdAt') {
+        orderByClause = { createdAt: sortOrder };
+      }
+      // Для popularity можно использовать viewCount или orderCount, если они есть
+      // Пока оставим createdAt для новинок
 
       const [productsData, total] = await Promise.all([
         prisma.product.findMany({
@@ -93,7 +127,7 @@ class ProductController {
             },
             variants: true,
           },
-          orderBy: { createdAt: 'desc' },
+          orderBy: orderByClause,
           take: parseInt(limit as string),
           skip: parseInt(offset as string),
         }),
@@ -162,6 +196,109 @@ class ProductController {
       if (error instanceof AppError) throw error;
       logger.error('Ошибка при получении продукта:', error);
       throw new AppError('Не удалось получить продукт', 500);
+    }
+  }
+
+  // Подписаться на уведомление о наличии
+  async subscribeToStockNotification(req: AuthRequest, res: Response) {
+    try {
+      const userId = req.user?.id;
+      const { productId } = req.params;
+
+      if (!userId) {
+        throw new AppError('Пользователь не авторизован', 401);
+      }
+
+      // Проверяем существование продукта
+      const product = await prisma.product.findUnique({
+        where: { id: productId },
+      });
+
+      if (!product) {
+        throw new AppError('Товар не найден', 404);
+      }
+
+      // Если товар в наличии - не даем подписаться
+      if (product.inStock && product.stockCount > 0) {
+        throw new AppError('Товар уже в наличии', 400);
+      }
+
+      // Создаем или обновляем подписку
+      const notification = await prisma.stockNotification.upsert({
+        where: {
+          userId_productId: {
+            userId,
+            productId,
+          },
+        },
+        create: {
+          userId,
+          productId,
+        },
+        update: {
+          notified: false, // Сбрасываем флаг, если подписываемся повторно
+        },
+      });
+
+      logger.info(`Пользователь ${userId} подписался на уведомление о товаре ${productId}`);
+      res.json({ message: 'Вы подписаны на уведомление о поступлении', notification });
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      logger.error('Ошибка при подписке на уведомление:', error);
+      throw new AppError('Не удалось подписаться на уведомление', 500);
+    }
+  }
+
+  // Отписаться от уведомления о наличии
+  async unsubscribeFromStockNotification(req: AuthRequest, res: Response) {
+    try {
+      const userId = req.user?.id;
+      const { productId } = req.params;
+
+      if (!userId) {
+        throw new AppError('Пользователь не авторизован', 401);
+      }
+
+      await prisma.stockNotification.delete({
+        where: {
+          userId_productId: {
+            userId,
+            productId,
+          },
+        },
+      });
+
+      logger.info(`Пользователь ${userId} отписался от уведомления о товаре ${productId}`);
+      res.json({ message: 'Вы отписались от уведомления' });
+    } catch (error) {
+      logger.error('Ошибка при отписке от уведомления:', error);
+      throw new AppError('Не удалось отписаться от уведомления', 500);
+    }
+  }
+
+  // Проверить подписку на уведомление
+  async checkStockNotificationSubscription(req: AuthRequest, res: Response) {
+    try {
+      const userId = req.user?.id;
+      const { productId } = req.params;
+
+      if (!userId) {
+        throw new AppError('Пользователь не авторизован', 401);
+      }
+
+      const subscription = await prisma.stockNotification.findUnique({
+        where: {
+          userId_productId: {
+            userId,
+            productId,
+          },
+        },
+      });
+
+      res.json({ subscribed: !!subscription });
+    } catch (error) {
+      logger.error('Ошибка при проверке подписки:', error);
+      throw new AppError('Не удалось проверить подписку', 500);
     }
   }
 }

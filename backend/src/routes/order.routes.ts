@@ -16,5 +16,6 @@ router.post('/:id/confirm-payment', orderController.confirmPayment);
 router.put('/:id/status', orderController.updateOrderStatus);
 router.post('/:id/cancel', orderController.cancelOrder);
 router.post('/:id/confirm-delivery', orderController.confirmDelivery);
+router.post('/:id/repeat', orderController.repeatOrder);
 
 export default router;

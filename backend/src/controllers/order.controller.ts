@@ -836,6 +836,145 @@ class OrderController {
       throw new AppError('Не удалось подтвердить доставку', 500);
     }
   }
+
+  // Повторить заказ (добавить все товары из заказа в корзину)
+  async repeatOrder(req: AuthRequest, res: Response) {
+    try {
+      const userId = req.user?.id;
+      const { id: orderId } = req.params;
+
+      if (!userId) {
+        throw new AppError('Пользователь не авторизован', 401);
+      }
+
+      // Найти заказ
+      const order = await prisma.order.findFirst({
+        where: {
+          id: orderId,
+          userId,
+        },
+        include: {
+          items: {
+            include: {
+              product: true,
+            },
+          },
+        },
+      });
+
+      if (!order) {
+        throw new AppError('Заказ не найден', 404);
+      }
+
+      // Проверить доступность товаров и добавить в корзину
+      const addedItems = [];
+      const unavailableItems = [];
+
+      for (const item of order.items) {
+        const product = item.product;
+
+        // Проверка наличия товара
+        let isAvailable = false;
+        let availableStock = 0;
+
+        if (item.selectedOptions && typeof item.selectedOptions === 'object') {
+          // Проверяем вариант товара
+          const variant = await prisma.productVariant.findFirst({
+            where: {
+              productId: product.id,
+              characteristics: { equals: item.selectedOptions },
+            },
+          });
+
+          if (variant && variant.inStock && variant.stockCount > 0) {
+            isAvailable = true;
+            availableStock = variant.stockCount;
+          }
+        } else {
+          // Проверяем основной товар
+          if (product.inStock && product.stockCount > 0) {
+            isAvailable = true;
+            availableStock = product.stockCount;
+          }
+        }
+
+        if (isAvailable) {
+          // Проверяем, есть ли уже такой товар в корзине
+          const existingCartItem = await prisma.cartItem.findFirst({
+            where: {
+              userId,
+              productId: product.id,
+              selectedOptions: item.selectedOptions || undefined,
+            },
+          });
+
+          const quantityToAdd = Math.min(item.quantity, availableStock);
+
+          if (existingCartItem) {
+            // Обновляем количество
+            const newQuantity = Math.min(
+              existingCartItem.quantity + quantityToAdd,
+              availableStock
+            );
+            await prisma.cartItem.update({
+              where: { id: existingCartItem.id },
+              data: { quantity: newQuantity },
+            });
+          } else {
+            // Создаем новую позицию в корзине
+            await prisma.cartItem.create({
+              data: {
+                userId,
+                productId: product.id,
+                quantity: quantityToAdd,
+                selectedOptions: item.selectedOptions || undefined,
+              },
+            });
+          }
+
+          addedItems.push({
+            name: product.name,
+            quantity: quantityToAdd,
+          });
+        } else {
+          unavailableItems.push(product.name);
+        }
+      }
+
+      // Получить обновленную корзину
+      const cart = await prisma.cartItem.findMany({
+        where: { userId },
+        include: {
+          product: {
+            include: {
+              category: true,
+            },
+          },
+        },
+      });
+
+      const total = cart.reduce(
+        (sum, item) => sum + item.product.price * item.quantity,
+        0
+      );
+
+      logger.info(`Пользователь ${userId} повторил заказ ${order.orderNumber}`);
+
+      res.json({
+        message: 'Товары добавлены в корзину',
+        addedItems,
+        unavailableItems,
+        cart: {
+          items: cart,
+          total,
+        },
+      });
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      logger.error('Ошибка при повторе заказа:', error);
+      throw new AppError('Не удалось повторить заказ', 500);
+    }
+  }
 }
 
 export default new OrderController();

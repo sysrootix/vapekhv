@@ -71,6 +71,10 @@ export const productApi = {
     categoryId?: string;
     search?: string;
     featured?: boolean;
+    sortBy?: string;
+    sortOrder?: string;
+    minPrice?: string;
+    maxPrice?: string;
     limit?: number;
     offset?: number;
   }): Promise<ProductsResponse> => {
@@ -85,6 +89,22 @@ export const productApi = {
 
   getProductById: async (id: string): Promise<Product> => {
     const response = await apiClient.get<Product>(`/products/${id}`);
+    return response.data;
+  },
+
+  // Stock notifications
+  subscribeToStockNotification: async (productId: string): Promise<{ message: string }> => {
+    const response = await apiClient.post(`/products/${productId}/notify`);
+    return response.data;
+  },
+
+  unsubscribeFromStockNotification: async (productId: string): Promise<{ message: string }> => {
+    const response = await apiClient.delete(`/products/${productId}/notify`);
+    return response.data;
+  },
+
+  checkStockNotificationSubscription: async (productId: string): Promise<{ subscribed: boolean }> => {
+    const response = await apiClient.get(`/products/${productId}/notify/check`);
     return response.data;
   },
 };

@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Package, ShoppingBag, Clock, TrendingUp, Calendar, MapPin, Phone, CheckCircle } from 'lucide-react';
+import { Package, ShoppingBag, Clock, TrendingUp, Calendar, MapPin, Phone, CheckCircle, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTelegramBackButton } from '../hooks/useTelegramApp';
 import { useCallback } from 'react';
@@ -46,6 +46,30 @@ export default function OrdersPage() {
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || 'Ошибка при подтверждении доставки');
+    },
+  });
+
+  // Мутация для повтора заказа
+  const repeatOrderMutation = useMutation({
+    mutationFn: (orderId: string) => orderApi.repeatOrder(orderId),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['cart'] });
+
+      if (data.unavailableItems.length > 0) {
+        toast.error(`Некоторые товары недоступны: ${data.unavailableItems.join(', ')}`, {
+          duration: 5000,
+        });
+      }
+
+      if (data.addedItems.length > 0) {
+        toast.success(`Добавлено в корзину: ${data.addedItems.length} товаров`);
+        setTimeout(() => navigate('/cart'), 1000);
+      } else {
+        toast.error('Все товары из заказа недоступны');
+      }
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Ошибка при повторе заказа');
     },
   });
 
@@ -265,6 +289,20 @@ export default function OrdersPage() {
                     >
                       <CheckCircle className="w-5 h-5" />
                       {confirmDeliveryMutation.isPending ? 'Подтверждаем...' : 'Получил заказ'}
+                    </button>
+                  )}
+
+                  {/* Repeat order button for delivered, cancelled or expired orders */}
+                  {(order.status === OrderStatus.DELIVERED ||
+                    order.status === OrderStatus.CANCELLED ||
+                    order.status === OrderStatus.PAYMENT_EXPIRED) && (
+                    <button
+                      onClick={() => repeatOrderMutation.mutate(order.id)}
+                      disabled={repeatOrderMutation.isPending}
+                      className="w-full bg-tg-button text-tg-button-text py-3 rounded-xl font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      <RefreshCw className="w-5 h-5" />
+                      {repeatOrderMutation.isPending ? 'Добавляем...' : 'Повторить заказ'}
                     </button>
                   )}
                 </motion.div>

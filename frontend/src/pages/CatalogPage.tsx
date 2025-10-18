@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search, ShoppingBag, Plus, Minus } from 'lucide-react';
+import { Search, ShoppingBag, Plus, Minus, ArrowUpDown, SlidersHorizontal, X } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { productApi } from '../api/product';
 import { cartApi } from '../api/cart';
@@ -19,6 +19,11 @@ export default function CatalogPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [sortBy, setSortBy] = useState<'createdAt' | 'price' | 'name'>('createdAt');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [minPrice, setMinPrice] = useState<string>('');
+  const [maxPrice, setMaxPrice] = useState<string>('');
+  const [showFilters, setShowFilters] = useState(false);
   const queryClient = useQueryClient();
 
   // Устанавливаем категорию из navigation state
@@ -34,11 +39,15 @@ export default function CatalogPage() {
   });
 
   const { data: productsData, isLoading: loadingProducts } = useQuery({
-    queryKey: ['products', selectedCategory, search],
+    queryKey: ['products', selectedCategory, search, sortBy, sortOrder, minPrice, maxPrice],
     queryFn: () =>
       productApi.getProducts({
         categoryId: selectedCategory,
         search: search || undefined,
+        sortBy,
+        sortOrder,
+        minPrice: minPrice || undefined,
+        maxPrice: maxPrice || undefined,
       }),
   });
 
@@ -193,6 +202,92 @@ export default function CatalogPage() {
             placeholder="Поиск товаров..."
             className="w-full pl-11 pr-4 py-3 bg-tg-secondary-bg text-tg-text rounded-2xl outline-none focus:ring-2 focus:ring-tg-button transition-all"
           />
+        </motion.div>
+
+        {/* Filters and Sorting */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.15 }}
+          className="space-y-2"
+        >
+          {/* Filter Buttons */}
+          <div className="flex gap-2">
+            {/* Sort Button */}
+            <div className="relative flex-1">
+              <select
+                value={`${sortBy}-${sortOrder}`}
+                onChange={(e) => {
+                  const [newSortBy, newSortOrder] = e.target.value.split('-') as [typeof sortBy, typeof sortOrder];
+                  setSortBy(newSortBy);
+                  setSortOrder(newSortOrder);
+                }}
+                className="w-full bg-tg-secondary-bg text-tg-text pl-3 pr-8 py-2 rounded-xl outline-none text-sm appearance-none cursor-pointer"
+              >
+                <option value="createdAt-desc">Новинки</option>
+                <option value="price-asc">Цена: по возрастанию</option>
+                <option value="price-desc">Цена: по убыванию</option>
+                <option value="name-asc">А-Я</option>
+                <option value="name-desc">Я-А</option>
+              </select>
+              <ArrowUpDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-tg-hint pointer-events-none" />
+            </div>
+
+            {/* Price Filter Toggle */}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 transition-colors ${
+                showFilters || minPrice || maxPrice
+                  ? 'bg-tg-button text-tg-button-text'
+                  : 'bg-tg-secondary-bg text-tg-text'
+              }`}
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              Фильтры
+            </button>
+          </div>
+
+          {/* Price Range Filters */}
+          {showFilters && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="bg-tg-secondary-bg rounded-xl p-3 space-y-2"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-tg-text">Диапазон цен</span>
+                {(minPrice || maxPrice) && (
+                  <button
+                    onClick={() => {
+                      setMinPrice('');
+                      setMaxPrice('');
+                    }}
+                    className="text-xs text-tg-hint hover:text-tg-text flex items-center gap-1"
+                  >
+                    <X className="w-3 h-3" />
+                    Сбросить
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  value={minPrice}
+                  onChange={(e) => setMinPrice(e.target.value)}
+                  placeholder="От"
+                  className="px-3 py-2 bg-tg-bg text-tg-text rounded-lg outline-none text-sm"
+                />
+                <input
+                  type="number"
+                  value={maxPrice}
+                  onChange={(e) => setMaxPrice(e.target.value)}
+                  placeholder="До"
+                  className="px-3 py-2 bg-tg-bg text-tg-text rounded-lg outline-none text-sm"
+                />
+              </div>
+            </motion.div>
+          )}
         </motion.div>
 
         {/* Categories */}

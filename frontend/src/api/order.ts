@@ -91,4 +91,9 @@ export const orderApi = {
     const response = await apiClient.post<Order>(`/orders/${id}/confirm-delivery`);
     return response.data;
   },
+
+  repeatOrder: async (id: string): Promise<{ message: string; addedItems: any[]; unavailableItems: string[]; cart: any }> => {
+    const response = await apiClient.post(`/orders/${id}/repeat`);
+    return response.data;
+  },
 };
