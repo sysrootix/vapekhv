@@ -179,7 +179,7 @@ export interface MoySkladCustomerOrder {
   name: string; // Номер заказа
   moment: string; // Дата и время заказа
   organization: MoySkladReference; // Наша организация
-  agent: MoySkladReference; // Покупатель
+  agent: MoySkladAgent; // Покупатель
   store?: MoySkladReference; // Склад
   state?: MoySkladReference; // Статус заказа
   sum: number; // Сумма заказа в копейках

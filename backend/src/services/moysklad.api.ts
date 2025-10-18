@@ -8,6 +8,7 @@ import {
   MoySkladVariant,
   MoySkladImage,
   MoySkladError,
+  MoySkladCustomerOrder,
 } from '../types/moysklad.types';
 
 /**

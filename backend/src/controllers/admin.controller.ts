@@ -4,7 +4,7 @@ import { AuthRequest } from '../middleware/auth';
 import { prisma } from '../config/database';
 import { logger } from '../config/logger';
 import { AppError } from '../middleware/errorHandler';
-import { sendPaymentNotification, sendOrderStatusNotification } from '../services/payment-notification.service';
+import { sendOrderStatusNotification } from '../services/payment-notification.service';
 
 // Получить список админов из переменных окружения
 const getAdminChatIds = (): number[] => {

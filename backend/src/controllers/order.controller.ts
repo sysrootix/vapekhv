@@ -6,7 +6,7 @@ import { logger } from '../config/logger';
 import { AppError } from '../middleware/errorHandler';
 import { sendPaymentNotification, sendOrderStatusNotification } from '../services/payment-notification.service';
 import { moySkladAPI } from '../services/moysklad.api';
-import { MoySkladCustomerOrder, MoySkladCustomerOrderPosition } from '../types/moysklad.types';
+import { MoySkladAgent, MoySkladCustomerOrder, MoySkladCustomerOrderPosition } from '../types/moysklad.types';
 
 
 // Константы для доставки
