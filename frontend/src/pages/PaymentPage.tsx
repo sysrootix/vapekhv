@@ -5,7 +5,7 @@ import { ArrowLeft, CreditCard, Upload, Clock, CheckCircle, Copy } from 'lucide-
 import { orderApi, Order } from '../api/order';
 import LoadingScreen from '../components/LoadingScreen';
 import toast from 'react-hot-toast';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTelegramBackButton } from '../hooks/useTelegramApp';
 import { Query } from '@tanstack/react-query';
 
@@ -61,7 +61,7 @@ export default function PaymentPage() {
     if (!order?.paymentExpiresAt) return;
 
     const calculateTimeRemaining = () => {
-      const expiresAt = new Date(order.paymentExpiresAt).getTime();
+      const expiresAt = new Date(order.paymentExpiresAt!).getTime();
       const now = Date.now();
       const diff = expiresAt - now;
 

@@ -266,7 +266,7 @@ export const sendPaymentNotification = async (order: any) => {
 
 💰 Сумма: <b>${order.totalAmount.toLocaleString()}₽</b>
 ${order.bonusUsed > 0 ? `🎁 Использовано бонусов: ${order.bonusUsed}\n` : ''}
-${order.bonusEarned > 0 ? `⭐️ К начислению: ${order.bonusEarned}\n` : ''}
+${order.bonusEarned > 0 ? `⭐️ К начислению: ${order.bonusEarned} Бонусов\n` : ''}
 
 📍 Адрес: ${order.deliveryAddress || 'Не указан'}
 📞 Телефон: ${order.deliveryPhone || 'Не указан'}
