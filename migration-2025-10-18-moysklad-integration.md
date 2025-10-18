@@ -23,24 +23,22 @@
 ## Изменения в коде:
 
 1.  **backend/src/controllers/admin.controller.ts**: Исправлена логика обновления `adminDeliveryCost` и статуса заказа, чтобы избежать перезаписи. Теперь обновление `adminDeliveryCost` и статуса происходит в одной транзакции.
-2.  **backend/src/services/moysklad.api.ts**: Добавлен метод `createCustomerOrder` для создания заказов покупателей в МойСклад.
-3.  **backend/src/controllers/order.controller.ts**: В метод `confirmPayment` добавлена логика создания заказа в МойСклад после подтверждения оплаты.
+2.  **backend/src/services/moysklad.api.ts**: Добавлены методы для поиска/создания контрагентов, создания заказов, отгрузок и кассовых ордеров в МойСклад.
+3.  **backend/src/controllers/order.controller.ts**: Логика `confirmPayment` создает заказ покупателя, отгрузку и приходный кассовый ордер в МойСклад, автоматически уменьшает остатки и фиксирует оплату наличными. Позиции подбираются по `moySkladId` товара и вариантов.
 
-## Важные TODOs:
+## Что нужно настроить в окружении
 
-В файле `backend/src/controllers/order.controller.ts` есть следующие `TODO`s, которые необходимо заменить на актуальные значения из вашего аккаунта МойСклад:
+Убедитесь, что в `.env` (или переменных окружения на сервере) указаны корректные значения:
 
-*   Замените `YOUR_ORGANIZATION_ID` на ID вашей организации в МойСклад:
-    ```typescript
-    href: 'https://api.moysklad.ru/api/remap/1.2/entity/organization/YOUR_ORGANIZATION_ID',
-    ```
-*   Замените `YOUR_COUNTERPARTY_ID` на ID контрагента по умолчанию или реализуйте логику создания нового контрагента, если его нет:
-    ```typescript
-    href: 'https://api.moysklad.ru/api/remap/1.2/entity/counterparty/YOUR_COUNTERPARTY_ID',
-    ```
-*   Реализуйте логику для обработки вариантов товаров (модификаций) вместо простого `productId`:
-    ```typescript
-    href: `https://api.moysklad.ru/api/remap/1.2/entity/product/${item.productId}`, // TODO: Handle variants
-    ```
+```dotenv
+MOYSKLAD_TOKEN=токен_доступа_к_API
+MOYSKLAD_ORGANIZATION_ID=ID_вашей_организации
+MOYSKLAD_STORE_ID=ID_склада_для_отгрузки
+```
 
-После выполнения этих шагов, функциональность обновления `adminDeliveryCost` и создания заказов в МойСклад должна работать корректно.
+### Как узнать значения
+
+1. Выполните скрипт `backend/src/scripts/getMoySkladIds.ts`, либо посмотрите ID в интерфейсе МойСклад.
+2. Для склада откройте нужный склад в МойСклад и скопируйте ID из URL.
+
+После заполнения переменных окружения перезапустите backend — при подтверждении оплаты заказ будет автоматически синхронизирован с МойСклад (создастся заказ покупателя, отгрузка и кассовый ордер с оплатой наличными).

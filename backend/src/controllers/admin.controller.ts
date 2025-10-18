@@ -123,12 +123,14 @@ class AdminController {
         throw new AppError('Заказ не найден', 404);
       }
 
-      const updated = await prisma.$transaction(async (tx) => {
-        const updateData: Prisma.OrderUpdateInput = { status };
+      const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        const updateData: Record<string, any> = { status };
 
         const costToSave = adminDeliveryCost ?? deliveryCost;
         if (costToSave !== undefined && costToSave !== null) {
-          updateData.adminDeliveryCost = parseFloat(costToSave.toString());
+          Object.assign(updateData, {
+            adminDeliveryCost: parseFloat(costToSave.toString()),
+          });
         }
 
         const updatedOrder = await tx.order.update({

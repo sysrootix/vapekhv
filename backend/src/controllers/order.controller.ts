@@ -644,7 +644,7 @@ class OrderController {
 
           const preparedItems = (
             await Promise.all(
-              confirmed.items.map(async (item) => {
+              confirmed.items.map(async (item: (typeof confirmed.items)[number]) => {
                 const price = Math.round(item.price * 100);
                 let assortmentMeta: MoySkladMeta | null = null;
 
@@ -653,7 +653,7 @@ class OrderController {
                     where: {
                       productId: item.productId,
                       characteristics: {
-                        equals: item.selectedOptions as Prisma.JsonValue,
+                        equals: item.selectedOptions as any,
                       },
                     },
                     select: {
