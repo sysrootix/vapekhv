@@ -178,7 +178,7 @@ export default function AdminPage() {
           </div>
         </motion.div>
 
-        <section className="space-y-6">
+        <section className="bg-tg-secondary-bg rounded-3xl p-2 space-y-6 border border-transparent">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-tg-hint pointer-events-none" />
