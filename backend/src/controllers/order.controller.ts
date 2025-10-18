@@ -214,7 +214,7 @@ class OrderController {
                 },
                 quantity: item.quantity,
                 price: item.product.price,
-                selectedOptions: item.selectedOptions || null,
+                selectedOptions: item.selectedOptions || undefined,
               })),
             },
           },
