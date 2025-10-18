@@ -5,39 +5,100 @@ import { prisma } from '../config/database';
 import { logger } from '../config/logger';
 import { AppError } from '../middleware/errorHandler';
 import { sendOrderStatusNotification } from '../services/payment-notification.service';
+import { syncOrderWithMoySklad } from '../services/moysklad-sync.service';
+import {
+  fetchCrmOverview,
+  fetchCrmUsers,
+  fetchCrmUserDetails,
+  fetchRevenueSeries,
+} from '../services/crm.service';
 
-// Получить список админов из переменных окружения
-const getAdminChatIds = (): number[] => {
-  const adminIds = process.env.ADMIN_CHAT_IDS || '';
-  return adminIds
+const parseChatIds = (value?: string | null): number[] => {
+  if (!value) {
+    return [];
+  }
+
+  return value
     .split(',')
-    .map(id => parseInt(id.trim()))
-    .filter(id => !isNaN(id));
+    .map(id => parseInt(id.trim(), 10))
+    .filter(id => !Number.isNaN(id));
 };
 
-// Middleware для проверки прав администратора
+const getAdminChatIds = (): number[] => parseChatIds(process.env.ADMIN_CHAT_IDS);
+const getCrmChatIds = (): number[] => parseChatIds(process.env.CRM_CHAT_IDS);
+
+export type AdminRole = 'ADMIN' | 'CRM' | 'NONE';
+
+export interface AdminAccess {
+  role: AdminRole;
+  permissions: {
+    manageOrders: boolean;
+    viewCrm: boolean;
+  };
+}
+
+const resolveAccess = (req: AuthRequest): AdminAccess => {
+  const telegramIdValue = req.user?.telegramId;
+  if (!telegramIdValue) {
+    return {
+      role: 'NONE',
+      permissions: {
+        manageOrders: false,
+        viewCrm: false,
+      },
+    };
+  }
+
+  const telegramId = Number(telegramIdValue);
+  if (Number.isNaN(telegramId)) {
+    return {
+      role: 'NONE',
+      permissions: {
+        manageOrders: false,
+        viewCrm: false,
+      },
+    };
+  }
+
+  const adminIds = getAdminChatIds();
+  if (adminIds.includes(telegramId)) {
+    return {
+      role: 'ADMIN',
+      permissions: {
+        manageOrders: true,
+        viewCrm: true,
+      },
+    };
+  }
+
+  const crmIds = getCrmChatIds();
+  if (crmIds.includes(telegramId)) {
+    return {
+      role: 'CRM',
+      permissions: {
+        manageOrders: false,
+        viewCrm: true,
+      },
+    };
+  }
+
+  return {
+    role: 'NONE',
+    permissions: {
+      manageOrders: false,
+      viewCrm: false,
+    },
+  };
+};
+
 export const requireAdmin = async (req: AuthRequest, _res: Response, next: Function) => {
   try {
-    const userId = req.user?.id;
-
-    if (!userId) {
+    if (!req.user?.id) {
       throw new AppError('Пользователь не авторизован', 401);
     }
 
-    // Получить пользователя с telegramId
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { telegramId: true }
-    });
-
-    if (!user) {
-      throw new AppError('Пользователь не найден', 404);
-    }
-
-    const adminChatIds = getAdminChatIds();
-    const telegramId = Number(user.telegramId);
-
-    if (!adminChatIds.includes(telegramId)) {
+    const access = resolveAccess(req);
+    if (!access.permissions.manageOrders) {
       throw new AppError('Доступ запрещен. Требуются права администратора', 403);
     }
 
@@ -47,7 +108,29 @@ export const requireAdmin = async (req: AuthRequest, _res: Response, next: Funct
   }
 };
 
+export const requireCrmAccess = async (req: AuthRequest, _res: Response, next: Function) => {
+  try {
+    if (!req.user?.id) {
+      throw new AppError('Пользователь не авторизован', 401);
+    }
+
+    const access = resolveAccess(req);
+    if (!access.permissions.viewCrm) {
+      throw new AppError('Доступ запрещен. Требуются права CRM', 403);
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
 class AdminController {
+  getAccess(req: AuthRequest, res: Response) {
+    const access = resolveAccess(req);
+    res.json(access);
+  }
+
   // Получить все заказы (с фильтрацией по статусу)
   async getOrders(req: AuthRequest, res: Response) {
     try {
@@ -183,6 +266,16 @@ class AdminController {
         return updatedOrder;
       });
 
+      // Синхронизировать с МойСклад при статусе DELIVERED
+      if (status === 'DELIVERED') {
+        try {
+          await syncOrderWithMoySklad(updated);
+        } catch (moyskladError) {
+          logger.error('Ошибка при синхронизации заказа в МойСклад:', moyskladError);
+          // Не выбрасываем ошибку, чтобы основной процесс не прерывался
+        }
+      }
+
       // Отправить уведомление пользователю об изменении статуса
       try {
         await sendOrderStatusNotification(updated, status);
@@ -230,6 +323,82 @@ class AdminController {
     } catch (error) {
       logger.error('Ошибка при получении статистики:', error);
       throw new AppError('Не удалось получить статистику', 500);
+    }
+  }
+
+  async getCrmOverview(req: AuthRequest, res: Response) {
+    try {
+      const rangeParam = typeof req.query.rangeDays === 'string' ? parseInt(req.query.rangeDays, 10) : undefined;
+      const overview = await fetchCrmOverview(rangeParam);
+      res.json(overview);
+    } catch (error) {
+      logger.error('Ошибка при получении CRM-обзора:', error);
+      throw new AppError('Не удалось получить данные CRM', 500);
+    }
+  }
+
+  async getRevenueSeries(req: AuthRequest, res: Response) {
+    try {
+      const intervalRaw = typeof req.query.interval === 'string' ? req.query.interval : 'daily';
+      const allowedIntervals = new Set(['daily', 'weekly', 'monthly']);
+      const interval = allowedIntervals.has(intervalRaw) ? (intervalRaw as 'daily' | 'weekly' | 'monthly') : 'daily';
+
+      const periodsParam = typeof req.query.periods === 'string' ? parseInt(req.query.periods, 10) : undefined;
+      const periods = periodsParam && !Number.isNaN(periodsParam) ? periodsParam : interval === 'monthly' ? 12 : 14;
+
+      const series = await fetchRevenueSeries({ interval, periods });
+      res.json(series);
+    } catch (error) {
+      logger.error('Ошибка при получении динамики выручки:', error);
+      throw new AppError('Не удалось получить данные по выручке', 500);
+    }
+  }
+
+  async getCrmUsers(req: AuthRequest, res: Response) {
+    try {
+      const pageParam = typeof req.query.page === 'string' ? parseInt(req.query.page, 10) : 1;
+      const pageSizeParam = typeof req.query.pageSize === 'string' ? parseInt(req.query.pageSize, 10) : 20;
+      const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+      const sortParam = typeof req.query.sort === 'string' ? req.query.sort : undefined;
+      const allowedSorts = ['spent_desc', 'spent_asc', 'newest', 'oldest', 'last_active', 'bonuses_desc'] as const;
+      const sort = sortParam && (allowedSorts as readonly string[]).includes(sortParam)
+        ? (sortParam as (typeof allowedSorts)[number])
+        : undefined;
+
+      const users = await fetchCrmUsers({
+        page: Number.isNaN(pageParam) ? 1 : pageParam,
+        pageSize: Number.isNaN(pageSizeParam) ? 20 : pageSizeParam,
+        search,
+        sort,
+      });
+
+      res.json(users);
+    } catch (error) {
+      logger.error('Ошибка при получении списка пользователей CRM:', error);
+      throw new AppError('Не удалось получить пользователей', 500);
+    }
+  }
+
+  async getCrmUserDetails(req: AuthRequest, res: Response) {
+    try {
+      const { id } = req.params;
+      if (!id) {
+        throw new AppError('Не передан идентификатор пользователя', 400);
+      }
+
+      const details = await fetchCrmUserDetails(id);
+      if (!details) {
+        throw new AppError('Пользователь не найден', 404);
+      }
+
+      res.json(details);
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      logger.error('Ошибка при получении данных пользователя CRM:', error);
+      throw new AppError('Не удалось получить данные пользователя', 500);
     }
   }
 }

@@ -585,14 +585,6 @@ class OrderController {
         return updatedOrder;
       });
 
-      // Создать документы в МойСклад
-      try {
-        await syncOrderWithMoySklad(confirmed);
-      } catch (moyskladError) {
-        logger.error('Ошибка при синхронизации заказа в МойСклад:', moyskladError);
-        // Не выбрасываем ошибку, чтобы основной процесс подтверждения заказа не прерывался
-      }
-
       logger.info(`Заказ ${order.orderNumber} подтвержден администратором`);
 
       res.json(confirmed);
@@ -687,6 +679,16 @@ class OrderController {
 
         return updatedOrder;
       });
+
+      // Синхронизировать с МойСклад при статусе DELIVERED
+      if (status === 'DELIVERED') {
+        try {
+          await syncOrderWithMoySklad(updated);
+        } catch (moyskladError) {
+          logger.error('Ошибка при синхронизации заказа в МойСклад:', moyskladError);
+          // Не выбрасываем ошибку, чтобы основной процесс не прерывался
+        }
+      }
 
       // Отправить уведомление пользователю об изменении статуса
       try {
@@ -791,6 +793,14 @@ class OrderController {
 
         return updatedOrder;
       });
+
+      // Синхронизировать с МойСклад
+      try {
+        await syncOrderWithMoySklad(updated);
+      } catch (moyskladError) {
+        logger.error('Ошибка при синхронизации заказа в МойСклад:', moyskladError);
+        // Не выбрасываем ошибку, чтобы основной процесс не прерывался
+      }
 
       // Отправить уведомление пользователю об изменении статуса
       try {
