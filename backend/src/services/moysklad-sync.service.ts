@@ -53,6 +53,17 @@ const buildMeta = (type: string, id: string): MoySkladMeta => ({
   mediaType: 'application/json',
 });
 
+const formatMoySkladDate = (date: Date): string => {
+  const pad = (value: number) => value.toString().padStart(2, '0');
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+  const seconds = pad(date.getSeconds());
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+};
+
 const normalizeDeliveryMoment = (dateInput: string | null, timeInput: string | null): string | undefined => {
   if (!dateInput) {
     return undefined;
@@ -99,7 +110,7 @@ const normalizeDeliveryMoment = (dateInput: string | null, timeInput: string | n
     return undefined;
   }
 
-  return parsed.toISOString();
+  return formatMoySkladDate(parsed);
 };
 
 export async function syncOrderWithMoySklad(order: OrderWithRelations): Promise<void> {
@@ -216,7 +227,7 @@ export async function syncOrderWithMoySklad(order: OrderWithRelations): Promise<
 
   const moyskladOrderPayload: MoySkladCustomerOrder = {
     name: order.orderNumber,
-    moment: new Date().toISOString(),
+    moment: formatMoySkladDate(new Date()),
     organization: organizationRef,
     agent: {
       meta: agentReference.meta,
@@ -244,7 +255,7 @@ export async function syncOrderWithMoySklad(order: OrderWithRelations): Promise<
 
     const demandPayload: MoySkladDemand = {
       name: `${order.orderNumber}-отгрузка`,
-      moment: new Date().toISOString(),
+      moment: formatMoySkladDate(new Date()),
       organization: organizationRef,
       agent: agentReference,
       store: storeRef,
@@ -270,7 +281,7 @@ export async function syncOrderWithMoySklad(order: OrderWithRelations): Promise<
 
     const cashInPayload: MoySkladCashIn = {
       name: `${order.orderNumber}-оплата`,
-      moment: new Date().toISOString(),
+      moment: formatMoySkladDate(new Date()),
       organization: organizationRef,
       agent: agentReference,
       sum: orderTotalCoins,
