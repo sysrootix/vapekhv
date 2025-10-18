@@ -11,6 +11,8 @@ export interface LoginResponse {
     photoUrl?: string;
     isPremium: boolean;
   };
+  requiresBotStart?: boolean;
+  botStartUrl?: string;
 }
 
 export const authApi = {

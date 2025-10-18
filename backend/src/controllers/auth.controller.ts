@@ -52,6 +52,9 @@ class AuthController {
         where: { telegramId: BigInt(telegramUser.id) },
       });
 
+      let requiresBotStart = false;
+      let botStartUrl: string | null = null;
+
       if (!user) {
         // Создаем нового пользователя
         user = await prisma.user.create({
@@ -102,17 +105,20 @@ class AuthController {
           }
         }
 
-        try {
-          await sendWebAppWelcomeMessage(user.telegramId, {
-            firstName: telegramUser.first_name || telegramUser.username || user.firstName || user.username,
-            referralInviterName:
-              referralContext?.inviter?.firstName
-                ? `${referralContext.inviter.firstName}${referralContext.inviter.lastName ? ` ${referralContext.inviter.lastName}` : ''}`.trim()
-                : referralContext?.inviter?.username || null,
-            referralBonusAmount: referralContext?.referral?.bonusAmount ?? null,
-          });
-        } catch (welcomeError) {
-          logger.error('Ошибка отправки приветственного сообщения пользователю:', welcomeError);
+        const welcomeResult = await sendWebAppWelcomeMessage(user.telegramId, {
+          firstName: telegramUser.first_name || telegramUser.username || user.firstName || user.username,
+          referralInviterName:
+            referralContext?.inviter?.firstName
+              ? `${referralContext.inviter.firstName}${referralContext.inviter.lastName ? ` ${referralContext.inviter.lastName}` : ''}`.trim()
+              : referralContext?.inviter?.username || null,
+          referralBonusAmount: referralContext?.referral?.bonusAmount ?? null,
+        });
+
+        if (!welcomeResult.success && welcomeResult.reason === 'CHAT_NOT_FOUND') {
+          requiresBotStart = true;
+          botStartUrl = welcomeResult.startUrl ?? botStartUrl;
+        } else if (!welcomeResult.success && welcomeResult.reason === 'UNKNOWN') {
+          logger.warn('Приветственное сообщение не отправлено по неизвестной причине');
         }
       } else {
         // Обновляем время последнего входа
@@ -137,6 +143,17 @@ class AuthController {
         } catch (error) {
           logger.error('Ошибка при обеспечении реферального кода:', error);
         }
+
+        const welcomeResult = await sendWebAppWelcomeMessage(user.telegramId, {
+          firstName: telegramUser.first_name || telegramUser.username || user.firstName || user.username,
+        });
+
+        if (!welcomeResult.success && welcomeResult.reason === 'CHAT_NOT_FOUND') {
+          requiresBotStart = true;
+          botStartUrl = welcomeResult.startUrl ?? botStartUrl;
+        } else if (!welcomeResult.success && welcomeResult.reason === 'UNKNOWN') {
+          logger.warn('Приветственное сообщение не отправлено по неизвестной причине');
+        }
       }
 
       // Генерируем JWT токен
@@ -153,6 +170,8 @@ class AuthController {
           photoUrl: user.photoUrl,
           isPremium: user.isPremium,
         },
+        requiresBotStart,
+        botStartUrl: requiresBotStart ? botStartUrl ?? undefined : undefined,
       });
     } catch (error) {
       if (error instanceof AppError) {

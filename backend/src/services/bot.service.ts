@@ -7,6 +7,7 @@ import { referralService } from './referral.service';
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const WEBAPP_URL = process.env.WEBAPP_URL;
 const REFERRAL_PAGE_URL = WEBAPP_URL ? `${WEBAPP_URL.replace(/\/$/, '')}/referrals` : null;
+const BOT_USERNAME = process.env.TELEGRAM_BOT_USERNAME;
 
 if (!WEBAPP_URL) {
   throw new Error('WEBAPP_URL is not defined in environment variables');
@@ -366,14 +367,21 @@ ${payload.inviteeName} сделал первый заказ.
   }
 };
 
+export const getBotStartUrl = (startParam = 'start'): string | null => {
+  if (!BOT_USERNAME) return null;
+  return `https://t.me/${BOT_USERNAME}?start=${startParam}`;
+};
+
 export const sendWebAppWelcomeMessage = async (
   telegramId: bigint,
   payload: {
     firstName?: string | null;
     referralInviterName?: string | null;
     referralBonusAmount?: number | null;
-  } = {}
-): Promise<void> => {
+  } = {},
+): Promise<{ success: boolean; reason?: 'CHAT_NOT_FOUND' | 'UNKNOWN'; startUrl?: string }> => {
+  const startUrl = getBotStartUrl();
+
   try {
     const keyboard: TelegramBot.InlineKeyboardButton[][] = [
       [
@@ -408,8 +416,15 @@ export const sendWebAppWelcomeMessage = async (
         inline_keyboard: keyboard,
       },
     });
-  } catch (error) {
+    return { success: true, startUrl: startUrl ?? undefined };
+  } catch (error: any) {
+    const description = error?.response?.body?.description;
+    if (description && description.includes('chat not found')) {
+      logger.info(`Невозможно отправить приветственное сообщение пользователю ${telegramId}: чат не найден (пользователь не запустил бота).`);
+      return { success: false, reason: 'CHAT_NOT_FOUND', startUrl: startUrl ?? undefined };
+    }
     logger.error(`Ошибка отправки приветственного сообщения пользователю ${telegramId}:`, error);
+    return { success: false, reason: 'UNKNOWN', startUrl: startUrl ?? undefined };
   }
 };
 

@@ -24,6 +24,35 @@ export default function AuthPage() {
   const loginMutation = useMutation({
     mutationFn: authApi.telegramLogin,
     onSuccess: (data) => {
+      if (data.requiresBotStart && data.botStartUrl) {
+        const link = data.botStartUrl;
+        const openLink = () => {
+          if (window.Telegram?.WebApp?.openTelegramLink) {
+            window.Telegram.WebApp.openTelegramLink(link);
+          } else {
+            window.open(link, '_blank', 'noopener');
+          }
+        };
+        openLink();
+        toast.custom(
+          (t) => (
+            <div className="space-y-2">
+              <p className="font-semibold text-tg-text">Нажмите «Start» в чате с ботом</p>
+              <button
+                onClick={() => {
+                  openLink();
+                  toast.dismiss(t.id);
+                }}
+                className="w-full px-3 py-2 rounded-xl bg-tg-button text-tg-button-text font-medium"
+              >
+                Открыть бота
+              </button>
+            </div>
+          ),
+          { duration: 6000 }
+        );
+      }
+
       setAuth(data.user, data.token);
       toast.success('Добро пожаловать!');
       navigate('/profile');
