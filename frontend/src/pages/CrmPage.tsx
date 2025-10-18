@@ -135,6 +135,11 @@ export default function CrmPage() {
   const [userFormInitial, setUserFormInitial] = useState<UserFormState | null>(null);
 
   useEffect(() => {
+    window.Telegram?.WebApp?.expand();
+    window.Telegram?.WebApp?.disableVerticalSwipes?.();
+  }, []);
+
+  useEffect(() => {
     const handler = setTimeout(() => {
       setCrmSearch(crmSearchInput.trim());
       setCrmPage(1);
