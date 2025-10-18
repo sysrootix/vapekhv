@@ -303,7 +303,7 @@ export default function ProfilePage() {
             description="Связаться с нами"
             onClick={() => {
               // Открыть ссылку в Telegram
-              window.open('https://t.me/your_support_bot', '_blank');
+              window.open(import.meta.env.VITE_TELEGRAM_SUPPORT_BOT_URL, '_blank');
             }}
             color="purple"
           />

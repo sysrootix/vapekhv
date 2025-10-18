@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export const moySkladConfig = {
-  apiUrl: 'https://api.moysklad.ru/api/remap/1.2',
+  apiUrl: process.env.MOYSKLAD_API_URL || 'https://api.moysklad.ru/api/remap/1.2',
   token: process.env.MOYSKLAD_TOKEN || '',
   syncIntervalMinutes: 30, // Синхронизация каждые 30 минут
 

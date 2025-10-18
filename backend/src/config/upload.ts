@@ -10,10 +10,10 @@ if (!fs.existsSync(receiptsDir)) {
 
 // Конфигурация хранилища
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
+  destination: (_req, _file, cb) => {
     cb(null, receiptsDir);
   },
-  filename: (req, file, cb) => {
+  filename: (_req, file, cb) => {
     // Генерируем уникальное имя файла
     const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
     const ext = path.extname(file.originalname);
@@ -22,7 +22,7 @@ const storage = multer.diskStorage({
 });
 
 // Фильтр файлов - только изображения
-const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+const fileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 
   if (allowedMimeTypes.includes(file.mimetype)) {

@@ -3,7 +3,7 @@ import { logger } from '../config/logger';
 import { syncService } from './sync.service';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const WEBAPP_URL = process.env.WEBAPP_URL || 'https://vapekhv.live';
+const WEBAPP_URL = process.env.WEBAPP_URL;
 
 // Список ID админов (можно вынести в .env как ADMIN_CHAT_IDS=123,456,789)
 const ADMIN_CHAT_IDS = process.env.ADMIN_CHAT_IDS

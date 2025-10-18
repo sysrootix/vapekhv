@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { logger } from '../config/logger';
 import { prisma } from '../config/database';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 export interface AuthRequest extends Request {
   user?: any; // TODO: Replace with a proper User type from Prisma

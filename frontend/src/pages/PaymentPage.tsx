@@ -10,8 +10,8 @@ import { useTelegramBackButton } from '../hooks/useTelegramApp';
 import { Query } from '@tanstack/react-query';
 
 // Платежные реквизиты
-const PAYMENT_CARD_NUMBER = '2200 7006 8906 2428';
-const PAYMENT_CARD_HOLDER = 'Никита Алексеевич Ч.';
+const PAYMENT_CARD_NUMBER = import.meta.env.VITE_PAYMENT_CARD_NUMBER;
+const PAYMENT_CARD_HOLDER = import.meta.env.VITE_PAYMENT_CARD_HOLDER;
 
 export default function PaymentPage() {
   const { orderId } = useParams<{ orderId: string }>();

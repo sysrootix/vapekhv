@@ -3,6 +3,7 @@ import { logger } from '../config/logger';
 import { moySkladConfig } from '../config/moysklad';
 import { syncService } from './sync.service';
 import { prisma } from '../config/database';
+import { OrderStatus } from '@prisma/client';
 
 /**
  * Сервис планировщика задач
@@ -65,7 +66,7 @@ export class SchedulerService {
     // Найти заказы со статусом PENDING_PAYMENT и истекшим временем оплаты
     const expiredOrders = await prisma.order.findMany({
       where: {
-        status: 'PENDING_PAYMENT',
+        status: OrderStatus.PENDING_PAYMENT,
         paymentExpiresAt: {
           lte: now,
         },
@@ -83,7 +84,7 @@ export class SchedulerService {
       try {
         await prisma.order.update({
           where: { id: order.id },
-          data: { status: 'PAYMENT_EXPIRED' },
+          data: { status: OrderStatus.PAYMENT_EXPIRED },
         });
 
         logger.info(`❌ Заказ ${order.orderNumber} автоматически отменён (истекло время оплаты)`);

@@ -2,9 +2,10 @@ import bot from './bot.service';
 import TelegramBot from 'node-telegram-bot-api';
 import { logger } from '../config/logger';
 import { prisma } from '../config/database';
+import { OrderStatus } from '@prisma/client';
 
 const ADMIN_GROUP_ID = process.env.TELEGRAM_ADMIN_GROUP_ID!;
-const WEBAPP_URL = process.env.WEBAPP_URL || 'https://vapekhv.live';
+const WEBAPP_URL = process.env.WEBAPP_URL;
 
 // Инициализация обработчика платежных уведомлений
 export const initPaymentBot = () => {
@@ -61,7 +62,7 @@ const handleAdminAction = async (query: TelegramBot.CallbackQuery) => {
 
     if (action === 'approve') {
       // Подтвердить оплату
-      if (order.status !== 'PENDING') {
+      if (order.status !== OrderStatus.PENDING) {
         await bot.answerCallbackQuery(query.id, {
           text: '⚠️ Заказ уже обработан',
           show_alert: true,
@@ -74,7 +75,7 @@ const handleAdminAction = async (query: TelegramBot.CallbackQuery) => {
         // Обновить статус заказа
         await tx.order.update({
           where: { id: orderId },
-          data: { status: 'CONFIRMED' },
+          data: { status: OrderStatus.CONFIRMED },
         });
 
         // Списать использованные бонусы
@@ -187,7 +188,7 @@ const handleAdminAction = async (query: TelegramBot.CallbackQuery) => {
 
     } else if (action === 'cancel') {
       // Отменить заказ
-      if (order.status === 'CANCELLED' || order.status === 'PAYMENT_EXPIRED') {
+      if (order.status === OrderStatus.CANCELLED || order.status === OrderStatus.PAYMENT_EXPIRED) {
         await bot.answerCallbackQuery(query.id, {
           text: '⚠️ Заказ уже отменён',
           show_alert: true,
@@ -197,7 +198,7 @@ const handleAdminAction = async (query: TelegramBot.CallbackQuery) => {
 
       await prisma.order.update({
         where: { id: orderId },
-        data: { status: 'CANCELLED' },
+        data: { status: OrderStatus.CANCELLED },
       });
 
       // Обновить сообщение в группе
