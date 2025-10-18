@@ -349,7 +349,7 @@ export default function AdminPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[200]"
             onClick={() => {
               setShowDeliveryCostModal(false);
               setDeliveryCost('');
@@ -361,7 +361,7 @@ export default function AdminPage() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-tg-secondary-bg rounded-2xl p-6 max-w-md w-full space-y-4"
+              className="bg-tg-secondary-bg rounded-2xl p-6 max-w-md w-full space-y-4 z-[210]"
             >
               <div className="flex items-center gap-3">
                 <Truck className="w-6 h-6 text-tg-button" />
