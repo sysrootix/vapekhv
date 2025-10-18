@@ -177,14 +177,17 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (!deliveryDate) {
-      toast.error('Выберите дату доставки');
-      return;
-    }
+    // Если не "Ближайшее время", нужны дата и время
+    if (!useNearestTime) {
+      if (!deliveryDate) {
+        toast.error('Выберите дату доставки');
+        return;
+      }
 
-    if (!useNearestTime && !deliveryTime) {
-      toast.error('Выберите время доставки или "Ближайшее время"');
-      return;
+      if (!deliveryTime) {
+        toast.error('Выберите время доставки');
+        return;
+      }
     }
 
     // Формирование адреса
@@ -194,7 +197,7 @@ export default function CheckoutPage() {
     createOrderMutation.mutate({
       phone,
       deliveryAddress: fullAddress,
-      deliveryDate,
+      deliveryDate: useNearestTime ? today : deliveryDate,
       deliveryTime: useNearestTime ? 'Ближайшее время' : deliveryTime,
       comment: comment || undefined,
     });
@@ -252,16 +255,28 @@ export default function CheckoutPage() {
         >
           {/* Кнопка автозаполнения */}
           {previousOrders && previousOrders.length > 0 && (
-            <motion.button
-              type="button"
-              onClick={fillFromLastOrder}
+            <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="w-full bg-tg-button bg-opacity-10 text-tg-button border border-tg-button rounded-2xl p-4 flex items-center justify-center gap-2 hover:bg-opacity-20 transition-colors"
+              className="bg-tg-secondary-bg rounded-2xl p-4"
             >
-              <RotateCcw className="w-5 h-5" />
-              <span className="font-semibold">Заполнить данными из последнего заказа</span>
-            </motion.button>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 bg-tg-button bg-opacity-10 rounded-xl">
+                  <RotateCcw className="w-5 h-5 text-tg-button" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-tg-text">Быстрое оформление</h3>
+                  <p className="text-xs text-tg-hint">Используйте данные из прошлого заказа</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={fillFromLastOrder}
+                className="w-full bg-tg-button text-tg-button-text py-3 rounded-xl font-medium hover:opacity-90 transition-opacity"
+              >
+                Заполнить данные
+              </button>
+            </motion.div>
           )}
 
           {/* Контактная информация */}
@@ -380,46 +395,17 @@ export default function CheckoutPage() {
               Работаем 24/7 - доставим в любое удобное время
             </div>
 
-            <div>
-              <label className="block text-sm text-tg-hint mb-2">
-                Дата доставки *
-              </label>
-              <input
-                type="date"
-                value={deliveryDate}
-                onChange={(e) => setDeliveryDate(e.target.value)}
-                min={today}
-                className="w-full px-4 py-3 bg-tg-bg text-tg-text rounded-xl outline-none focus:ring-2 focus:ring-tg-button"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm text-tg-hint mb-2">
-                <Clock className="w-4 h-4 inline mr-1" />
-                Время доставки
-              </label>
-              <input
-                type="time"
-                value={deliveryTime}
-                onChange={(e) => {
-                  setDeliveryTime(e.target.value);
-                  setUseNearestTime(false);
-                }}
-                disabled={useNearestTime}
-                className="w-full px-4 py-3 bg-tg-bg text-tg-text rounded-xl outline-none focus:ring-2 focus:ring-tg-button disabled:opacity-50"
-              />
-            </div>
-
             <button
               type="button"
               onClick={() => {
-                setUseNearestTime(!useNearestTime);
-                if (!useNearestTime) {
+                const newValue = !useNearestTime;
+                setUseNearestTime(newValue);
+                if (newValue) {
                   setDeliveryTime('');
+                  setDeliveryDate(today);
                 }
               }}
-              className={`w-full py-3 rounded-xl font-medium transition-colors ${
+              className={`w-full py-3 rounded-xl font-medium transition-all ${
                 useNearestTime
                   ? 'bg-tg-button text-tg-button-text'
                   : 'bg-tg-bg text-tg-text hover:bg-opacity-80'
@@ -427,6 +413,37 @@ export default function CheckoutPage() {
             >
               {useNearestTime ? '✓ ' : ''}Ближайшее время
             </button>
+
+            {!useNearestTime && (
+              <>
+                <div>
+                  <label className="block text-sm text-tg-hint mb-2">
+                    Дата доставки *
+                  </label>
+                  <input
+                    type="date"
+                    value={deliveryDate}
+                    onChange={(e) => setDeliveryDate(e.target.value)}
+                    min={today}
+                    className="w-full px-4 py-3 bg-tg-bg text-tg-text rounded-xl outline-none focus:ring-2 focus:ring-tg-button"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm text-tg-hint mb-2">
+                    <Clock className="w-4 h-4 inline mr-1" />
+                    Время доставки
+                  </label>
+                  <input
+                    type="time"
+                    value={deliveryTime}
+                    onChange={(e) => setDeliveryTime(e.target.value)}
+                    className="w-full px-4 py-3 bg-tg-bg text-tg-text rounded-xl outline-none focus:ring-2 focus:ring-tg-button"
+                  />
+                </div>
+              </>
+            )}
           </div>
         </motion.form>
 
