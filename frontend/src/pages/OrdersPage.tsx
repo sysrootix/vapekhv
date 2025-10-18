@@ -1,11 +1,12 @@
 import { motion } from 'framer-motion';
-import { Package, ShoppingBag, Clock, TrendingUp, Calendar, MapPin, Phone } from 'lucide-react';
+import { Package, ShoppingBag, Clock, TrendingUp, Calendar, MapPin, Phone, CheckCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTelegramBackButton } from '../hooks/useTelegramApp';
 import { useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { orderApi, OrderStatus } from '../api/order';
 import LoadingScreen from '../components/LoadingScreen';
+import toast from 'react-hot-toast';
 
 // Функция перевода статуса
 const getStatusText = (status: OrderStatus) => {
@@ -24,6 +25,7 @@ const getStatusText = (status: OrderStatus) => {
 
 export default function OrdersPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   // Telegram BackButton
   const handleBack = useCallback(() => navigate('/'), [navigate]);
@@ -33,6 +35,18 @@ export default function OrdersPage() {
   const { data: orders, isLoading } = useQuery({
     queryKey: ['orders'],
     queryFn: orderApi.getOrders,
+  });
+
+  // Мутация для подтверждения получения заказа
+  const confirmDeliveryMutation = useMutation({
+    mutationFn: (orderId: string) => orderApi.confirmDelivery(orderId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      toast.success('Спасибо! Заказ подтвержден как доставленный');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Ошибка при подтверждении доставки');
+    },
   });
 
   if (isLoading) {
@@ -239,6 +253,18 @@ export default function OrdersPage() {
                       className="w-full bg-tg-button text-tg-button-text py-3 rounded-xl font-semibold hover:opacity-90 transition-opacity"
                     >
                       Оплатить заказ
+                    </button>
+                  )}
+
+                  {/* Confirm delivery button if SHIPPED */}
+                  {order.status === OrderStatus.SHIPPED && (
+                    <button
+                      onClick={() => confirmDeliveryMutation.mutate(order.id)}
+                      disabled={confirmDeliveryMutation.isPending}
+                      className="w-full bg-green-500 text-white py-3 rounded-xl font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      <CheckCircle className="w-5 h-5" />
+                      {confirmDeliveryMutation.isPending ? 'Подтверждаем...' : 'Получил заказ'}
                     </button>
                   )}
                 </motion.div>

@@ -34,30 +34,45 @@ export const initBot = () => {
   bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
     const firstName = msg.from?.first_name || 'друг';
+    const isUserAdmin = isAdmin(chatId);
 
     try {
-      // Отправляем приветственное сообщение с инлайн кнопкой webapp
+      // Формируем кнопки в зависимости от прав пользователя
+      const keyboard: any[][] = [
+        [
+          {
+            text: '🛍️ Открыть магазин',
+            web_app: { url: WEBAPP_URL },
+          },
+        ],
+      ];
+
+      // Если пользователь админ, добавляем кнопку админ-панели
+      if (isUserAdmin) {
+        keyboard.push([
+          {
+            text: '⚙️ Админ-панель',
+            web_app: { url: `${WEBAPP_URL}/admin` },
+          },
+        ]);
+      }
+
+      // Отправляем приветственное сообщение с инлайн кнопками webapp
       await bot.sendMessage(
         chatId,
         `👋 Привет, ${firstName}!\n\n` +
           `Добро пожаловать в <b>VapeKHV</b> - ваш магазин вейпов в Telegram!\n\n` +
-          `🛍️ Нажмите кнопку ниже, чтобы открыть каталог и сделать заказ.`,
+          `🛍️ Нажмите кнопку ниже, чтобы открыть каталог и сделать заказ.` +
+          (isUserAdmin ? `\n\n⚙️ Вам доступна админ-панель для управления заказами.` : ''),
         {
           parse_mode: 'HTML',
           reply_markup: {
-            inline_keyboard: [
-              [
-                {
-                  text: '🛍️ Открыть магазин',
-                  web_app: { url: WEBAPP_URL },
-                },
-              ],
-            ],
+            inline_keyboard: keyboard,
           },
         }
       );
 
-      logger.info(`✅ Пользователь ${firstName} (ID: ${msg.from?.id}) запустил бота`);
+      logger.info(`✅ Пользователь ${firstName} (ID: ${msg.from?.id}) запустил бота${isUserAdmin ? ' [ADMIN]' : ''}`);
     } catch (error) {
       logger.error('Ошибка при обработке команды /start:', error);
       await bot.sendMessage(

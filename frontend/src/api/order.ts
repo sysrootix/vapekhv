@@ -85,4 +85,9 @@ export const orderApi = {
     const response = await apiClient.post<Order>(`/orders/${id}/cancel`);
     return response.data;
   },
+
+  confirmDelivery: async (id: string): Promise<Order> => {
+    const response = await apiClient.post<Order>(`/orders/${id}/confirm-delivery`);
+    return response.data;
+  },
 };

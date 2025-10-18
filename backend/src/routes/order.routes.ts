@@ -15,5 +15,6 @@ router.post('/:id/upload-receipt', upload.single('receipt'), orderController.upl
 router.post('/:id/confirm-payment', orderController.confirmPayment);
 router.put('/:id/status', orderController.updateOrderStatus);
 router.post('/:id/cancel', orderController.cancelOrder);
+router.post('/:id/confirm-delivery', orderController.confirmDelivery);
 
 export default router;

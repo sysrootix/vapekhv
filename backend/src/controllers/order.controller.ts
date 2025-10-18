@@ -695,6 +695,49 @@ class OrderController {
       throw new AppError('Не удалось обновить статус заказа', 500);
     }
   }
+
+  // Подтвердить получение заказа клиентом
+  async confirmDelivery(req: AuthRequest, res: Response) {
+    try {
+      const userId = req.user?.id;
+      const { id: orderId } = req.params;
+
+      if (!userId) {
+        throw new AppError('Пользователь не авторизован', 401);
+      }
+
+      const order = await prisma.order.findFirst({
+        where: {
+          id: orderId,
+          userId, // Проверяем, что заказ принадлежит этому пользователю
+        },
+        include: {
+          items: {
+            include: {
+              product: true,
+            },
+          },
+          user: true,
+        },
+      });
+
+      if (!order) {
+        throw new AppError('Заказ не найден', 404);
+      }
+
+      if (order.status !== 'SHIPPED') {
+        throw new AppError('Заказ не находится в статусе "Передали курьеру"', 400);
+      }
+
+      // Обновить статус на DELIVERED через существующий метод
+      req.body.status = 'DELIVERED';
+      return this.updateOrderStatus(req, res);
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      logger.error('Ошибка при подтверждении доставки:', error);
+      throw new AppError('Не удалось подтвердить доставку', 500);
+    }
+  }
 }
 
 export default new OrderController();
