@@ -101,11 +101,12 @@ export default function CheckoutPage() {
   // Мутация создания заказа
   const createOrderMutation = useMutation({
     mutationFn: orderApi.createOrder,
-    onSuccess: () => {
+    onSuccess: (order) => {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
-      toast.success('Заказ успешно оформлен!');
-      navigate('/orders');
+      toast.success('Заказ успешно создан! Переходим к оплате...');
+      // Перенаправляем на страницу оплаты
+      navigate(`/payment/${order.id}`);
     },
     onError: (error: any) => {
       const message = error?.response?.data?.error || 'Ошибка при оформлении заказа';

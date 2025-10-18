@@ -9,6 +9,7 @@ import { logger } from './config/logger';
 import { connectDatabase } from './config/database';
 import { errorHandler } from './middleware/errorHandler';
 import { initBot, stopBot } from './services/bot.service';
+import { initPaymentBot } from './services/payment-notification.service';
 import { validateMoySkladConfig } from './config/moysklad';
 import { schedulerService } from './services/scheduler.service';
 import { syncService } from './services/sync.service';
@@ -78,8 +79,9 @@ const startServer = async () => {
     // Connect to database
     await connectDatabase();
 
-    // Initialize Telegram bot
+    // Initialize Telegram bots
     initBot();
+    initPaymentBot();
 
     // Validate MoySklad configuration
     let moySkladEnabled = false;
@@ -91,6 +93,9 @@ const startServer = async () => {
       logger.warn('⚠️ МойСклад не настроен, синхронизация отключена');
       logger.warn('💡 Добавьте MOYSKLAD_TOKEN в .env для включения синхронизации');
     }
+
+    // Start payment expiration checker (always enabled)
+    schedulerService.startPaymentCheck();
 
     // Start sync scheduler and initial sync if MoySklad is enabled
     if (moySkladEnabled) {

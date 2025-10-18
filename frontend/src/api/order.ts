@@ -13,12 +13,14 @@ export interface OrderItem {
 }
 
 export enum OrderStatus {
+  PENDING_PAYMENT = 'PENDING_PAYMENT',
   PENDING = 'PENDING',
   CONFIRMED = 'CONFIRMED',
   PROCESSING = 'PROCESSING',
   SHIPPED = 'SHIPPED',
   DELIVERED = 'DELIVERED',
   CANCELLED = 'CANCELLED',
+  PAYMENT_EXPIRED = 'PAYMENT_EXPIRED',
 }
 
 export interface Order {
@@ -35,6 +37,9 @@ export interface Order {
   deliveryDate?: string;
   deliveryTime?: string;
   comment?: string;
+  receiptImageUrl?: string;
+  paymentExpiresAt?: string;
+  paidAt?: string;
   createdAt: string;
   updatedAt: string;
   items: OrderItem[];
@@ -62,6 +67,17 @@ export const orderApi = {
 
   createOrder: async (data: CreateOrderRequest): Promise<Order> => {
     const response = await apiClient.post<Order>('/orders/create', data);
+    return response.data;
+  },
+
+  uploadReceipt: async (orderId: string, file: File): Promise<Order> => {
+    const formData = new FormData();
+    formData.append('receipt', file);
+    const response = await apiClient.post<Order>(`/orders/${orderId}/upload-receipt`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return response.data;
   },
 

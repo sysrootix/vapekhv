@@ -3,6 +3,7 @@ import { AuthRequest } from '../middleware/auth';
 import { prisma } from '../config/database';
 import { logger } from '../config/logger';
 import { AppError } from '../middleware/errorHandler';
+import { sendPaymentNotification } from '../services/payment-notification.service';
 
 // Константы для доставки
 const DELIVERY_COST = 500;
@@ -190,6 +191,10 @@ class OrderController {
       // Рассчитать бонусы к начислению (5% от суммы товаров без учета доставки)
       const bonusEarned = Math.floor(subtotal * 0.05);
 
+      // Установить время истечения оплаты (1 час)
+      const paymentExpiresAt = new Date();
+      paymentExpiresAt.setHours(paymentExpiresAt.getHours() + 1);
+
       // Создать заказ в транзакции
       const order = await prisma.$transaction(async (tx) => {
         // Создать заказ
@@ -206,7 +211,8 @@ class OrderController {
             deliveryDate,
             deliveryTime,
             comment: comment || null,
-            status: 'PENDING',
+            status: 'PENDING_PAYMENT',
+            paymentExpiresAt,
             items: {
               create: cartItems.map((item) => ({
                 product: {
@@ -227,100 +233,8 @@ class OrderController {
           },
         });
 
-        // Списать использованные бонусы
-        if (bonusToUse > 0) {
-          await tx.user.update({
-            where: { id: userId },
-            data: {
-              bonusPoints: {
-                decrement: bonusToUse,
-              },
-            },
-          });
-
-          // Создать транзакцию списания бонусов
-          await tx.bonusTransaction.create({
-            data: {
-              userId,
-              amount: -bonusToUse,
-              type: 'SPENT',
-              description: `Списано при оплате заказа ${orderNumber}`,
-              orderId: newOrder.id,
-            },
-          });
-        }
-
-        // Начислить бонусы за покупку
-        if (bonusEarned > 0) {
-          await tx.user.update({
-            where: { id: userId },
-            data: {
-              bonusPoints: {
-                increment: bonusEarned,
-              },
-              totalSpent: {
-                increment: subtotal,
-              },
-            },
-          });
-
-          // Создать транзакцию начисления бонусов
-          await tx.bonusTransaction.create({
-            data: {
-              userId,
-              amount: bonusEarned,
-              type: 'EARNED',
-              description: `Начислено за заказ ${orderNumber}`,
-              orderId: newOrder.id,
-            },
-          });
-        } else {
-          // Обновить только totalSpent
-          await tx.user.update({
-            where: { id: userId },
-            data: {
-              totalSpent: {
-                increment: subtotal,
-              },
-            },
-          });
-        }
-
-        // Уменьшить остатки товаров
-        for (const item of cartItems) {
-          if (item.selectedOptions && typeof item.selectedOptions === 'object') {
-            // Обновляем вариант
-            const variant = await tx.productVariant.findFirst({
-              where: {
-                productId: item.productId,
-                characteristics: { equals: item.selectedOptions },
-              },
-            });
-
-            if (variant) {
-              await tx.productVariant.update({
-                where: { id: variant.id },
-                data: {
-                  stockCount: {
-                    decrement: item.quantity,
-                  },
-                  inStock: variant.stockCount - item.quantity > 0,
-                },
-              });
-            }
-          } else {
-            // Обновляем основной продукт
-            await tx.product.update({
-              where: { id: item.productId },
-              data: {
-                stockCount: {
-                  decrement: item.quantity,
-                },
-                inStock: item.product.stockCount - item.quantity > 0,
-              },
-            });
-          }
-        }
+        // НЕ списываем/начисляем бонусы и НЕ уменьшаем остатки
+        // Это будет сделано после подтверждения оплаты администратором
 
         // Очистить корзину
         await tx.cartItem.deleteMany({
@@ -475,6 +389,229 @@ class OrderController {
       if (error instanceof AppError) throw error;
       logger.error('Ошибка при отмене заказа:', error);
       throw new AppError('Не удалось отменить заказ', 500);
+    }
+  }
+
+  // Загрузить чек оплаты
+  async uploadReceipt(req: AuthRequest, res: Response) {
+    try {
+      const userId = req.user?.id;
+      const { id: orderId } = req.params;
+
+      if (!userId) {
+        throw new AppError('Пользователь не авторизован', 401);
+      }
+
+      // Проверяем наличие файла
+      const file = (req as any).file;
+      if (!file) {
+        throw new AppError('Файл чека не загружен', 400);
+      }
+
+      // Найти заказ
+      const order = await prisma.order.findFirst({
+        where: {
+          id: orderId,
+          userId,
+        },
+        include: {
+          items: {
+            include: {
+              product: true,
+            },
+          },
+          user: true,
+        },
+      });
+
+      if (!order) {
+        throw new AppError('Заказ не найден', 404);
+      }
+
+      if (order.status !== 'PENDING_PAYMENT') {
+        throw new AppError('Заказ не ожидает оплаты', 400);
+      }
+
+      // Проверить, не истекло ли время оплаты
+      if (order.paymentExpiresAt && new Date(order.paymentExpiresAt) < new Date()) {
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { status: 'PAYMENT_EXPIRED' },
+        });
+        throw new AppError('Время оплаты истекло', 400);
+      }
+
+      // Сохранить путь к файлу чека
+      const receiptUrl = `/uploads/receipts/${file.filename}`;
+
+      // Обновить заказ
+      const updatedOrder = await prisma.order.update({
+        where: { id: orderId },
+        data: {
+          receiptImageUrl: receiptUrl,
+          status: 'PENDING', // Меняем статус на ожидание подтверждения
+          paidAt: new Date(),
+        },
+        include: {
+          items: {
+            include: {
+              product: true,
+            },
+          },
+          user: true,
+        },
+      });
+
+      // Отправить уведомление админам в Telegram
+      try {
+        await sendPaymentNotification(updatedOrder);
+      } catch (error) {
+        logger.error('Ошибка отправки уведомления админам:', error);
+        // Не бросаем ошибку, чтобы чек всё равно сохранился
+      }
+
+      logger.info(`Загружен чек для заказа ${order.orderNumber}`);
+
+      res.json(updatedOrder);
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      logger.error('Ошибка при загрузке чека:', error);
+      throw new AppError('Не удалось загрузить чек', 500);
+    }
+  }
+
+  // Подтвердить оплату (для админов)
+  async confirmPayment(req: AuthRequest, res: Response) {
+    try {
+      const { id: orderId } = req.params;
+
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          items: {
+            include: {
+              product: true,
+            },
+          },
+          user: true,
+        },
+      });
+
+      if (!order) {
+        throw new AppError('Заказ не найден', 404);
+      }
+
+      if (order.status !== 'PENDING') {
+        throw new AppError('Заказ не ожидает подтверждения', 400);
+      }
+
+      // Подтвердить заказ и выполнить все операции с товарами и бонусами
+      const confirmed = await prisma.$transaction(async (tx) => {
+        // Обновить статус заказа
+        const updatedOrder = await tx.order.update({
+          where: { id: orderId },
+          data: { status: 'CONFIRMED' },
+          include: {
+            items: {
+              include: {
+                product: true,
+              },
+            },
+            user: true,
+          },
+        });
+
+        // Списать использованные бонусы
+        if (order.bonusUsed > 0) {
+          await tx.user.update({
+            where: { id: order.userId },
+            data: {
+              bonusPoints: {
+                decrement: order.bonusUsed,
+              },
+            },
+          });
+
+          await tx.bonusTransaction.create({
+            data: {
+              userId: order.userId,
+              amount: -order.bonusUsed,
+              type: 'SPENT',
+              description: `Списано при оплате заказа ${order.orderNumber}`,
+              orderId: order.id,
+            },
+          });
+        }
+
+        // Начислить бонусы за покупку
+        if (order.bonusEarned > 0) {
+          await tx.user.update({
+            where: { id: order.userId },
+            data: {
+              bonusPoints: {
+                increment: order.bonusEarned,
+              },
+              totalSpent: {
+                increment: order.totalAmount - order.deliveryCost,
+              },
+            },
+          });
+
+          await tx.bonusTransaction.create({
+            data: {
+              userId: order.userId,
+              amount: order.bonusEarned,
+              type: 'EARNED',
+              description: `Начислено за заказ ${order.orderNumber}`,
+              orderId: order.id,
+            },
+          });
+        }
+
+        // Уменьшить остатки товаров
+        for (const item of order.items) {
+          if (item.selectedOptions && typeof item.selectedOptions === 'object') {
+            const variant = await tx.productVariant.findFirst({
+              where: {
+                productId: item.productId,
+                characteristics: { equals: item.selectedOptions },
+              },
+            });
+
+            if (variant) {
+              await tx.productVariant.update({
+                where: { id: variant.id },
+                data: {
+                  stockCount: {
+                    decrement: item.quantity,
+                  },
+                  inStock: variant.stockCount - item.quantity > 0,
+                },
+              });
+            }
+          } else {
+            await tx.product.update({
+              where: { id: item.productId },
+              data: {
+                stockCount: {
+                  decrement: item.quantity,
+                },
+                inStock: item.product.stockCount - item.quantity > 0,
+              },
+            });
+          }
+        }
+
+        return updatedOrder;
+      });
+
+      logger.info(`Заказ ${order.orderNumber} подтвержден администратором`);
+
+      res.json(confirmed);
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      logger.error('Ошибка при подтверждении оплаты:', error);
+      throw new AppError('Не удалось подтвердить оплату', 500);
     }
   }
 }

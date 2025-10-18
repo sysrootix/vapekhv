@@ -195,7 +195,7 @@ model CartItem {
 model Order {
   id              String      @id @default(cuid())
   orderNumber     String      @unique
-  status          OrderStatus @default(PENDING)
+  status          OrderStatus @default(PENDING_PAYMENT)
   totalAmount     Float
   deliveryCost    Float       @default(0) // Стоимость доставки
   bonusUsed       Int         @default(0) // Сколько бонусов использовано
@@ -210,6 +210,11 @@ model Order {
   deliveryTime    String?     // Время доставки
   comment         String?
 
+  // Платежная информация
+  receiptImageUrl String?     // URL загруженного чека
+  paymentExpiresAt DateTime?  // Время истечения оплаты (1 час)
+  paidAt          DateTime?   // Время оплаты
+
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
@@ -218,6 +223,8 @@ model Order {
   @@map("orders")
   @@index([userId])
   @@index([orderNumber])
+  @@index([status])
+  @@index([paymentExpiresAt])
 }
 
 model OrderItem {
@@ -239,11 +246,13 @@ model OrderItem {
 }
 
 enum OrderStatus {
-  PENDING
-  CONFIRMED
-  PROCESSING
-  SHIPPED
-  DELIVERED
-  CANCELLED
+  PENDING_PAYMENT    // Ожидает оплаты (1 час)
+  PENDING            // Ожидает подтверждения от администратора
+  CONFIRMED          // Подтвержден администратором
+  PROCESSING         // В процессе сборки
+  SHIPPED            // Отправлен/в пути
+  DELIVERED          // Доставлен
+  CANCELLED          // Отменен
+  PAYMENT_EXPIRED    // Время оплаты истекло
 }
 

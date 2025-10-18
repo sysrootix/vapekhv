@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import orderController from '../controllers/order.controller';
 import { authMiddleware } from '../middleware/auth';
+import { upload } from '../config/upload';
 
 const router = Router();
 
@@ -10,6 +11,8 @@ router.use(authMiddleware);
 router.get('/', orderController.getOrders);
 router.get('/:id', orderController.getOrder);
 router.post('/create', orderController.createOrder);
+router.post('/:id/upload-receipt', upload.single('receipt'), orderController.uploadReceipt);
+router.post('/:id/confirm-payment', orderController.confirmPayment);
 router.post('/:id/cancel', orderController.cancelOrder);
 
 export default router;

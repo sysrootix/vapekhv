@@ -11,6 +11,7 @@ import CheckoutPage from './pages/CheckoutPage';
 import ProfilePage from './pages/ProfilePage';
 import BonusPage from './pages/BonusPage';
 import OrdersPage from './pages/OrdersPage';
+import PaymentPage from './pages/PaymentPage';
 import ProductDetailPage from './pages/ProductDetailPage';
 import LoadingScreen from './components/LoadingScreen';
 import BottomNav from './components/BottomNav';
@@ -53,7 +54,7 @@ function App() {
 
 function AppContent({ isAuthenticated }: { isAuthenticated: boolean }) {
   const location = useLocation();
-  const showBottomNav = isAuthenticated && location.pathname !== '/auth' && !location.pathname.startsWith('/product/') && location.pathname !== '/checkout';
+  const showBottomNav = isAuthenticated && location.pathname !== '/auth' && !location.pathname.startsWith('/product/') && location.pathname !== '/checkout' && !location.pathname.startsWith('/payment/');
 
   // Прокрутка вверх при переходе между страницами
   useEffect(() => {
@@ -98,6 +99,10 @@ function AppContent({ isAuthenticated }: { isAuthenticated: boolean }) {
         <Route
           path="/orders"
           element={isAuthenticated ? <OrdersPage /> : <Navigate to="/auth" replace />}
+        />
+        <Route
+          path="/payment/:orderId"
+          element={isAuthenticated ? <PaymentPage /> : <Navigate to="/auth" replace />}
         />
         <Route path="/" element={<Navigate to={isAuthenticated ? '/dashboard' : '/auth'} replace />} />
       </Routes>

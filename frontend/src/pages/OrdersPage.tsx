@@ -10,12 +10,14 @@ import LoadingScreen from '../components/LoadingScreen';
 // Функция перевода статуса
 const getStatusText = (status: OrderStatus) => {
   const statusMap: Record<OrderStatus, { text: string; color: string }> = {
+    [OrderStatus.PENDING_PAYMENT]: { text: 'Ожидает оплаты', color: 'text-orange-500' },
     [OrderStatus.PENDING]: { text: 'Ожидает подтверждения', color: 'text-yellow-500' },
     [OrderStatus.CONFIRMED]: { text: 'Подтверждён', color: 'text-blue-500' },
     [OrderStatus.PROCESSING]: { text: 'Готовится', color: 'text-purple-500' },
     [OrderStatus.SHIPPED]: { text: 'В пути', color: 'text-cyan-500' },
     [OrderStatus.DELIVERED]: { text: 'Доставлен', color: 'text-green-500' },
     [OrderStatus.CANCELLED]: { text: 'Отменён', color: 'text-red-500' },
+    [OrderStatus.PAYMENT_EXPIRED]: { text: 'Время оплаты истекло', color: 'text-gray-500' },
   };
   return statusMap[status] || { text: status, color: 'text-tg-hint' };
 };
@@ -228,6 +230,16 @@ export default function OrdersPage() {
                         </span>
                       )}
                     </div>
+                  )}
+
+                  {/* Payment button if PENDING_PAYMENT */}
+                  {order.status === 'PENDING_PAYMENT' && (
+                    <button
+                      onClick={() => navigate(`/payment/${order.id}`)}
+                      className="w-full bg-tg-button text-tg-button-text py-3 rounded-xl font-semibold hover:opacity-90 transition-opacity"
+                    >
+                      Оплатить заказ
+                    </button>
                   )}
                 </motion.div>
               );
