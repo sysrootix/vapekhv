@@ -8,7 +8,7 @@ import { cartApi } from '../api/cart';
 import { orderApi } from '../api/order';
 import LoadingScreen from '../components/LoadingScreen';
 import toast from 'react-hot-toast';
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 
 // Константы для доставки
 const DELIVERY_COST = 500;
@@ -80,12 +80,16 @@ export default function CheckoutPage() {
   // Получаем текущую дату для минимального значения (один раз при загрузке)
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
 
-  // Инициализация телефона из профиля
+  // Отслеживание инициализации телефона
+  const phoneInitialized = useRef(false);
+
+  // Инициализация телефона из профиля (только один раз)
   useEffect(() => {
-    if (userData?.user?.phone && !phone) {
+    if (userData?.user?.phone && !phoneInitialized.current) {
       setPhone(userData.user.phone);
+      phoneInitialized.current = true;
     }
-  }, [userData, phone]);
+  }, [userData]);
 
   // Расчет стоимости
   const subtotal = cartData?.total || 0;
