@@ -148,14 +148,30 @@ const handleAdminAction = async (query: TelegramBot.CallbackQuery) => {
           }
         );
 
-        await bot.editMessageText(
-          `${query.message.text}\n\n✅ <b>ОДОБРЕНО</b> администратором @${query.from?.username || 'Unknown'}`,
-          {
-            chat_id: query.message.chat.id,
-            message_id: query.message.message_id,
-            parse_mode: 'HTML',
-          }
-        );
+        // Проверяем, есть ли в сообщении фото (caption) или текст
+        const statusText = `\n\n✅ <b>ОДОБРЕНО</b> администратором @${query.from?.username || 'Unknown'}`;
+
+        if (query.message.photo && query.message.caption) {
+          // Если сообщение с фото, редактируем caption
+          await bot.editMessageCaption(
+            `${query.message.caption}${statusText}`,
+            {
+              chat_id: query.message.chat.id,
+              message_id: query.message.message_id,
+              parse_mode: 'HTML',
+            }
+          );
+        } else if (query.message.text) {
+          // Если обычное текстовое сообщение, редактируем text
+          await bot.editMessageText(
+            `${query.message.text}${statusText}`,
+            {
+              chat_id: query.message.chat.id,
+              message_id: query.message.message_id,
+              parse_mode: 'HTML',
+            }
+          );
+        }
       }
 
       await bot.answerCallbackQuery(query.id, {
@@ -209,14 +225,30 @@ const handleAdminAction = async (query: TelegramBot.CallbackQuery) => {
           }
         );
 
-        await bot.editMessageText(
-          `${query.message.text}\n\n❌ <b>ОТМЕНЕНО</b> администратором @${query.from?.username || 'Unknown'}`,
-          {
-            chat_id: query.message.chat.id,
-            message_id: query.message.message_id,
-            parse_mode: 'HTML',
-          }
-        );
+        // Проверяем, есть ли в сообщении фото (caption) или текст
+        const statusText = `\n\n❌ <b>ОТМЕНЕНО</b> администратором @${query.from?.username || 'Unknown'}`;
+
+        if (query.message.photo && query.message.caption) {
+          // Если сообщение с фото, редактируем caption
+          await bot.editMessageCaption(
+            `${query.message.caption}${statusText}`,
+            {
+              chat_id: query.message.chat.id,
+              message_id: query.message.message_id,
+              parse_mode: 'HTML',
+            }
+          );
+        } else if (query.message.text) {
+          // Если обычное текстовое сообщение, редактируем text
+          await bot.editMessageText(
+            `${query.message.text}${statusText}`,
+            {
+              chat_id: query.message.chat.id,
+              message_id: query.message.message_id,
+              parse_mode: 'HTML',
+            }
+          );
+        }
       }
 
       await bot.answerCallbackQuery(query.id, {
