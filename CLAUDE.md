@@ -441,4 +441,3 @@ echo "✅ Deployment complete!"
 ---
 
 **Разработано с ❤️ для VapeKHV Telegram Web App**
-
