@@ -1,4 +1,5 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import type { TooltipProps } from 'recharts';
 import { motion } from 'framer-motion';
 
 interface DataPoint {
@@ -15,14 +16,15 @@ interface NewUsersChartProps {
 
 const formatPeriodLabel = (interval: 'daily' | 'weekly' | 'monthly', start: string, end: string): string => {
   const startDate = new Date(start);
-  const endDate = new Date(end);
 
   if (interval === 'monthly') {
     return startDate.toLocaleDateString('ru-RU', { month: 'short', year: 'numeric' });
   }
 
   if (interval === 'weekly') {
-    return `${startDate.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}`;
+    const endDate = new Date(end);
+    endDate.setDate(endDate.getDate() - 1);
+    return `${startDate.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })} — ${endDate.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}`;
   }
 
   return startDate.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
@@ -59,17 +61,22 @@ export default function NewUsersChart({ data, interval, isLoading }: NewUsersCha
     colorIndex: index % COLORS.length,
   }));
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  type ChartDatum = (typeof chartData)[number];
+
+  const CustomTooltip = ({ active, payload }: TooltipProps<number, string>) => {
     if (active && payload && payload.length) {
+      const datum = payload[0].payload as ChartDatum;
+      const users = datum.users;
+
       return (
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           className="bg-tg-secondary-bg border-2 border-blue-500/30 rounded-xl p-3 shadow-lg"
         >
-          <p className="text-sm font-semibold text-tg-text mb-1">{payload[0].payload.name}</p>
+          <p className="text-sm font-semibold text-tg-text mb-1">{datum.name}</p>
           <p className="text-lg font-bold text-blue-500">
-            +{payload[0].value} {payload[0].value === 1 ? 'пользователь' : 'пользователей'}
+            +{users} {users === 1 ? 'пользователь' : 'пользователей'}
           </p>
         </motion.div>
       );

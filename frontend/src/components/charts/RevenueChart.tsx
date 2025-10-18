@@ -1,4 +1,5 @@
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import type { TooltipProps } from 'recharts';
 import { motion } from 'framer-motion';
 
 interface DataPoint {
@@ -23,15 +24,15 @@ const formatCurrency = (value: number): string =>
 
 const formatPeriodLabel = (interval: 'daily' | 'weekly' | 'monthly', start: string, end: string): string => {
   const startDate = new Date(start);
-  const endDate = new Date(end);
 
   if (interval === 'monthly') {
     return startDate.toLocaleDateString('ru-RU', { month: 'short', year: 'numeric' });
   }
 
   if (interval === 'weekly') {
-    const weekEnd = new Date(endDate.getTime() - 86400000);
-    return `${startDate.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}`;
+    const endDate = new Date(end);
+    endDate.setDate(endDate.getDate() - 1);
+    return `${startDate.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })} — ${endDate.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}`;
   }
 
   return startDate.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
@@ -60,17 +61,21 @@ export default function RevenueChart({ data, interval, chartType = 'area', isLoa
     orders: point.ordersCount,
   }));
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  type ChartDatum = (typeof chartData)[number];
+
+  const CustomTooltip = ({ active, payload }: TooltipProps<number, string>) => {
     if (active && payload && payload.length) {
+      const datum = payload[0].payload as ChartDatum;
+
       return (
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           className="bg-tg-secondary-bg border-2 border-tg-button/30 rounded-xl p-3 shadow-lg"
         >
-          <p className="text-sm font-semibold text-tg-text mb-1">{payload[0].payload.name}</p>
-          <p className="text-lg font-bold text-tg-button">{formatCurrency(payload[0].value)}</p>
-          <p className="text-xs text-tg-hint mt-1">Заказов: {payload[0].payload.orders}</p>
+          <p className="text-sm font-semibold text-tg-text mb-1">{datum.name}</p>
+          <p className="text-lg font-bold text-tg-button">{formatCurrency(datum.amount)}</p>
+          <p className="text-xs text-tg-hint mt-1">Заказов: {datum.orders}</p>
         </motion.div>
       );
     }
@@ -98,7 +103,7 @@ export default function RevenueChart({ data, interval, chartType = 'area', isLoa
             stroke="var(--tg-theme-hint-color)"
             style={{ fontSize: '12px' }}
             tickLine={false}
-            tickFormatter={(value) => `${Math.round(value / 1000)}k`}
+            tickFormatter={(value: number) => `${Math.round(value / 1000)}k`}
           />
           <Tooltip content={<CustomTooltip />} />
           <Area
@@ -123,7 +128,7 @@ export default function RevenueChart({ data, interval, chartType = 'area', isLoa
             stroke="var(--tg-theme-hint-color)"
             style={{ fontSize: '12px' }}
             tickLine={false}
-            tickFormatter={(value) => `${Math.round(value / 1000)}k`}
+            tickFormatter={(value: number) => `${Math.round(value / 1000)}k`}
           />
           <Tooltip content={<CustomTooltip />} />
           <Line

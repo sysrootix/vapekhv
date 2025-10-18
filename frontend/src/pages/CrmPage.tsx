@@ -86,23 +86,6 @@ const formatDate = (value: string | Date): string => {
   return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
-const formatPeriodLabel = (interval: IntervalOption, start: string, end: string): string => {
-  const startDate = new Date(start);
-  const endDate = new Date(end);
-
-  if (interval === 'monthly') {
-    return startDate.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
-  }
-
-  if (interval === 'weekly') {
-    return `${startDate.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })} — ${new Date(
-      endDate.getTime() - 86400000
-    ).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}`;
-  }
-
-  return startDate.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
-};
-
 const buildUserTitle = (user: CrmUsersResponse['items'][number]) => {
   if (user.name) return user.name;
   if (user.username) return `@${user.username}`;
