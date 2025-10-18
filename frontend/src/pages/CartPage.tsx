@@ -8,10 +8,11 @@ import LoadingScreen from '../components/LoadingScreen';
 import ConfirmModal from '../components/ConfirmModal';
 import toast from 'react-hot-toast';
 import { useState, useMemo } from 'react';
-
-// Константы для доставки
-const DELIVERY_COST = 500;
-const FREE_DELIVERY_THRESHOLD = 2500;
+import {
+  MIN_ORDER_AMOUNT,
+  calculateDeliveryCost,
+  getDeliveryProgress,
+} from '../utils/shipping';
 
 export default function CartPage() {
   const navigate = useNavigate();
@@ -81,9 +82,14 @@ export default function CartPage() {
   const subtotal = data?.total || 0;
 
   // Расчет доставки
-  const deliveryCost = useMemo(() => {
-    return subtotal >= FREE_DELIVERY_THRESHOLD ? 0 : DELIVERY_COST;
-  }, [subtotal]);
+  const deliveryCost = useMemo(() => calculateDeliveryCost(subtotal), [subtotal]);
+  const deliveryProgress = useMemo(() => getDeliveryProgress(subtotal), [subtotal]);
+  const checkoutDisabled = subtotal < MIN_ORDER_AMOUNT;
+  const nextStepLabel = deliveryProgress.nextStep
+    ? deliveryProgress.nextStep.cost === 0
+      ? 'бесплатной доставки'
+      : `доставки за ${deliveryProgress.nextStep.cost}₽`
+    : null;
 
   const total = subtotal + deliveryCost;
 
@@ -277,12 +283,36 @@ export default function CartPage() {
             </span>
           </div>
 
-          {/* Подсказка */}
-          {deliveryCost > 0 && (
-            <div className="text-xs text-tg-hint bg-tg-bg p-2 rounded-xl">
-              Добавьте товаров на {(FREE_DELIVERY_THRESHOLD - subtotal).toLocaleString()}₽ для бесплатной доставки
+          {/* Прогресс по доставке */}
+          <div className="bg-tg-bg rounded-xl p-3 space-y-2">
+            <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-tg-hint font-semibold">
+              <span>
+                {deliveryProgress.minOrderReached
+                  ? deliveryProgress.currentStep?.label ?? 'Минимальный заказ'
+                  : 'Минимальный заказ 1000₽'}
+              </span>
+              <span>
+                {deliveryProgress.nextStep?.label ?? 'Лучшие условия'}
+              </span>
             </div>
-          )}
+            <div className="h-2 bg-tg-secondary-bg rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-emerald-400 via-sky-400 to-cyan-500"
+                style={{ width: `${deliveryProgress.progressPercent * 100}%` }}
+              />
+            </div>
+            <div className="text-xs text-tg-hint">
+              {!deliveryProgress.minOrderReached && (
+                <>Добавьте товаров на {deliveryProgress.amountToNext.toLocaleString()}₽, чтобы оформить заказ.</>
+              )}
+              {deliveryProgress.minOrderReached && nextStepLabel && (
+                <>Добавьте товаров на {deliveryProgress.amountToNext.toLocaleString()}₽ до {nextStepLabel}.</>
+              )}
+              {deliveryProgress.minOrderReached && !nextStepLabel && (
+                <span className="text-green-500 font-medium">У вас уже {deliveryCost === 0 ? 'бесплатная доставка 🎉' : 'лучшие условия по доставке'}.</span>
+              )}
+            </div>
+          </div>
 
           {/* Разделитель */}
           <div className="border-t border-tg-bg pt-2">
@@ -295,10 +325,15 @@ export default function CartPage() {
           </div>
 
           <button
-            onClick={() => navigate('/checkout')}
-            className="w-full bg-tg-button text-tg-button-text py-4 rounded-2xl font-semibold hover:opacity-90 transition-opacity"
+            onClick={() => {
+              if (!checkoutDisabled) {
+                navigate('/checkout');
+              }
+            }}
+            disabled={checkoutDisabled}
+            className="w-full bg-tg-button text-tg-button-text py-4 rounded-2xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Оформить заказ
+            {checkoutDisabled ? 'Минимальный заказ 1000₽' : 'Оформить заказ'}
           </button>
         </div>
       </motion.div>

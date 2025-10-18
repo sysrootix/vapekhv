@@ -10,10 +10,7 @@ import { bonusApi } from '../api/bonus';
 import LoadingScreen from '../components/LoadingScreen';
 import toast from 'react-hot-toast';
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-
-// Константы для доставки
-const DELIVERY_COST = 500;
-const FREE_DELIVERY_THRESHOLD = 2500;
+import { MIN_ORDER_AMOUNT, calculateDeliveryCost, getDeliveryProgress } from '../utils/shipping';
 
 // Функция форматирования телефона
 const formatPhoneNumber = (value: string): string => {
@@ -140,9 +137,14 @@ export default function CheckoutPage() {
 
   // Расчет стоимости с учетом бонусов
   const subtotal = cartData?.total || 0;
-  const deliveryCost = useMemo(() => {
-    return subtotal >= FREE_DELIVERY_THRESHOLD ? 0 : DELIVERY_COST;
-  }, [subtotal]);
+  const deliveryCost = useMemo(() => calculateDeliveryCost(subtotal), [subtotal]);
+  const deliveryProgress = useMemo(() => getDeliveryProgress(subtotal), [subtotal]);
+  const canSubmit = subtotal >= MIN_ORDER_AMOUNT;
+  const nextStepLabel = deliveryProgress.nextStep
+    ? deliveryProgress.nextStep.cost === 0
+      ? 'бесплатной доставки'
+      : `доставки за ${deliveryProgress.nextStep.cost}₽`
+    : null;
 
   const totalBeforeBonuses = subtotal + deliveryCost;
   const availableBonuses = bonusInfo?.balance || 0;
@@ -210,6 +212,11 @@ export default function CheckoutPage() {
     const fullAddress = `г. Хабаровск, ${street}, д. ${house}${apartment ? ', кв. ' + apartment : ''}${entrance ? ', подъезд ' + entrance : ''}`;
 
     // Создание заказа
+    if (!canSubmit) {
+      toast.error(`Минимальная сумма заказа ${MIN_ORDER_AMOUNT.toLocaleString('ru-RU')}₽`);
+      return;
+    }
+
     createOrderMutation.mutate({
       phone,
       deliveryAddress: fullAddress,
@@ -542,7 +549,36 @@ export default function CheckoutPage() {
           animate={{ opacity: 1, y: 0 }}
           className="bg-tg-secondary-bg rounded-2xl p-4 space-y-3"
         >
-          {/* Подитог */}
+          <div className="bg-tg-bg rounded-xl p-3 space-y-2">
+            <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-tg-hint font-semibold">
+              <span>
+                {deliveryProgress.minOrderReached
+                  ? deliveryProgress.currentStep?.label ?? 'Минимальный заказ'
+                  : 'Минимальный заказ 1000₽'}
+              </span>
+              <span>{deliveryProgress.nextStep?.label ?? 'Лучшие условия'}</span>
+            </div>
+            <div className="h-2 bg-tg-secondary-bg rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-emerald-400 via-sky-400 to-cyan-500"
+                style={{ width: `${deliveryProgress.progressPercent * 100}%` }}
+              />
+            </div>
+            <div className="text-xs text-tg-hint">
+              {!deliveryProgress.minOrderReached && (
+                <>Добавьте товаров на {deliveryProgress.amountToNext.toLocaleString()}₽, чтобы оформить заказ.</>
+              )}
+              {deliveryProgress.minOrderReached && nextStepLabel && (
+                <>Добавьте товаров на {deliveryProgress.amountToNext.toLocaleString()}₽ до {nextStepLabel}.</>
+              )}
+              {deliveryProgress.minOrderReached && !nextStepLabel && (
+                <span className="text-green-500 font-medium">
+                  У вас уже {deliveryCost === 0 ? 'бесплатная доставка 🎉' : 'лучшие условия по доставке'}.
+                </span>
+              )}
+            </div>
+          </div>
+
           <div className="flex items-center justify-between text-sm">
             <span className="text-tg-hint">Товары:</span>
             <span className="text-tg-text font-medium">
@@ -550,7 +586,6 @@ export default function CheckoutPage() {
             </span>
           </div>
 
-          {/* Доставка */}
           <div className="flex items-center justify-between text-sm">
             <div className="flex items-center gap-2">
               <Truck className="w-4 h-4 text-tg-hint" />
@@ -561,7 +596,6 @@ export default function CheckoutPage() {
             </span>
           </div>
 
-          {/* Скидка бонусами */}
           {bonusDiscount > 0 && (
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-2">
@@ -574,7 +608,6 @@ export default function CheckoutPage() {
             </div>
           )}
 
-          {/* Итого */}
           <div className="border-t border-tg-bg pt-2">
             <div className="flex items-center justify-between mb-3">
               <span className="text-tg-text font-semibold">Итого:</span>
@@ -586,10 +619,14 @@ export default function CheckoutPage() {
 
           <button
             onClick={handleSubmit}
-            disabled={createOrderMutation.isPending}
-            className="w-full bg-tg-button text-tg-button-text py-4 rounded-2xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+            disabled={createOrderMutation.isPending || !canSubmit}
+            className="w-full bg-tg-button text-tg-button-text py-4 rounded-2xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {createOrderMutation.isPending ? 'Оформление...' : 'Подтвердить заказ'}
+            {createOrderMutation.isPending
+              ? 'Оформление...'
+              : canSubmit
+                ? 'Подтвердить заказ'
+                : 'Минимальный заказ 1000₽'}
           </button>
         </motion.div>
       </div>

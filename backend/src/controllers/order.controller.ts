@@ -9,8 +9,22 @@ import { syncOrderWithMoySklad } from '../services/moysklad-sync.service';
 
 
 // Константы для доставки
-const DELIVERY_COST = 500;
-const FREE_DELIVERY_THRESHOLD = 2500;
+const MIN_ORDER_AMOUNT = 1000;
+const DELIVERY_TIERS = [
+  { threshold: 5000, cost: 0 },
+  { threshold: 4000, cost: 200 },
+  { threshold: 3000, cost: 300 },
+  { threshold: 1000, cost: 500 },
+];
+
+const calculateDeliveryCost = (subtotal: number): number => {
+  for (const tier of DELIVERY_TIERS) {
+    if (subtotal >= tier.threshold) {
+      return tier.cost;
+    }
+  }
+  return DELIVERY_TIERS[DELIVERY_TIERS.length - 1].cost;
+};
 
 class OrderController {
   // Получить все заказы пользователя
@@ -164,8 +178,12 @@ class OrderController {
         0
       );
 
+      if (subtotal < MIN_ORDER_AMOUNT) {
+        throw new AppError(`Минимальная сумма заказа ${MIN_ORDER_AMOUNT}₽`, 400);
+      }
+
       // Рассчитать стоимость доставки
-      const deliveryCost = subtotal >= FREE_DELIVERY_THRESHOLD ? 0 : DELIVERY_COST;
+      const deliveryCost = calculateDeliveryCost(subtotal);
 
       // Получить пользователя для проверки бонусов
       const user = await prisma.user.findUnique({
