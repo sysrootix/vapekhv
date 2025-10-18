@@ -130,7 +130,7 @@ const evaluatePromoCode = async ({
 };
 
 class OrderController {
-  async applyPromo(req: AuthRequest, res: Response) {
+  async applyPromo(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.user?.id;
       const { promoCode } = req.body;
@@ -182,12 +182,14 @@ class OrderController {
           totalBeforeBonuses,
         },
       });
+      return;
     } catch (error) {
       if (error instanceof AppError) {
-        return res.json({
+        res.json({
           valid: false,
           message: error.message,
         });
+        return;
       }
       logger.error('Ошибка при применении промокода:', error);
       throw new AppError('Не удалось применить промокод', 500);
