@@ -63,7 +63,8 @@ export interface CreateOrderRequest {
 
 export type PromoCodeType = 'PERCENT' | 'FIXED' | 'FREE_DELIVERY' | 'BONUS';
 
-export interface ApplyPromoResponse {
+export interface ApplyPromoSuccess {
+  valid: true;
   promo: {
     id: string;
     code: string;
@@ -79,6 +80,13 @@ export interface ApplyPromoResponse {
     totalBeforeBonuses: number;
   };
 }
+
+export interface ApplyPromoFailure {
+  valid: false;
+  message?: string;
+}
+
+export type ApplyPromoResponse = ApplyPromoSuccess | ApplyPromoFailure;
 
 export const orderApi = {
   getOrders: async (): Promise<Order[]> => {

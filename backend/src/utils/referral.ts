@@ -16,7 +16,12 @@ export const generateReferralCode = (): string => {
 };
 
 export const buildReferralLink = (code: string): string => {
-  const baseUrl = process.env.WEBAPP_URL || process.env.FRONTEND_URL || '';
+  const botUsername = process.env.TELEGRAM_BOT_USERNAME;
+  if (botUsername) {
+    return `https://t.me/${botUsername}?startapp=${code}`;
+  }
+
+  const baseUrl = process.env.WEBAPP_URL || process.env.FRONTEND_URL;
   if (!baseUrl) {
     return code;
   }

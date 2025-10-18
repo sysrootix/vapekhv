@@ -5,7 +5,7 @@ import { Phone, MapPin, Building, MessageSquare, Calendar, Clock, Truck, ArrowLe
 import { useTelegramBackButton } from '../hooks/useTelegramApp';
 import { userApi } from '../api/user';
 import { cartApi } from '../api/cart';
-import { orderApi, ApplyPromoResponse } from '../api/order';
+import { orderApi, ApplyPromoSuccess } from '../api/order';
 import { bonusApi } from '../api/bonus';
 import LoadingScreen from '../components/LoadingScreen';
 import toast from 'react-hot-toast';
@@ -89,7 +89,7 @@ export default function CheckoutPage() {
   const [useBonuses, setUseBonuses] = useState(false);
   const [bonusAmount, setBonusAmount] = useState(0);
   const [promoInput, setPromoInput] = useState('');
-  const [promoSummary, setPromoSummary] = useState<ApplyPromoResponse | null>(null);
+  const [promoSummary, setPromoSummary] = useState<ApplyPromoSuccess | null>(null);
 
   // Получаем текущую дату для минимального значения (один раз при загрузке)
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
@@ -186,9 +186,14 @@ export default function CheckoutPage() {
   const applyPromoMutation = useMutation({
     mutationFn: (code: string) => orderApi.applyPromo(code),
     onSuccess: (response) => {
-      setPromoSummary(response);
-      setPromoInput(response.promo.code);
-      toast.success('Промокод применён');
+      if (response.valid) {
+        setPromoSummary(response);
+        setPromoInput(response.promo.code);
+        toast.success('Промокод применён');
+      } else {
+        setPromoSummary(null);
+        toast.error(response.message || 'Промокод не найден или уже не действует');
+      }
     },
     onError: (error: any) => {
       const message = error?.response?.data?.error || 'Не удалось применить промокод';

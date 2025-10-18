@@ -166,6 +166,7 @@ class OrderController {
       const totalBeforeBonuses = subtotal - promoResult.discount + promoResult.deliveryCost;
 
       res.json({
+        valid: true,
         promo: {
           id: promoResult.promo.id,
           code: promoResult.promo.code,
@@ -183,7 +184,10 @@ class OrderController {
       });
     } catch (error) {
       if (error instanceof AppError) {
-        throw error;
+        return res.json({
+          valid: false,
+          message: error.message,
+        });
       }
       logger.error('Ошибка при применении промокода:', error);
       throw new AppError('Не удалось применить промокод', 500);
