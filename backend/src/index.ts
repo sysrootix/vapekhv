@@ -25,6 +25,11 @@ import orderRoutes from './routes/order.routes';
 // Load environment variables
 dotenv.config();
 
+// Add this to handle BigInt serialization
+(BigInt.prototype as any).toJSON = function () {
+  return this.toString();
+};
+
 const app: Application = express();
 const PORT = process.env.PORT || 3000;
 

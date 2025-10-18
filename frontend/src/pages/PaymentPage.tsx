@@ -12,6 +12,9 @@ import { Query } from '@tanstack/react-query';
 // Платежные реквизиты
 const PAYMENT_CARD_NUMBER = import.meta.env.VITE_PAYMENT_CARD_NUMBER;
 const PAYMENT_CARD_HOLDER = import.meta.env.VITE_PAYMENT_CARD_HOLDER;
+const SBP_PHONE_NUMBER = import.meta.env.VITE_SBP_PHONE_NUMBER;
+const SBP_BANK_NAME = import.meta.env.VITE_SBP_BANK_NAME;
+const SBP_RECIPIENT_NAME = import.meta.env.VITE_SBP_RECIPIENT_NAME;
 
 export default function PaymentPage() {
   const { orderId } = useParams<{ orderId: string }>();
@@ -19,6 +22,7 @@ export default function PaymentPage() {
   const queryClient = useQueryClient();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'sbp'>('card');
 
   // Telegram BackButton
   const handleBack = useCallback(() => navigate('/orders'), [navigate]);
@@ -51,33 +55,33 @@ export default function PaymentPage() {
     },
   });
 
-  // Таймер обратного отсчета
-  const timeRemaining = useMemo(() => {
-    if (!order?.paymentExpiresAt) return null;
+  const [timeRemaining, setTimeRemaining] = useState<{ minutes: number; seconds: number } | null>(null);
 
-    const expiresAt = new Date(order.paymentExpiresAt).getTime();
-    const now = Date.now();
-    const diff = expiresAt - now;
-
-    if (diff <= 0) return null;
-
-    const minutes = Math.floor(diff / 60000);
-    const seconds = Math.floor((diff % 60000) / 1000);
-
-    return { minutes, seconds, total: diff };
-  }, [order?.paymentExpiresAt]);
-
-  // Обновление таймера каждую секунду
-  const [, setTick] = useState(0);
   useEffect(() => {
-    if (!timeRemaining) return;
+    if (!order?.paymentExpiresAt) return;
 
-    const interval = setInterval(() => {
-      setTick(t => t + 1);
-    }, 1000);
+    const calculateTimeRemaining = () => {
+      const expiresAt = new Date(order.paymentExpiresAt).getTime();
+      const now = Date.now();
+      const diff = expiresAt - now;
+
+      if (diff <= 0) {
+        setTimeRemaining(null);
+        // Optionally invalidate query to refetch order status
+        queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+        return;
+      }
+
+      const minutes = Math.floor(diff / 60000);
+      const seconds = Math.floor((diff % 60000) / 1000);
+      setTimeRemaining({ minutes, seconds });
+    };
+
+    calculateTimeRemaining(); // Initial calculation
+    const interval = setInterval(calculateTimeRemaining, 1000);
 
     return () => clearInterval(interval);
-  }, [timeRemaining]);
+  }, [order?.paymentExpiresAt, orderId, queryClient]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -252,31 +256,85 @@ export default function PaymentPage() {
             Реквизиты для оплаты
           </h2>
 
-          <div className="bg-tg-bg rounded-xl p-4 space-y-3">
-            <div>
-              <p className="text-xs text-tg-hint mb-1">Номер карты</p>
-              <div className="flex items-center justify-between">
-                <p className="text-lg font-mono text-tg-text">{PAYMENT_CARD_NUMBER}</p>
-                <button
-                  onClick={() => copyToClipboard(PAYMENT_CARD_NUMBER.replace(/\s/g, ''))}
-                  className="p-2 hover:bg-tg-secondary-bg rounded-lg transition-colors"
-                >
-                  <Copy className="w-4 h-4 text-tg-hint" />
-                </button>
+          <div className="flex bg-tg-bg rounded-xl p-1">
+            <button
+              onClick={() => setPaymentMethod('card')}
+              className={`w-1/2 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                paymentMethod === 'card'
+                  ? 'bg-tg-secondary-bg text-tg-text'
+                  : 'text-tg-hint'
+              }`}
+            >
+              По номеру карты
+            </button>
+            <button
+              onClick={() => setPaymentMethod('sbp')}
+              className={`w-1/2 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                paymentMethod === 'sbp'
+                  ? 'bg-tg-secondary-bg text-tg-text'
+                  : 'text-tg-hint'
+              }`}
+            >
+              По СБП
+            </button>
+          </div>
+
+          {paymentMethod === 'card' && (
+            <div className="bg-tg-bg rounded-xl p-4 space-y-3">
+              <div>
+                <p className="text-xs text-tg-hint mb-1">Номер карты</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-lg font-mono text-tg-text">{PAYMENT_CARD_NUMBER}</p>
+                  <button
+                    onClick={() => copyToClipboard(PAYMENT_CARD_NUMBER.replace(/\s/g, ''))}
+                    className="p-2 hover:bg-tg-secondary-bg rounded-lg transition-colors"
+                  >
+                    <Copy className="w-4 h-4 text-tg-hint" />
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs text-tg-hint mb-1">Получатель</p>
+                <p className="text-tg-text">{PAYMENT_CARD_HOLDER}</p>
               </div>
             </div>
+          )}
 
-            <div>
-              <p className="text-xs text-tg-hint mb-1">Получатель</p>
-              <p className="text-tg-text">{PAYMENT_CARD_HOLDER}</p>
+          {paymentMethod === 'sbp' && SBP_PHONE_NUMBER && (
+            <div className="bg-tg-bg rounded-xl p-4 space-y-3">
+              <div>
+                <p className="text-xs text-tg-hint mb-1">Номер телефона</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-lg font-mono text-tg-text">{SBP_PHONE_NUMBER}</p>
+                  <button
+                    onClick={() => copyToClipboard(SBP_PHONE_NUMBER)}
+                    className="p-2 hover:bg-tg-secondary-bg rounded-lg transition-colors"
+                  >
+                    <Copy className="w-4 h-4 text-tg-hint" />
+                  </button>
+                </div>
+              </div>
+              {SBP_BANK_NAME && (
+                <div>
+                  <p className="text-xs text-tg-hint mb-1">Банк получателя</p>
+                  <p className="text-tg-text">{SBP_BANK_NAME}</p>
+                </div>
+              )}
+              {SBP_RECIPIENT_NAME && (
+                <div>
+                  <p className="text-xs text-tg-hint mb-1">Получатель</p>
+                  <p className="text-tg-text">{SBP_RECIPIENT_NAME}</p>
+                </div>
+              )}
             </div>
+          )}
 
-            <div className="border-t border-tg-bg pt-3">
-              <p className="text-xs text-tg-hint mb-1">Сумма к оплате</p>
-              <p className="text-3xl font-bold text-tg-text">
-                {order.totalAmount.toLocaleString()}₽
-              </p>
-            </div>
+          <div className="border-t border-tg-bg pt-3">
+            <p className="text-xs text-tg-hint mb-1">Сумма к оплате</p>
+            <p className="text-3xl font-bold text-tg-text">
+              {order.totalAmount.toLocaleString()}₽
+            </p>
           </div>
 
           <div className="text-xs text-tg-hint bg-tg-bg p-3 rounded-xl">

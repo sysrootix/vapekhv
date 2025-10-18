@@ -1,0 +1,3 @@
+ALTER TYPE "OrderStatus" ADD VALUE 'PAYMENT_EXPIRED';
+ALTER TABLE "orders" ADD COLUMN "receiptImageUrl" TEXT;
+ALTER TABLE "orders" ADD COLUMN "paymentExpiresAt" TIMESTAMP(3);
