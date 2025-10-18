@@ -209,7 +209,9 @@ class OrderController {
             status: 'PENDING',
             items: {
               create: cartItems.map((item) => ({
-                productId: item.productId,
+                product: {
+                  connect: { id: item.productId },
+                },
                 quantity: item.quantity,
                 price: item.product.price,
                 selectedOptions: item.selectedOptions || null,
