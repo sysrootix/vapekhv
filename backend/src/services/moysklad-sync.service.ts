@@ -53,6 +53,55 @@ const buildMeta = (type: string, id: string): MoySkladMeta => ({
   mediaType: 'application/json',
 });
 
+const normalizeDeliveryMoment = (dateInput: string | null, timeInput: string | null): string | undefined => {
+  if (!dateInput) {
+    return undefined;
+  }
+
+  let normalizedDate = dateInput.trim();
+  if (!normalizedDate) {
+    return undefined;
+  }
+
+  // Convert formats like DD.MM.YYYY to YYYY-MM-DD
+  const dotDateMatch = normalizedDate.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (dotDateMatch) {
+    const [, dd, mm, yyyy] = dotDateMatch;
+    normalizedDate = `${yyyy}-${mm}-${dd}`;
+  }
+
+  let normalizedTime: string | undefined;
+  if (timeInput) {
+    const trimmedTime = timeInput.trim();
+    if (!trimmedTime) {
+      normalizedTime = undefined;
+    } else if (/^\d{2}:\d{2}$/.test(trimmedTime)) {
+      normalizedTime = `${trimmedTime}:00`;
+    } else if (/^\d{2}:\d{2}:\d{2}$/.test(trimmedTime)) {
+      normalizedTime = trimmedTime;
+    } else if (trimmedTime.includes('-')) {
+      const firstPart = trimmedTime.split('-')[0].trim();
+      if (/^\d{2}:\d{2}$/.test(firstPart)) {
+        normalizedTime = `${firstPart}:00`;
+      } else if (/^\d{2}:\d{2}:\d{2}$/.test(firstPart)) {
+        normalizedTime = firstPart;
+      }
+    }
+  }
+
+  const isoCandidate = `${normalizedDate}T${normalizedTime ?? '00:00:00'}`;
+  const parsed = new Date(isoCandidate);
+
+  if (Number.isNaN(parsed.getTime())) {
+    logger.warn(
+      `Не удалось преобразовать дату доставки "${dateInput}" и время "${timeInput}" в ISO формат`
+    );
+    return undefined;
+  }
+
+  return parsed.toISOString();
+};
+
 export async function syncOrderWithMoySklad(order: OrderWithRelations): Promise<void> {
   const hasMoySkladConfig =
     Boolean(moySkladConfig.token) &&
@@ -163,17 +212,7 @@ export async function syncOrderWithMoySklad(order: OrderWithRelations): Promise<
     })
   );
 
-  const deliveryTimeValue = order.deliveryTime || undefined;
-  let deliveryMoment: string | undefined;
-  if (order.deliveryDate) {
-    if (deliveryTimeValue) {
-      const normalizedTime =
-        deliveryTimeValue.length === 5 ? `${deliveryTimeValue}:00` : deliveryTimeValue;
-      deliveryMoment = new Date(`${order.deliveryDate}T${normalizedTime}`).toISOString();
-    } else {
-      deliveryMoment = new Date(order.deliveryDate).toISOString();
-    }
-  }
+  const deliveryMoment = normalizeDeliveryMoment(order.deliveryDate, order.deliveryTime);
 
   const moyskladOrderPayload: MoySkladCustomerOrder = {
     name: order.orderNumber,
