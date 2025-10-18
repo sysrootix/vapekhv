@@ -117,7 +117,7 @@ export default function CartPage() {
   }
 
   return (
-    <div className="min-h-screen bg-tg-bg pb-96">
+    <div className="min-h-screen bg-tg-bg pb-80">
       <div className="max-w-4xl mx-auto p-4 space-y-4">
         {/* Header */}
         <motion.div
@@ -261,9 +261,9 @@ export default function CartPage() {
       <motion.div
         initial={{ opacity: 0, y: 50 }}
         animate={{ opacity: 1, y: 0 }}
-        className="fixed bottom-16 left-0 right-0 bg-tg-secondary-bg border-t border-tg-bg p-4"
+        className="fixed bottom-16 left-0 right-0 bg-tg-secondary-bg rounded-t-3xl shadow-lg p-3"
       >
-        <div className="max-w-4xl mx-auto space-y-3">
+        <div className="max-w-4xl mx-auto space-y-2">
           {/* Подитог */}
           <div className="flex items-center justify-between text-sm">
             <span className="text-tg-hint">Подитог:</span>
@@ -284,8 +284,8 @@ export default function CartPage() {
           </div>
 
           {/* Прогресс по доставке */}
-          <div className="bg-tg-bg rounded-xl p-3 space-y-2">
-            <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-tg-hint font-semibold">
+          <div className="bg-tg-bg rounded-xl p-2.5 space-y-1.5">
+            <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-tg-hint font-semibold">
               <span>
                 {deliveryProgress.minOrderReached
                   ? deliveryProgress.currentStep?.label ?? 'Минимальный заказ'
@@ -295,13 +295,13 @@ export default function CartPage() {
                 {deliveryProgress.nextStep?.label ?? 'Лучшие условия'}
               </span>
             </div>
-            <div className="h-2 bg-tg-secondary-bg rounded-full overflow-hidden">
+            <div className="h-1.5 bg-tg-secondary-bg rounded-full overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-emerald-400 via-sky-400 to-cyan-500"
                 style={{ width: `${deliveryProgress.progressPercent * 100}%` }}
               />
             </div>
-            <div className="text-xs text-tg-hint">
+            <div className="text-[11px] text-tg-hint">
               {!deliveryProgress.minOrderReached && (
                 <>Добавьте товаров на {deliveryProgress.amountToNext.toLocaleString()}₽, чтобы оформить заказ.</>
               )}
@@ -316,7 +316,7 @@ export default function CartPage() {
 
           {/* Разделитель */}
           <div className="border-t border-tg-bg pt-2">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-2">
               <span className="text-tg-text font-semibold">Итого:</span>
               <span className="text-2xl font-bold text-tg-text">
                 {total.toLocaleString()}₽
@@ -331,7 +331,7 @@ export default function CartPage() {
               }
             }}
             disabled={checkoutDisabled}
-            className="w-full bg-tg-button text-tg-button-text py-4 rounded-2xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-tg-button text-tg-button-text py-3 rounded-2xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {checkoutDisabled ? 'Минимальный заказ 1000₽' : 'Оформить заказ'}
           </button>
