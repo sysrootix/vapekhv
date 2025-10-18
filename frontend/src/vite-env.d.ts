@@ -21,6 +21,7 @@ interface Window {
       close: () => void;
       requestFullscreen?: () => void;
       disableVerticalSwipes?: () => void;
+      openTelegramLink?: (url: string) => void;
       HapticFeedback: {
         impactOccurred: (style: string) => void;
         notificationOccurred: (type: string) => void;
