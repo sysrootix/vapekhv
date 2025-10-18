@@ -33,7 +33,7 @@ export const requireAdmin = async (req: AuthRequest, _res: Response, next: Funct
     }
 
     const adminChatIds = getAdminChatIds();
-    const telegramId = parseInt(user.telegramId);
+    const telegramId = Number(user.telegramId);
 
     if (!adminChatIds.includes(telegramId)) {
       throw new AppError('Доступ запрещен. Требуются права администратора', 403);
@@ -51,7 +51,7 @@ class AdminController {
     try {
       const { status } = req.query;
 
-      const where = status && typeof status === 'string' ? { status } : {};
+      const where = status && typeof status === 'string' ? { status: status as any } : {};
 
       const orders = await prisma.order.findMany({
         where,
@@ -75,7 +75,7 @@ class AdminController {
               firstName: true,
               lastName: true,
               username: true,
-              phoneNumber: true,
+              phone: true,
               bonusPoints: true,
             },
           },
