@@ -182,7 +182,7 @@ export default function CheckoutPage() {
   }
 
   return (
-    <div className="min-h-screen bg-tg-bg pb-32">
+    <div className="min-h-screen bg-tg-bg pb-24">
       <div className="max-w-2xl mx-auto p-4 space-y-6">
         {/* Header */}
         <motion.div
@@ -376,15 +376,13 @@ export default function CheckoutPage() {
             </button>
           </div>
         </motion.form>
-      </div>
 
-      {/* Bottom Bar - Итого и кнопка оформления */}
-      <motion.div
-        initial={{ opacity: 0, y: 50 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="fixed bottom-16 left-0 right-0 bg-tg-secondary-bg border-t border-tg-bg p-4"
-      >
-        <div className="max-w-2xl mx-auto space-y-3">
+        {/* Итого и кнопка оформления */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-tg-secondary-bg rounded-2xl p-4 space-y-3"
+        >
           {/* Подитог */}
           <div className="flex items-center justify-between text-sm">
             <span className="text-tg-hint">Товары:</span>
@@ -421,8 +419,8 @@ export default function CheckoutPage() {
           >
             {createOrderMutation.isPending ? 'Оформление...' : 'Подтвердить заказ'}
           </button>
-        </div>
-      </motion.div>
+        </motion.div>
+      </div>
     </div>
   );
 }
