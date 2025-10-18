@@ -217,14 +217,14 @@ export default function OrdersPage() {
                   </div>
 
                   {/* Bonus info */}
-                  {(order.bonusUsed > 0 || order.bonusEarned > 0) && (
+                  {(order.bonusUsed > 0 || (order.bonusEarned > 0 && order.status === OrderStatus.DELIVERED)) && (
                     <div className="bg-tg-bg rounded-xl p-2 flex items-center justify-between text-xs">
                       {order.bonusUsed > 0 && (
                         <span className="text-orange-500">
                           Использовано бонусов: {order.bonusUsed}
                         </span>
                       )}
-                      {order.bonusEarned > 0 && (
+                      {order.bonusEarned > 0 && order.status === OrderStatus.DELIVERED && (
                         <span className="text-green-500">
                           Начислено бонусов: {order.bonusEarned}
                         </span>
