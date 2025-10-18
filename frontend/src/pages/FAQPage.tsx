@@ -1,6 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, Info, Truck, CreditCard, Gift, ShoppingBag, Shield, Phone } from 'lucide-react';
-import { useState } from 'react';
+import { ChevronDown, Info, Truck, CreditCard, Gift, ShoppingBag, Shield } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useTelegramBackButton } from '../hooks/useTelegramApp';
 
 interface FAQItem {
   question: string;
@@ -29,8 +31,8 @@ const faqData: FAQSection[] = [
       },
       {
         question: 'Как связаться с поддержкой?',
-        answer: 'Вы можете написать нам в Telegram или позвонить по телефону +7 (XXX) XXX-XX-XX. Мы работаем ежедневно с 10:00 до 22:00.',
-        icon: <Phone className="w-5 h-5" />,
+        answer: 'Вы можете написать нам в Telegram. Мы работаем 24/7.',
+        icon: <Info className="w-5 h-5" />,
       },
     ],
   },
@@ -39,12 +41,12 @@ const faqData: FAQSection[] = [
     items: [
       {
         question: 'Какие условия доставки?',
-        answer: 'Стоимость доставки зависит от суммы заказа:\n• При заказе от 1000₽ - доставка 500₽\n• При заказе от 2000₽ - доставка 300₽\n• При заказе от 3000₽ - бесплатная доставка\n\nМинимальная сумма заказа - 1000₽.',
+        answer: 'Стоимость доставки зависит от суммы заказа:\n• При заказе от 1000₽ - доставка 500₽\n• При заказе от 3000₽ - доставка 300₽\n• При заказе от 4000₽ - доставка 200₽\n• При заказе от 5000₽ - бесплатная доставка\n\nМинимальная сумма заказа - 1000₽.',
         icon: <Truck className="w-5 h-5" />,
       },
       {
         question: 'Как быстро доставите заказ?',
-        answer: 'Доставка по Хабаровску осуществляется в день заказа при оформлении до 18:00. При заказе после 18:00 - доставка на следующий день. Точное время доставки согласовывается с менеджером.',
+        answer: 'Доставка по Хабаровску осуществляется в течении часа при выборе "Ближайшее время" при оформлении заказа. Точное время доставки согласовывается с менеджером.',
         icon: <Truck className="w-5 h-5" />,
       },
       {
@@ -59,12 +61,12 @@ const faqData: FAQSection[] = [
     items: [
       {
         question: 'Какие способы оплаты доступны?',
-        answer: 'Мы принимаем:\n• Наличные курьеру при получении\n• Банковские карты (Visa, MasterCard, Mir)\n• Переводы по СБП\n• Оплата бонусами (до 30% от суммы заказа)',
+        answer: 'Мы принимаем:\n• Переводы по СБП\n• Перевод на карту\n• Оплата бонусами (до 50% от суммы заказа)',
         icon: <CreditCard className="w-5 h-5" />,
       },
       {
         question: 'Можно ли оплатить бонусами?',
-        answer: 'Да! Вы можете оплатить до 30% от суммы заказа бонусными баллами. Бонусы начисляются за каждую покупку и накапливаются на вашем счете.',
+        answer: 'Да! Вы можете оплатить до 50% от суммы заказа бонусными баллами. Бонусы начисляются за каждую покупку и накапливаются на вашем счете.',
         icon: <Gift className="w-5 h-5" />,
       },
       {
@@ -79,7 +81,7 @@ const faqData: FAQSection[] = [
     items: [
       {
         question: 'Как работает бонусная программа?',
-        answer: 'За каждую покупку вы получаете бонусные баллы (5% от суммы заказа). Бонусы можно использовать для оплаты следующих заказов - до 30% от суммы.',
+        answer: 'За каждую покупку вы получаете бонусные баллы (5% от суммы заказа). Бонусы можно использовать для оплаты следующих заказов - до 50% от суммы.',
         icon: <Gift className="w-5 h-5" />,
       },
       {
@@ -155,7 +157,12 @@ function AccordionItem({ item, isOpen, onClick }: { item: FAQItem; isOpen: boole
 }
 
 export default function FAQPage() {
+  const navigate = useNavigate();
   const [openItems, setOpenItems] = useState<{ [key: string]: boolean }>({});
+
+  // Telegram BackButton
+  const handleBack = useCallback(() => navigate('/profile'), [navigate]);
+  useTelegramBackButton(handleBack);
 
   const toggleItem = (sectionIndex: number, itemIndex: number) => {
     const key = `${sectionIndex}-${itemIndex}`;
@@ -212,22 +219,14 @@ export default function FAQPage() {
           <p className="text-tg-hint mb-4">
             Свяжитесь с нами, и мы с радостью поможем вам!
           </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <a
-              href="https://t.me/vapekhv_support"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-tg-button text-tg-button-text px-6 py-3 rounded-xl font-semibold hover:opacity-90 transition-opacity"
-            >
-              Написать в Telegram
-            </a>
-            <a
-              href="tel:+79990000000"
-              className="bg-tg-secondary-bg text-tg-text px-6 py-3 rounded-xl font-semibold hover:bg-tg-bg transition-colors"
-            >
-              Позвонить
-            </a>
-          </div>
+          <a
+            href={import.meta.env.VITE_TELEGRAM_SUPPORT_BOT_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block bg-tg-button text-tg-button-text px-8 py-3 rounded-xl font-semibold hover:opacity-90 transition-opacity"
+          >
+            Написать в Telegram
+          </a>
         </motion.div>
       </div>
     </div>
