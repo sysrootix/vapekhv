@@ -160,6 +160,27 @@ export interface MoySkladAgent {
   email?: string;
 }
 
+// Контрагент
+export interface MoySkladCounterparty {
+  id?: string;
+  meta?: MoySkladMeta;
+  name: string;
+  phone?: string;
+  email?: string;
+  externalCode?: string;
+  companyType?: string;
+  actualAddress?: string;
+}
+
+export interface MoySkladCreateCounterpartyRequest {
+  name: string;
+  phone?: string;
+  email?: string;
+  externalCode?: string;
+  companyType?: string;
+  actualAddress?: string;
+}
+
 // Наша организация (для создания заказа)
 export interface MoySkladOrganization {
   meta: MoySkladMeta;
@@ -176,6 +197,8 @@ export interface MoySkladCustomerOrderPosition {
 
 // Заказ покупателя
 export interface MoySkladCustomerOrder {
+  id?: string;
+  meta?: MoySkladMeta;
   name: string; // Номер заказа
   moment: string; // Дата и время заказа
   organization: MoySkladReference; // Наша организация
@@ -189,6 +212,47 @@ export interface MoySkladCustomerOrder {
   // Дополнительные поля для доставки
   deliveryPlannedMoment?: string; // Планируемая дата отгрузки
   // customFields?: { [key: string]: any }; // Пользовательские поля
+  shipmentAddress?: string;
+  vatEnabled?: boolean;
+}
+
+// Позиции для отгрузки (Demand)
+export interface MoySkladDemandPosition {
+  quantity: number;
+  price: number;
+  assortment: MoySkladReference;
+  reserve?: number;
+}
+
+export interface MoySkladDemand {
+  id?: string;
+  meta?: MoySkladMeta;
+  name?: string;
+  moment?: string;
+  organization: MoySkladReference;
+  agent: MoySkladReference;
+  store: MoySkladReference;
+  applicable?: boolean;
+  customerOrder?: MoySkladReference;
+  description?: string;
+  positions: MoySkladDemandPosition[];
+}
+
+export interface MoySkladLinkedOperation {
+  meta: MoySkladMeta;
+  linkedSum?: number;
+}
+
+export interface MoySkladCashIn {
+  id?: string;
+  meta?: MoySkladMeta;
+  name?: string;
+  moment?: string;
+  organization: MoySkladReference;
+  agent: MoySkladReference;
+  sum: number;
+  description?: string;
+  operations?: MoySkladLinkedOperation[];
 }
 
 // Ошибка API

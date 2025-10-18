@@ -29,6 +29,7 @@ export interface Order {
   status: OrderStatus;
   totalAmount: number;
   deliveryCost: number;
+  adminDeliveryCost?: number;
   bonusUsed: number;
   bonusEarned: number;
   userId: string;

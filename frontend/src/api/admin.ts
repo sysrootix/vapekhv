@@ -15,10 +15,10 @@ export const adminApi = {
   },
 
   // Обновить статус заказа
-  updateOrderStatus: async (orderId: string, status: OrderStatus, deliveryCost?: number): Promise<AdminOrder> => {
+  updateOrderStatus: async (orderId: string, status: OrderStatus, adminDeliveryCost?: number): Promise<AdminOrder> => {
     const response = await apiClient.put<AdminOrder>(`/admin/orders/${orderId}/status`, {
       status,
-      deliveryCost
+      adminDeliveryCost
     });
     return response.data;
   },

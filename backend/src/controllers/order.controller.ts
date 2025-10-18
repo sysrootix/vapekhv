@@ -5,8 +5,17 @@ import { prisma } from '../config/database';
 import { logger } from '../config/logger';
 import { AppError } from '../middleware/errorHandler';
 import { sendPaymentNotification, sendOrderStatusNotification } from '../services/payment-notification.service';
+import { moySkladConfig } from '../config/moysklad';
 import { moySkladAPI } from '../services/moysklad.api';
-import { MoySkladAgent, MoySkladCustomerOrder, MoySkladCustomerOrderPosition } from '../types/moysklad.types';
+import {
+  MoySkladCashIn,
+  MoySkladCounterparty,
+  MoySkladCustomerOrder,
+  MoySkladCustomerOrderPosition,
+  MoySkladDemand,
+  MoySkladDemandPosition,
+  MoySkladMeta,
+} from '../types/moysklad.types';
 
 
 // Константы для доставки
@@ -586,48 +595,206 @@ class OrderController {
         return updatedOrder;
       });
 
-      // Создать заказ в МойСклад
+      // Создать документы в МойСклад
       try {
-        const moyskladPositions: MoySkladCustomerOrderPosition[] = confirmed.items.map(item => ({
-          quantity: item.quantity,
-          price: item.price * 100, // Цена в копейках
-          assortment: {
-            meta: {
-              href: `https://api.moysklad.ru/api/remap/1.2/entity/product/${item.productId}`, // TODO: Handle variants
-              type: 'product',
-              mediaType: 'application/json',
-            },
-          },
-        }));
+        const hasMoySkladConfig =
+          Boolean(moySkladConfig.token) &&
+          Boolean(moySkladConfig.organizationId) &&
+          Boolean(moySkladConfig.storeId);
 
-        const moyskladOrder: MoySkladCustomerOrder = {
-          name: confirmed.orderNumber,
-          moment: new Date().toISOString(),
-          organization: {
-            meta: {
-              href: 'https://api.moysklad.ru/api/remap/1.2/entity/organization/YOUR_ORGANIZATION_ID', // TODO: Replace with actual organization ID
-              type: 'organization',
-              mediaType: 'application/json',
-            },
-          },
-          agent: {
-            meta: {
-              href: 'https://api.moysklad.ru/api/remap/1.2/entity/counterparty/YOUR_COUNTERPARTY_ID', // TODO: Replace with actual counterparty ID or create new
-              type: 'counterparty',
-              mediaType: 'application/json',
-            },
-            name: confirmed.user.firstName + ' ' + confirmed.user.lastName,
-            phone: confirmed.deliveryPhone,
-          },
-          sum: confirmed.totalAmount * 100, // Сумма в копейках
-          description: `Заказ из Telegram WebApp. Адрес: ${confirmed.deliveryAddress}. Время доставки: ${confirmed.deliveryDate} ${confirmed.deliveryTime}. Комментарий: ${confirmed.comment || ''}`,
-          positions: moyskladPositions,
-          deliveryPlannedMoment: confirmed.deliveryDate ? new Date(confirmed.deliveryDate).toISOString() : undefined,
-        };
+        if (!hasMoySkladConfig) {
+          logger.warn('Интеграция с МойСклад пропущена: конфигурация неполная');
+        } else {
+          const buildMeta = (type: string, id: string): MoySkladMeta => ({
+            href: `${moySkladConfig.apiUrl}/entity/${type}/${id}`,
+            type,
+            mediaType: 'application/json',
+          });
 
-        await moySkladAPI.createCustomerOrder(moyskladOrder);
+          const organizationRef = { meta: buildMeta('organization', moySkladConfig.organizationId) };
+          const storeRef = { meta: buildMeta('store', moySkladConfig.storeId) };
+          const orderTotalCoins = Math.round(confirmed.totalAmount * 100);
+
+          const preferredPhone = confirmed.deliveryPhone || order.user.phone || undefined;
+          const counterpartyName =
+            [order.user.firstName, order.user.lastName].filter(Boolean).join(' ') ||
+            order.user.username ||
+            (preferredPhone ? `Покупатель ${preferredPhone}` : `Покупатель ${order.userId}`);
+
+          let counterparty: MoySkladCounterparty | null =
+            await moySkladAPI.findCounterpartyByPhone(preferredPhone);
+
+          if (!counterparty) {
+            counterparty = await moySkladAPI.createCounterparty({
+              name: counterpartyName,
+              phone: preferredPhone,
+              externalCode: order.user.telegramId
+                ? `tg-${order.user.telegramId}`
+                : `user-${order.userId}`,
+              companyType: 'individual',
+              actualAddress: confirmed.deliveryAddress || undefined,
+            });
+          }
+
+          if (!counterparty?.meta?.href) {
+            throw new Error('Контрагент не содержит meta.href, невозможно создать заказ в МойСклад');
+          }
+
+          const agentReference = { meta: counterparty.meta };
+
+          const preparedItems = (
+            await Promise.all(
+              confirmed.items.map(async (item) => {
+                const price = Math.round(item.price * 100);
+                let assortmentMeta: MoySkladMeta | null = null;
+
+                if (item.selectedOptions && typeof item.selectedOptions === 'object') {
+                  const variant = await prisma.productVariant.findFirst({
+                    where: {
+                      productId: item.productId,
+                      characteristics: {
+                        equals: item.selectedOptions as Prisma.JsonValue,
+                      },
+                    },
+                    select: {
+                      moySkladId: true,
+                    },
+                  });
+
+                  if (variant?.moySkladId) {
+                    assortmentMeta = buildMeta('variant', variant.moySkladId);
+                  }
+                }
+
+                if (!assortmentMeta) {
+                  const productMoySkladId = item.product.moySkladId;
+                  if (productMoySkladId) {
+                    assortmentMeta = buildMeta('product', productMoySkladId);
+                  }
+                }
+
+                if (!assortmentMeta) {
+                  logger.warn(
+                    `Позиция "${item.product.name}" пропущена при создании заказа ${confirmed.orderNumber} в МойСклад: отсутствует moySkladId`
+                  );
+                  return null;
+                }
+
+                return {
+                  quantity: item.quantity,
+                  price,
+                  assortmentMeta,
+                };
+              })
+            )
+          ).filter(
+            (
+              position
+            ): position is { quantity: number; price: number; assortmentMeta: MoySkladMeta } =>
+              position !== null
+          );
+
+          if (preparedItems.length === 0) {
+            throw new Error(
+              `Не удалось подготовить позиции заказа ${confirmed.orderNumber} для отправки в МойСклад`
+            );
+          }
+
+          const customerOrderPositions: MoySkladCustomerOrderPosition[] = preparedItems.map(
+            (position) => ({
+              quantity: position.quantity,
+              price: position.price,
+              assortment: { meta: position.assortmentMeta },
+            })
+          );
+
+          const deliveryTimeValue = confirmed.deliveryTime || undefined;
+          let deliveryMoment: string | undefined;
+          if (confirmed.deliveryDate) {
+            if (deliveryTimeValue) {
+              const normalizedTime =
+                deliveryTimeValue.length === 5 ? `${deliveryTimeValue}:00` : deliveryTimeValue;
+              deliveryMoment = new Date(`${confirmed.deliveryDate}T${normalizedTime}`).toISOString();
+            } else {
+              deliveryMoment = new Date(confirmed.deliveryDate).toISOString();
+            }
+          }
+
+          const moyskladOrderPayload: MoySkladCustomerOrder = {
+            name: confirmed.orderNumber,
+            moment: new Date().toISOString(),
+            organization: organizationRef,
+            agent: {
+              meta: agentReference.meta,
+              name: counterparty.name || counterpartyName,
+              phone: counterparty.phone || preferredPhone,
+            },
+            store: storeRef,
+            sum: orderTotalCoins,
+            description: `Заказ из Telegram WebApp. Адрес: ${confirmed.deliveryAddress || '—'}. Время доставки: ${confirmed.deliveryDate || '—'} ${confirmed.deliveryTime || ''}. Комментарий: ${confirmed.comment || '—'}. Стоимость доставки (админ): ${confirmed.adminDeliveryCost ?? 'не указана'}`,
+            positions: customerOrderPositions,
+            deliveryPlannedMoment: deliveryMoment,
+            applicable: true,
+            shipmentAddress: confirmed.deliveryAddress || undefined,
+          };
+
+          const moyskladOrder = await moySkladAPI.createCustomerOrder(moyskladOrderPayload);
+
+          let demand: MoySkladDemand | null = null;
+          try {
+            const demandPositions: MoySkladDemandPosition[] = preparedItems.map((position) => ({
+              quantity: position.quantity,
+              price: position.price,
+              assortment: { meta: position.assortmentMeta },
+            }));
+
+            const demandPayload: MoySkladDemand = {
+              name: `${confirmed.orderNumber}-отгрузка`,
+              moment: new Date().toISOString(),
+              organization: organizationRef,
+              agent: agentReference,
+              store: storeRef,
+              applicable: true,
+              customerOrder: moyskladOrder.meta ? { meta: moyskladOrder.meta } : undefined,
+              description: `Отгрузка по заказу ${confirmed.orderNumber}`,
+              positions: demandPositions,
+            };
+
+            demand = await moySkladAPI.createDemand(demandPayload);
+          } catch (demandError) {
+            logger.error('Ошибка при создании отгрузки в МойСклад:', demandError);
+          }
+
+          try {
+            const operations =
+              moyskladOrder.meta || demand?.meta
+                ? [
+                    ...(moyskladOrder.meta
+                      ? [{ meta: moyskladOrder.meta, linkedSum: orderTotalCoins }]
+                      : []),
+                    ...(demand?.meta ? [{ meta: demand.meta, linkedSum: orderTotalCoins }] : []),
+                  ]
+                : undefined;
+
+            const cashInPayload: MoySkladCashIn = {
+              name: `${confirmed.orderNumber}-оплата`,
+              moment: new Date().toISOString(),
+              organization: organizationRef,
+              agent: agentReference,
+              sum: orderTotalCoins,
+              description: `Оплата наличными за заказ ${confirmed.orderNumber}`,
+              operations,
+            };
+
+            await moySkladAPI.createCashIn(cashInPayload);
+          } catch (cashInError) {
+            logger.error('Ошибка при создании кассового ордера в МойСклад:', cashInError);
+          }
+
+          logger.info(`Заказ ${confirmed.orderNumber} синхронизирован с МойСклад`);
+        }
       } catch (moyskladError) {
-        logger.error('Ошибка при создании заказа в МойСклад:', moyskladError);
+        logger.error('Ошибка при синхронизации заказа в МойСклад:', moyskladError);
         // Не выбрасываем ошибку, чтобы основной процесс подтверждения заказа не прерывался
       }
 

@@ -9,6 +9,10 @@ import {
   MoySkladImage,
   MoySkladError,
   MoySkladCustomerOrder,
+  MoySkladCounterparty,
+  MoySkladCreateCounterpartyRequest,
+  MoySkladDemand,
+  MoySkladCashIn,
 } from '../types/moysklad.types';
 
 /**
@@ -378,6 +382,85 @@ export class MoySkladAPI {
       return response.data;
     } catch (error) {
       logger.error('Ошибка создания Заказа покупателя в МойСклад:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Найти контрагента по телефону (использует search)
+   */
+  async findCounterpartyByPhone(phone?: string): Promise<MoySkladCounterparty | null> {
+    if (!phone) {
+      return null;
+    }
+
+    try {
+      const normalized = phone.replace(/\D/g, '');
+      if (!normalized) {
+        return null;
+      }
+
+      const response = await this.client.get<MoySkladListResponse<MoySkladCounterparty>>(
+        '/entity/counterparty',
+        {
+          params: {
+            search: normalized,
+            limit: 1,
+          },
+        }
+      );
+
+      const counterparty = response.data.rows?.[0];
+      if (counterparty) {
+        logger.debug(`Найден контрагент ${counterparty.name} для телефона ${phone}`);
+        return counterparty;
+      }
+
+      return null;
+    } catch (error) {
+      logger.error('Ошибка поиска контрагента в МойСклад:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Создать нового контрагента
+   */
+  async createCounterparty(data: MoySkladCreateCounterpartyRequest): Promise<MoySkladCounterparty> {
+    try {
+      const response = await this.client.post<MoySkladCounterparty>('/entity/counterparty', data);
+      logger.info(`Создан новый контрагент в МойСклад: ${response.data.name}`);
+      return response.data;
+    } catch (error) {
+      logger.error('Ошибка создания контрагента в МойСклад:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Создать отгрузку (Demand) для списания остатков
+   */
+  async createDemand(demand: MoySkladDemand): Promise<MoySkladDemand> {
+    try {
+      const response = await this.client.post<MoySkladDemand>('/entity/demand', demand);
+      logger.info(`Отгрузка ${demand.name || demand.customerOrder?.meta?.href || ''} создана в МойСклад`);
+      return response.data;
+    } catch (error) {
+      logger.error('Ошибка создания отгрузки в МойСклад:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Создать приходный кассовый ордер (CashIn) для фиксации оплаты наличными
+   */
+  async createCashIn(cashIn: MoySkladCashIn): Promise<MoySkladCashIn> {
+    try {
+      const response = await this.client.post<MoySkladCashIn>('/entity/cashin', cashIn);
+      logger.info(`Оплата наличными зафиксирована в МойСклад (сумма: ${cashIn.sum / 100} ₽)`);
+      return response.data;
+    } catch (error) {
+      logger.error('Ошибка создания кассового ордера в МойСклад:', error);
       throw error;
     }
   }

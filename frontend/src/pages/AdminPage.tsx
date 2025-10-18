@@ -67,8 +67,8 @@ export default function AdminPage() {
 
   // Мутация для изменения статуса
   const updateStatusMutation = useMutation({
-    mutationFn: ({ orderId, status, deliveryCost }: { orderId: string; status: OrderStatus; deliveryCost?: number }) =>
-      adminApi.updateOrderStatus(orderId, status, deliveryCost),
+    mutationFn: ({ orderId, status, adminDeliveryCost }: { orderId: string; status: OrderStatus; adminDeliveryCost?: number }) =>
+      adminApi.updateOrderStatus(orderId, status, adminDeliveryCost),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
       toast.success('Статус заказа обновлен');
@@ -104,7 +104,7 @@ export default function AdminPage() {
     updateStatusMutation.mutate({
       orderId: pendingStatusChange.orderId,
       status: pendingStatusChange.status,
-      deliveryCost: cost,
+      adminDeliveryCost: cost,
     });
   };
 
