@@ -5,6 +5,29 @@ import { parseTelegramUser } from '../config/telegram';
 import { generateToken } from '../middleware/auth';
 import { logger } from '../config/logger';
 import { AppError } from '../middleware/errorHandler';
+import { referralService } from '../services/referral.service';
+import { sendReferralInviteNotification } from '../services/bot.service';
+
+const extractReferralCode = (initData: string, explicitCode?: string): string | null => {
+  if (explicitCode && typeof explicitCode === 'string') {
+    const trimmed = explicitCode.trim();
+    if (trimmed) {
+      return trimmed.toUpperCase();
+    }
+  }
+
+  try {
+    const params = new URLSearchParams(initData);
+    const startParam = params.get('start_param') || params.get('startapp') || params.get('ref');
+    if (startParam) {
+      return startParam.trim().toUpperCase();
+    }
+  } catch (error) {
+    logger.warn('Не удалось извлечь start_param из initData', error);
+  }
+
+  return null;
+};
 
 class AuthController {
   async telegramAuth(req: Request, res: Response) {
@@ -18,6 +41,7 @@ class AuthController {
 
       // Парсим данные пользователя из Telegram
       const telegramUser = parseTelegramUser(initData);
+      const referralCodeCandidate = extractReferralCode(initData, req.body?.referralCode);
 
       if (!telegramUser || !telegramUser.id) {
         throw new AppError('Неверные данные Telegram', 400);
@@ -43,7 +67,40 @@ class AuthController {
           },
         });
 
+        // Обеспечиваем наличие реферального кода
+        const referralCode = await referralService.ensureReferralCode(user.id);
+        user = { ...user, referralCode };
+
+        // Пытаемся привязать реферальный код
+        let referralContext: Awaited<ReturnType<typeof referralService.linkReferralInvite>> | null = null;
+        if (referralCodeCandidate) {
+          try {
+            referralContext = await referralService.linkReferralInvite({
+              inviteeId: user.id,
+              referralCode: referralCodeCandidate,
+            });
+          } catch (referralError) {
+            logger.error('Ошибка привязки реферального кода:', referralError);
+          }
+        }
+
         logger.info(`New user created: ${user.id} (Telegram ID: ${user.telegramId})`);
+
+        // Отправляем уведомление инвайтеру вне транзакции
+        if (referralContext?.inviter?.telegramId) {
+          try {
+            await sendReferralInviteNotification(
+              referralContext.inviter.telegramId,
+              {
+                inviteeFirstName: telegramUser.first_name || telegramUser.username || 'Новый пользователь',
+                bonusAmount: referralContext.referral.bonusAmount,
+                referralCode: referralContext.inviter.referralCode,
+              }
+            );
+          } catch (notificationError) {
+            logger.error('Ошибка отправки уведомления о реферале:', notificationError);
+          }
+        }
       } else {
         // Обновляем время последнего входа
         user = await prisma.user.update({
@@ -59,6 +116,14 @@ class AuthController {
         });
 
         logger.info(`User logged in: ${user.id} (Telegram ID: ${user.telegramId})`);
+
+        // У пользователя мог не быть кода ранее
+        try {
+          const referralCode = await referralService.ensureReferralCode(user.id);
+          user = { ...user, referralCode };
+        } catch (error) {
+          logger.error('Ошибка при обеспечении реферального кода:', error);
+        }
       }
 
       // Генерируем JWT токен
@@ -103,4 +168,3 @@ class AuthController {
 }
 
 export const authController = new AuthController();
-

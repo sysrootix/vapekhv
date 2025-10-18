@@ -3,7 +3,7 @@ import { apiClient } from './client';
 export interface BonusTransaction {
   id: string;
   amount: number;
-  type: 'EARNED' | 'SPENT' | 'GIFT' | 'EXPIRED' | 'REFUND';
+  type: 'EARNED' | 'SPENT' | 'GIFT' | 'EXPIRED' | 'REFUND' | 'REFERRAL' | 'PROMO';
   description: string | null;
   createdAt: string;
 }
@@ -46,4 +46,3 @@ export const bonusApi = {
     return data;
   },
 };
-

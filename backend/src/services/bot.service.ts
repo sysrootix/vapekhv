@@ -1,9 +1,11 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { logger } from '../config/logger';
 import { syncService } from './sync.service';
+import { buildReferralLink } from '../utils/referral';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const WEBAPP_URL = process.env.WEBAPP_URL;
+const REFERRAL_PAGE_URL = WEBAPP_URL ? `${WEBAPP_URL.replace(/\/$/, '')}/referrals` : null;
 
 if (!WEBAPP_URL) {
   throw new Error('WEBAPP_URL is not defined in environment variables');
@@ -279,6 +281,88 @@ export const initBot = () => {
   });
 
   logger.info('✅ Telegram бот успешно запущен');
+};
+
+export const sendReferralInviteNotification = async (
+  telegramId: bigint,
+  payload: { inviteeFirstName: string; bonusAmount: number; referralCode?: string | null }
+): Promise<void> => {
+  try {
+    const shareLink = payload.referralCode ? buildReferralLink(payload.referralCode) : null;
+    const keyboard: TelegramBot.InlineKeyboardButton[][] = [];
+
+    if (REFERRAL_PAGE_URL) {
+      keyboard.push([
+        {
+          text: '🎁 Реферальный кабинет',
+          web_app: { url: REFERRAL_PAGE_URL },
+        },
+      ]);
+    }
+
+    if (shareLink) {
+      keyboard.push([
+        {
+          text: '🔗 Поделиться ссылкой',
+          url: shareLink,
+        },
+      ]);
+    }
+
+    const message = `
+👥 <b>Новый реферал</b>
+
+${payload.inviteeFirstName} открыл приложение по вашей ссылке.
+Как только он оформит первый заказ, вы получите <b>${payload.bonusAmount}₽</b> бонусов.
+    `.trim();
+
+    await bot.sendMessage(Number(telegramId), message, {
+      parse_mode: 'HTML',
+      reply_markup: keyboard.length
+        ? {
+            inline_keyboard: keyboard,
+          }
+        : undefined,
+    });
+  } catch (error) {
+    logger.error(`Ошибка отправки уведомления о новом реферале пользователю ${telegramId}:`, error);
+  }
+};
+
+export const sendReferralRewardNotification = async (
+  telegramId: bigint,
+  payload: { inviteeName: string; bonusAmount: number }
+): Promise<void> => {
+  try {
+    const keyboard: TelegramBot.InlineKeyboardButton[][] = [];
+
+    if (REFERRAL_PAGE_URL) {
+      keyboard.push([
+        {
+          text: '🎁 Реферальный кабинет',
+          web_app: { url: REFERRAL_PAGE_URL },
+        },
+      ]);
+    }
+
+    const message = `
+🎉 <b>Бонус начислен!</b>
+
+${payload.inviteeName} сделал первый заказ.
+Ваш баланс пополнен на <b>${payload.bonusAmount}₽</b> бонусов.
+    `.trim();
+
+    await bot.sendMessage(Number(telegramId), message, {
+      parse_mode: 'HTML',
+      reply_markup: keyboard.length
+        ? {
+            inline_keyboard: keyboard,
+          }
+        : undefined,
+    });
+  } catch (error) {
+    logger.error(`Ошибка отправки уведомления о реферальном бонусе пользователю ${telegramId}:`, error);
+  }
 };
 
 /**

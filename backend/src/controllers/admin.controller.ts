@@ -6,6 +6,9 @@ import { logger } from '../config/logger';
 import { AppError } from '../middleware/errorHandler';
 import { sendOrderStatusNotification } from '../services/payment-notification.service';
 import { syncOrderWithMoySklad } from '../services/moysklad-sync.service';
+import { orderDeliveryService } from '../services/order-delivery.service';
+import { sendReferralRewardNotification } from '../services/bot.service';
+import { referralService } from '../services/referral.service';
 import {
   fetchCrmOverview,
   fetchCrmUsers,
@@ -210,7 +213,7 @@ class AdminController {
         throw new AppError('Заказ не найден', 404);
       }
 
-      const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const { updatedOrder, deliveryEffects } = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const updateData: Record<string, any> = { status };
 
         const costToSave = adminDeliveryCost ?? deliveryCost;
@@ -265,6 +268,10 @@ class AdminController {
           });
         }
 
+        if (status === 'CANCELLED' && order.status !== 'CANCELLED') {
+          await referralService.revertQualification(order.id, tx);
+        }
+
         // Начислить бонусы ТОЛЬКО при статусе DELIVERED и если они еще не начислены
         if (status === 'DELIVERED' && order.bonusEarned > 0 && order.status !== 'DELIVERED') {
           // Проверяем, не были ли уже начислены бонусы
@@ -299,13 +306,19 @@ class AdminController {
             });
           }
         }
-        return updatedOrder;
+        const deliveryEffects = await orderDeliveryService.applyDeliveryRewards({
+          orderBefore: order,
+          updatedOrder,
+          tx,
+        });
+
+        return { updatedOrder, deliveryEffects };
       });
 
       // Синхронизировать с МойСклад при статусе DELIVERED
       if (status === 'DELIVERED') {
         try {
-          await syncOrderWithMoySklad(updated);
+          await syncOrderWithMoySklad(updatedOrder);
         } catch (moyskladError) {
           logger.error('Ошибка при синхронизации заказа в МойСклад:', moyskladError);
           // Не выбрасываем ошибку, чтобы основной процесс не прерывался
@@ -314,14 +327,25 @@ class AdminController {
 
       // Отправить уведомление пользователю об изменении статуса
       try {
-        await sendOrderStatusNotification(updated, status);
+        await sendOrderStatusNotification(updatedOrder, status);
       } catch (error) {
         logger.error('Ошибка отправки уведомления пользователю:', error);
       }
 
+      if (deliveryEffects?.referralReward?.inviter?.telegramId) {
+        try {
+          await sendReferralRewardNotification(deliveryEffects.referralReward.inviter.telegramId, {
+            inviteeName: updatedOrder.user.firstName || updatedOrder.user.username || 'Ваш реферал',
+            bonusAmount: deliveryEffects.referralReward.referral.bonusAmount,
+          });
+        } catch (notificationError) {
+          logger.error('Ошибка отправки уведомления о реферальном бонусе:', notificationError);
+        }
+      }
+
       logger.info(`Статус заказа ${order.orderNumber} изменен на ${status}`);
 
-      res.json(updated);
+      res.json(updatedOrder);
     } catch (error) {
       if (error instanceof AppError) throw error;
       logger.error('Ошибка при обновлении статуса заказа:', error);

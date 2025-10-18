@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, PromoCode, PromoCodeType } from '@prisma/client';
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { prisma } from '../config/database';
@@ -6,6 +6,9 @@ import { logger } from '../config/logger';
 import { AppError } from '../middleware/errorHandler';
 import { sendPaymentNotification, sendOrderStatusNotification } from '../services/payment-notification.service';
 import { syncOrderWithMoySklad } from '../services/moysklad-sync.service';
+import { referralService } from '../services/referral.service';
+import { orderDeliveryService } from '../services/order-delivery.service';
+import { sendReferralRewardNotification } from '../services/bot.service';
 
 
 // Константы для доставки
@@ -26,7 +29,170 @@ const calculateDeliveryCost = (subtotal: number): number => {
   return DELIVERY_TIERS[DELIVERY_TIERS.length - 1].cost;
 };
 
+const PROMO_EXCLUDED_STATUSES = ['CANCELLED', 'PAYMENT_EXPIRED'] as const;
+
+const normalizePromoCode = (code?: string | null): string | null => {
+  if (!code) return null;
+  const trimmed = code.trim();
+  return trimmed ? trimmed.toUpperCase() : null;
+};
+
+type PromoEvaluationResult = {
+  promo: PromoCode;
+  discount: number;
+  freeDelivery: boolean;
+  bonus: number;
+  deliveryCost: number;
+};
+
+const evaluatePromoCode = async ({
+  code,
+  userId,
+  subtotal,
+  deliveryCost,
+}: {
+  code: string;
+  userId: string;
+  subtotal: number;
+  deliveryCost: number;
+}): Promise<PromoEvaluationResult> => {
+  const normalized = normalizePromoCode(code);
+
+  if (!normalized) {
+    throw new AppError('Введите промокод', 400);
+  }
+
+  const promo = await prisma.promoCode.findUnique({
+    where: { code: normalized },
+  });
+
+  if (!promo || !promo.isActive) {
+    throw new AppError('Промокод не найден или отключен', 400);
+  }
+
+  const now = new Date();
+  if (promo.validFrom && promo.validFrom > now) {
+    throw new AppError('Промокод еще не активен', 400);
+  }
+  if (promo.validUntil && promo.validUntil < now) {
+    throw new AppError('Срок действия промокода истек', 400);
+  }
+
+  if (subtotal < promo.minOrderAmount) {
+    throw new AppError(`Промокод действует при сумме от ${promo.minOrderAmount}₽`, 400);
+  }
+
+  if (promo.usageLimit !== null) {
+    const activeUsage = await prisma.order.count({
+      where: {
+        promoCodeId: promo.id,
+        status: { notIn: [...PROMO_EXCLUDED_STATUSES] },
+      },
+    });
+
+    if (activeUsage >= promo.usageLimit) {
+      throw new AppError('Лимит использований промокода исчерпан', 400);
+    }
+  }
+
+  let discount = 0;
+  let freeDelivery = false;
+  let bonus = 0;
+  let appliedDeliveryCost = deliveryCost;
+
+  switch (promo.type) {
+    case PromoCodeType.PERCENT: {
+      const percent = Math.min(Math.max(promo.value, 0), 100);
+      discount = Math.floor(subtotal * (percent / 100));
+      break;
+    }
+    case PromoCodeType.FIXED:
+      discount = Math.min(Math.floor(promo.value), subtotal);
+      break;
+    case PromoCodeType.FREE_DELIVERY:
+      freeDelivery = true;
+      appliedDeliveryCost = 0;
+      break;
+    case PromoCodeType.BONUS:
+      bonus = Math.max(Math.floor(promo.value), 0);
+      break;
+    default:
+      break;
+  }
+
+  const safeDiscount = Math.max(0, Math.min(discount, subtotal));
+
+  return {
+    promo,
+    discount: safeDiscount,
+    freeDelivery,
+    bonus,
+    deliveryCost: appliedDeliveryCost,
+  };
+};
+
 class OrderController {
+  async applyPromo(req: AuthRequest, res: Response) {
+    try {
+      const userId = req.user?.id;
+      const { promoCode } = req.body;
+
+      if (!userId) {
+        throw new AppError('Пользователь не авторизован', 401);
+      }
+
+      const cartItems = await prisma.cartItem.findMany({
+        where: { userId },
+        include: {
+          product: true,
+        },
+      });
+
+      if (cartItems.length === 0) {
+        throw new AppError('Корзина пуста', 400);
+      }
+
+      const subtotal = cartItems.reduce(
+        (sum: number, item) => sum + item.product.price * item.quantity,
+        0
+      );
+
+      const baseDeliveryCost = calculateDeliveryCost(subtotal);
+
+      const promoResult = await evaluatePromoCode({
+        code: promoCode,
+        userId,
+        subtotal,
+        deliveryCost: baseDeliveryCost,
+      });
+
+      const totalBeforeBonuses = subtotal - promoResult.discount + promoResult.deliveryCost;
+
+      res.json({
+        promo: {
+          id: promoResult.promo.id,
+          code: promoResult.promo.code,
+          type: promoResult.promo.type,
+          discount: promoResult.discount,
+          freeDelivery: promoResult.freeDelivery,
+          bonus: promoResult.bonus,
+          description: promoResult.promo.description,
+        },
+        pricing: {
+          subtotal,
+          deliveryCost: promoResult.deliveryCost,
+          totalBeforeBonuses,
+        },
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+      logger.error('Ошибка при применении промокода:', error);
+      throw new AppError('Не удалось применить промокод', 500);
+    }
+  }
+
   // Получить все заказы пользователя
   async getOrders(req: AuthRequest, res: Response) {
     try {
@@ -110,6 +276,7 @@ class OrderController {
         deliveryTime,
         comment,
         bonusToUse = 0,
+        promoCode,
       } = req.body;
 
       if (!userId) {
@@ -184,6 +351,19 @@ class OrderController {
 
       // Рассчитать стоимость доставки
       const deliveryCost = calculateDeliveryCost(subtotal);
+      let promoResult: PromoEvaluationResult | null = null;
+      let appliedDeliveryCost = deliveryCost;
+
+      const normalizedPromo = normalizePromoCode(promoCode);
+      if (normalizedPromo) {
+        promoResult = await evaluatePromoCode({
+          code: normalizedPromo,
+          userId,
+          subtotal,
+          deliveryCost,
+        });
+        appliedDeliveryCost = promoResult.deliveryCost;
+      }
 
       // Получить пользователя для проверки бонусов
       const user = await prisma.user.findUnique({
@@ -199,8 +379,14 @@ class OrderController {
         throw new AppError('Недостаточно бонусов', 400);
       }
 
+      const promoDiscount = promoResult?.discount ?? 0;
+      const promoBonus = promoResult?.bonus ?? 0;
+      const promoFreeDelivery = promoResult?.freeDelivery ?? false;
+
+      const totalBeforeBonuses = subtotal - promoDiscount + appliedDeliveryCost;
+
       // Общая сумма заказа
-      const totalAmount = subtotal + deliveryCost - bonusToUse;
+      const totalAmount = totalBeforeBonuses - bonusToUse;
 
       if (totalAmount < 0) {
         throw new AppError('Сумма заказа не может быть отрицательной', 400);
@@ -210,7 +396,7 @@ class OrderController {
       const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
 
       // Рассчитать бонусы к начислению (5% от суммы товаров без учета доставки)
-      const bonusEarned = Math.floor(subtotal * 0.05);
+      const bonusEarned = Math.floor(Math.max(subtotal - promoDiscount, 0) * 0.05);
 
       // Установить время истечения оплаты (1 час)
       const paymentExpiresAt = new Date();
@@ -224,9 +410,18 @@ class OrderController {
             userId,
             orderNumber,
             totalAmount,
-            deliveryCost,
+            deliveryCost: appliedDeliveryCost,
             bonusUsed: bonusToUse,
             bonusEarned,
+            promoCode: promoResult
+              ? {
+                  connect: { id: promoResult.promo.id },
+                }
+              : undefined,
+            promoCodeType: promoResult?.promo.type,
+            promoDiscount,
+            promoBonus,
+            promoFreeDelivery,
             deliveryAddress,
             deliveryPhone: phone,
             deliveryDate,
@@ -256,6 +451,8 @@ class OrderController {
 
         // НЕ списываем/начисляем бонусы и НЕ уменьшаем остатки
         // Это будет сделано после подтверждения оплаты администратором
+
+        await referralService.qualifyReferral(newOrder.id, userId, tx);
 
         // Очистить корзину
         await tx.cartItem.deleteMany({
@@ -399,6 +596,8 @@ class OrderController {
             });
           }
         }
+
+        await referralService.revertQualification(order.id, tx);
 
         return updatedOrder;
       });
@@ -759,7 +958,7 @@ class OrderController {
       }
 
       // Обновить статус на DELIVERED с начислением бонусов
-      const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const { updatedOrder, deliveryEffects } = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         // Обновить статус заказа
         const updatedOrder = await tx.order.update({
           where: { id: orderId },
@@ -809,12 +1008,18 @@ class OrderController {
           }
         }
 
-        return updatedOrder;
+        const deliveryEffects = await orderDeliveryService.applyDeliveryRewards({
+          orderBefore: order,
+          updatedOrder,
+          tx,
+        });
+
+        return { updatedOrder, deliveryEffects };
       });
 
       // Синхронизировать с МойСклад
       try {
-        await syncOrderWithMoySklad(updated);
+        await syncOrderWithMoySklad(updatedOrder);
       } catch (moyskladError) {
         logger.error('Ошибка при синхронизации заказа в МойСклад:', moyskladError);
         // Не выбрасываем ошибку, чтобы основной процесс не прерывался
@@ -822,14 +1027,25 @@ class OrderController {
 
       // Отправить уведомление пользователю об изменении статуса
       try {
-        await sendOrderStatusNotification(updated, 'DELIVERED');
+        await sendOrderStatusNotification(updatedOrder, 'DELIVERED');
       } catch (error) {
         logger.error('Ошибка отправки уведомления пользователю:', error);
       }
 
+      if (deliveryEffects?.referralReward?.inviter?.telegramId) {
+        try {
+          await sendReferralRewardNotification(deliveryEffects.referralReward.inviter.telegramId, {
+            inviteeName: order.user.firstName || order.user.username || 'Ваш реферал',
+            bonusAmount: deliveryEffects.referralReward.referral.bonusAmount,
+          });
+        } catch (notificationError) {
+          logger.error('Ошибка отправки уведомления о реферальном бонусе:', notificationError);
+        }
+      }
+
       logger.info(`Клиент подтвердил доставку заказа ${order.orderNumber}`);
 
-      res.json(updated);
+      res.json(updatedOrder);
     } catch (error) {
       if (error instanceof AppError) throw error;
       logger.error('Ошибка при подтверждении доставки:', error);

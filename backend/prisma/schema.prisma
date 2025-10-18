@@ -30,8 +30,10 @@ model User {
   // Реферальная программа
   referralCode      String?  @unique // Уникальный реферальный код пользователя
   referredById      String?  // ID пользователя, который пригласил
-  referredBy        User?    @relation("Referrals", fields: [referredById], references: [id], onDelete: SetNull)
-  referrals         User[]   @relation("Referrals")
+  referredBy        User?    @relation("UserReferrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals         User[]   @relation("UserReferrals")
+  referralInvites   Referral[] @relation("ReferralInviter")
+  referralReward    Referral?  @relation("ReferralInvitee")
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -61,11 +63,17 @@ model BonusTransaction {
   user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   orderId     String?
+  referralId  String?
+  referral    Referral?           @relation(fields: [referralId], references: [id], onDelete: SetNull)
+  promoCodeId String?
+  promoCode   PromoCode?          @relation(fields: [promoCodeId], references: [id], onDelete: SetNull)
   
   createdAt   DateTime            @default(now())
 
   @@map("bonus_transactions")
   @@index([userId])
+  @@index([referralId])
+  @@index([promoCodeId])
   @@index([createdAt])
 }
 
@@ -75,6 +83,38 @@ enum BonusTransactionType {
   GIFT        // Подарок от администратора
   EXPIRED     // Истекли
   REFUND      // Возврат при отмене заказа
+  REFERRAL    // Начисление за реферала
+  PROMO       // Бонус по промокоду
+}
+
+model Referral {
+  id            String          @id @default(cuid())
+  inviterId     String
+  inviteeId     String
+  status        ReferralStatus  @default(PENDING)
+  bonusAmount   Int             @default(100)
+  notifiedAt    DateTime?
+  qualifiedAt   DateTime?
+  rewardedAt    DateTime?
+  firstOrderId  String?
+
+  inviter       User            @relation("ReferralInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  invitee       User            @relation("ReferralInvitee", fields: [inviteeId], references: [id], onDelete: Cascade)
+  bonusTransactions BonusTransaction[]
+
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@map("referrals")
+  @@unique([inviteeId])
+  @@index([inviterId])
+}
+
+enum ReferralStatus {
+  PENDING    // Приглашенный пользователь еще не сделал заказ
+  QUALIFIED  // Пользователь сделал заказ, ожидается начисление
+  REWARDED   // Бонус начислен
+  CANCELLED  // Бонус не будет начислен
 }
 
 model Category {
@@ -215,9 +255,16 @@ model Order {
   adminDeliveryCost Float?     // Стоимость доставки, установленная админом
   bonusUsed        Int         @default(0) // Сколько бонусов использовано
   bonusEarned      Int         @default(0) // Сколько бонусов начислено
+  promoCodeId      String?
+  promoCodeType    PromoCodeType?
+  promoDiscount    Float       @default(0)
+  promoBonus       Int         @default(0)
+  promoFreeDelivery Boolean    @default(false)
 
   userId           String
   user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  promoCode        PromoCode?  @relation(fields: [promoCodeId], references: [id], onDelete: SetNull)
 
   deliveryAddress  String?
   deliveryPhone    String?
@@ -240,6 +287,7 @@ model Order {
   @@index([orderNumber])
   @@index([status])
   @@index([paymentExpiresAt])
+  @@index([promoCodeId])
 }
 
 model OrderItem {
@@ -304,6 +352,9 @@ model PromoCode {
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
+  orders          Order[]
+  bonusTransactions BonusTransaction[]
+
   @@map("promo_codes")
   @@index([code])
   @@index([validUntil])
@@ -313,6 +364,7 @@ enum PromoCodeType {
   PERCENT         // Процентная скидка
   FIXED           // Фиксированная скидка
   FREE_DELIVERY   // Бесплатная доставка
+  BONUS           // Дополнительные бонусы
 }
 
 // Достижения
@@ -415,4 +467,3 @@ model StockNotification {
   @@index([productId])
   @@index([notified])
 }
-

@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { User, Calendar, Clock, LogOut, Phone, Edit2, Check, X, Package, Gift, MessageCircle, Coins, HelpCircle } from 'lucide-react';
+import { User, Calendar, Clock, LogOut, Phone, Edit2, Check, X, Package, Gift, MessageCircle, Coins, HelpCircle, Users, Sparkles } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
@@ -11,6 +11,7 @@ import { bonusApi } from '../api/bonus';
 import { useAuthStore } from '../store/authStore';
 import LoadingScreen from '../components/LoadingScreen';
 import { useState, useCallback } from 'react';
+import { referralApi } from '../api/referral';
 /*import { clearImageCache } from '../components/OptimizedImage';*/
 
 // Функция форматирования телефона
@@ -69,6 +70,12 @@ export default function ProfilePage() {
   const { data: bonusData } = useQuery({
     queryKey: ['bonus'],
     queryFn: bonusApi.getBonusInfo,
+  });
+
+  const { data: referralOverview } = useQuery({
+    queryKey: ['referrals'],
+    queryFn: referralApi.getOverview,
+    staleTime: 5 * 60 * 1000,
   });
 
   const updatePhoneMutation = useMutation({
@@ -140,6 +147,9 @@ export default function ProfilePage() {
   }
 
   const profile = data?.user;
+  const invitedTotal = referralOverview?.stats.total ?? 0;
+  const earnedTotal = referralOverview?.stats.totalEarned ?? 0;
+  const bonusPerReferralValue = referralOverview?.bonusPerReferral ?? 100;
 
   return (
     <div className="min-h-screen bg-tg-bg pb-24">
@@ -269,6 +279,48 @@ export default function ProfilePage() {
           </div>
         </motion.div>
 
+        <motion.button
+          type="button"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => navigate('/referrals')}
+          className="w-full bg-gradient-to-br from-purple-500/10 via-purple-500/5 to-transparent border border-purple-500/30 rounded-3xl p-5 text-left shadow-lg"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm text-purple-200/80 mb-1 flex items-center gap-2">
+                <Sparkles className="w-4 h-4" />
+                Реферальная программа
+              </p>
+              <h3 className="text-lg font-semibold text-tg-text leading-snug">
+                Приглашайте друзей и получайте бонусы
+              </h3>
+            </div>
+            <div className="p-3 rounded-2xl bg-purple-500 text-white">
+              <Users className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <p className="text-purple-200/70">Приглашено</p>
+              <p className="text-tg-text font-semibold text-base">
+                {invitedTotal}
+              </p>
+            </div>
+            <div>
+              <p className="text-purple-200/70">Получено бонусов</p>
+              <p className="text-tg-text font-semibold text-base">
+                {earnedTotal.toLocaleString('ru-RU')}₽
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 text-sm text-purple-100/80">
+            Бонус за друга: {bonusPerReferralValue.toLocaleString('ru-RU')}₽
+          </div>
+        </motion.button>
+
         {/* Action Buttons */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -370,4 +422,3 @@ function ActionButton({
     </motion.button>
   );
 }
-

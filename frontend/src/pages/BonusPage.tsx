@@ -202,6 +202,8 @@ function TransactionItem({
     GIFT: 'Подарок',
     EXPIRED: 'Истекли',
     REFUND: 'Возврат',
+    REFERRAL: 'Бонус за друга',
+    PROMO: 'Промокод',
   };
 
   return (
@@ -243,4 +245,3 @@ function TransactionItem({
     </motion.div>
   );
 }
-

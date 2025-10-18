@@ -1,11 +1,11 @@
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Phone, MapPin, Building, MessageSquare, Calendar, Clock, Truck, ArrowLeft, RotateCcw, Gift } from 'lucide-react';
+import { Phone, MapPin, Building, MessageSquare, Calendar, Clock, Truck, ArrowLeft, RotateCcw, Gift, Tag } from 'lucide-react';
 import { useTelegramBackButton } from '../hooks/useTelegramApp';
 import { userApi } from '../api/user';
 import { cartApi } from '../api/cart';
-import { orderApi } from '../api/order';
+import { orderApi, ApplyPromoResponse } from '../api/order';
 import { bonusApi } from '../api/bonus';
 import LoadingScreen from '../components/LoadingScreen';
 import toast from 'react-hot-toast';
@@ -88,6 +88,8 @@ export default function CheckoutPage() {
   const [useNearestTime, setUseNearestTime] = useState(false);
   const [useBonuses, setUseBonuses] = useState(false);
   const [bonusAmount, setBonusAmount] = useState(0);
+  const [promoInput, setPromoInput] = useState('');
+  const [promoSummary, setPromoSummary] = useState<ApplyPromoResponse | null>(null);
 
   // Получаем текущую дату для минимального значения (один раз при загрузке)
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
@@ -102,6 +104,13 @@ export default function CheckoutPage() {
       phoneInitialized.current = true;
     }
   }, [userData]);
+
+  useEffect(() => {
+    if (!cartData || cartData.items.length === 0) {
+      setPromoSummary(null);
+      setPromoInput('');
+    }
+  }, [cartData]);
 
   // Функция автозаполнения из последнего заказа
   const fillFromLastOrder = useCallback(() => {
@@ -137,8 +146,12 @@ export default function CheckoutPage() {
 
   // Расчет стоимости с учетом бонусов
   const subtotal = cartData?.total || 0;
-  const deliveryCost = useMemo(() => calculateDeliveryCost(subtotal), [subtotal]);
+  const baseDeliveryCost = useMemo(() => calculateDeliveryCost(subtotal), [subtotal]);
   const deliveryProgress = useMemo(() => getDeliveryProgress(subtotal), [subtotal]);
+  const deliveryCost = promoSummary ? promoSummary.pricing.deliveryCost : baseDeliveryCost;
+  const promoDiscount = promoSummary?.promo.discount ?? 0;
+  const promoBonusReward = promoSummary?.promo.bonus ?? 0;
+  const promoCodeValue = promoSummary?.promo.code ?? '';
   const canSubmit = subtotal >= MIN_ORDER_AMOUNT;
   const nextStepLabel = deliveryProgress.nextStep
     ? deliveryProgress.nextStep.cost === 0
@@ -146,13 +159,13 @@ export default function CheckoutPage() {
       : `доставки за ${deliveryProgress.nextStep.cost}₽`
     : null;
 
-  const totalBeforeBonuses = subtotal + deliveryCost;
+  const totalBeforeBonuses = subtotal + deliveryCost - promoDiscount;
   const availableBonuses = bonusInfo?.balance || 0;
-  const maxBonusUsage = Math.floor(totalBeforeBonuses * 0.5); // Максимум 50% от суммы
+  const maxBonusUsage = Math.floor(Math.max(totalBeforeBonuses, 0) * 0.5); // Максимум 50% от суммы
   const maxBonusToUse = Math.min(availableBonuses, maxBonusUsage);
 
   const bonusDiscount = useBonuses ? Math.min(bonusAmount, maxBonusToUse) : 0;
-  const total = totalBeforeBonuses - bonusDiscount;
+  const total = Math.max(totalBeforeBonuses - bonusDiscount, 0);
 
   // Мутация создания заказа
   const createOrderMutation = useMutation({
@@ -170,9 +183,36 @@ export default function CheckoutPage() {
     },
   });
 
+  const applyPromoMutation = useMutation({
+    mutationFn: (code: string) => orderApi.applyPromo(code),
+    onSuccess: (response) => {
+      setPromoSummary(response);
+      setPromoInput(response.promo.code);
+      toast.success('Промокод применён');
+    },
+    onError: (error: any) => {
+      const message = error?.response?.data?.error || 'Не удалось применить промокод';
+      toast.error(message);
+    },
+  });
+
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatPhoneNumber(e.target.value);
     setPhone(formatted);
+  };
+
+  const handleApplyPromo = () => {
+    const trimmed = promoInput.trim().toUpperCase();
+    if (!trimmed) {
+      toast.error('Введите промокод');
+      return;
+    }
+    applyPromoMutation.mutate(trimmed);
+  };
+
+  const handleRemovePromo = () => {
+    setPromoSummary(null);
+    setPromoInput('');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -224,6 +264,7 @@ export default function CheckoutPage() {
       deliveryTime: useNearestTime ? 'Ближайшее время' : deliveryTime,
       comment: comment || undefined,
       bonusToUse: bonusDiscount,
+      promoCode: promoSummary?.promo.code,
     });
   };
 
@@ -471,6 +512,81 @@ export default function CheckoutPage() {
           </div>
         </motion.form>
 
+        {/* Промокод */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-tg-secondary-bg rounded-2xl p-4 space-y-3"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Tag className="w-5 h-5 text-purple-400" />
+              <h3 className="font-semibold text-tg-text">Промокод</h3>
+            </div>
+            {promoSummary && (
+              <button
+                type="button"
+                onClick={handleRemovePromo}
+                className="text-xs text-purple-300 hover:text-purple-100 transition"
+              >
+                Сбросить
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <input
+              type="text"
+              value={promoInput}
+              onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+              placeholder="Введите код"
+              className="flex-1 px-4 py-3 bg-tg-bg text-tg-text rounded-xl outline-none focus:ring-2 focus:ring-tg-button uppercase"
+              disabled={applyPromoMutation.isPending}
+            />
+            <button
+              type="button"
+              onClick={handleApplyPromo}
+              disabled={applyPromoMutation.isPending}
+              className="px-4 py-3 rounded-xl bg-tg-button text-tg-button-text font-semibold hover:opacity-90 transition disabled:opacity-50"
+            >
+              {applyPromoMutation.isPending ? '...' : promoSummary ? 'Обновить' : 'Применить'}
+            </button>
+          </div>
+
+          {promoSummary && (
+            <div className="bg-tg-bg rounded-xl p-3 space-y-2 text-sm text-tg-text">
+              <div className="flex items-center justify-between">
+                <span>Скидка по коду</span>
+                <span className={`font-medium ${promoDiscount > 0 ? 'text-green-500' : 'text-tg-text'}`}>
+                  {promoDiscount > 0 ? `-${promoDiscount.toLocaleString('ru-RU')}₽` : '—'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Доставка</span>
+                <span className={deliveryCost === 0 ? 'text-green-500 font-medium' : 'text-tg-text font-medium'}>
+                  {deliveryCost === 0 ? 'Бесплатно' : `${deliveryCost.toLocaleString('ru-RU')}₽`}
+                </span>
+              </div>
+              {promoBonusReward > 0 && (
+                <div className="flex items-center justify-between">
+                  <span>Доп. бонусы после доставки</span>
+                  <span className="text-green-500 font-medium">
+                    +{promoBonusReward.toLocaleString('ru-RU')}₽
+                  </span>
+                </div>
+              )}
+              <p className="text-xs text-tg-hint">
+                Код {promoCodeValue} активирован. Бонусы начисляются после доставки заказа.
+              </p>
+              {promoSummary.promo.description && (
+                <p className="text-xs text-tg-hint">
+                  {promoSummary.promo.description}
+                </p>
+              )}
+            </div>
+          )}
+        </motion.div>
+
         {/* Бонусы */}
         {availableBonuses > 0 && (
           <motion.div
@@ -595,6 +711,18 @@ export default function CheckoutPage() {
               {deliveryCost === 0 ? 'Бесплатно' : `${deliveryCost.toLocaleString()}₽`}
             </span>
           </div>
+
+          {promoDiscount > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center gap-2">
+                <Tag className="w-4 h-4 text-purple-400" />
+                <span className="text-tg-hint">Промокод:</span>
+              </div>
+              <span className="font-medium text-green-500">
+                -{promoDiscount.toLocaleString('ru-RU')}₽
+              </span>
+            </div>
+          )}
 
           {bonusDiscount > 0 && (
             <div className="flex items-center justify-between text-sm">

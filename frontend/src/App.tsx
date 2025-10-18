@@ -18,6 +18,7 @@ import CrmPage from './pages/CrmPage';
 import FAQPage from './pages/FAQPage';
 import LoadingScreen from './components/LoadingScreen';
 import BottomNav from './components/BottomNav';
+import ReferralPage from './pages/ReferralPage';
 
 function App() {
   const { isInitialized } = useTelegramApp();
@@ -106,6 +107,10 @@ function AppContent({ isAuthenticated }: { isAuthenticated: boolean }) {
         <Route
           path="/bonus"
           element={isAuthenticated ? <BonusPage /> : <Navigate to="/auth" replace />}
+        />
+        <Route
+          path="/referrals"
+          element={isAuthenticated ? <ReferralPage /> : <Navigate to="/auth" replace />}
         />
         <Route
           path="/orders"

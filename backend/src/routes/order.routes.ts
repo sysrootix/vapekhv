@@ -9,6 +9,7 @@ const router = Router();
 router.use(authMiddleware);
 
 router.get('/', orderController.getOrders);
+router.post('/apply-promo', orderController.applyPromo);
 router.get('/:id', orderController.getOrder);
 router.post('/create', orderController.createOrder);
 router.post('/:id/upload-receipt', upload.single('receipt'), orderController.uploadReceipt);

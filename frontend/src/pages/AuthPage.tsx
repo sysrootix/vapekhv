@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -12,6 +12,14 @@ export default function AuthPage() {
   const navigate = useNavigate();
   const setAuth = useAuthStore((state) => state.setAuth);
   const initData = useTelegramInitData();
+  const referralCode = useMemo(() => {
+    const fromInitData = (window.Telegram?.WebApp?.initDataUnsafe as { start_param?: string } | undefined)?.start_param;
+    const fromQuery = new URLSearchParams(window.location.search).get('ref');
+    const raw = fromInitData || fromQuery;
+    if (!raw) return null;
+    const trimmed = raw.trim();
+    return trimmed ? trimmed.toUpperCase() : null;
+  }, [initData]);
 
   const loginMutation = useMutation({
     mutationFn: authApi.telegramLogin,
@@ -31,13 +39,13 @@ export default function AuthPage() {
   useEffect(() => {
     // Автоматическая авторизация при наличии initData
     if (initData && !loginMutation.isPending) {
-      loginMutation.mutate(initData);
+      loginMutation.mutate({ initData, referralCode });
     }
-  }, [initData, loginMutation]);
+  }, [initData, loginMutation, referralCode]);
 
   const handleLogin = () => {
     if (initData) {
-      loginMutation.mutate(initData);
+      loginMutation.mutate({ initData, referralCode });
     } else {
       toast.error('Откройте приложение через Telegram');
     }
@@ -85,4 +93,3 @@ export default function AuthPage() {
     </div>
   );
 }
-

@@ -32,6 +32,11 @@ export interface Order {
   adminDeliveryCost?: number;
   bonusUsed: number;
   bonusEarned: number;
+  promoCodeId?: string | null;
+  promoCodeType?: PromoCodeType | null;
+  promoDiscount: number;
+  promoBonus: number;
+  promoFreeDelivery: boolean;
   userId: string;
   deliveryAddress?: string;
   deliveryPhone?: string;
@@ -53,6 +58,26 @@ export interface CreateOrderRequest {
   deliveryTime: string;
   comment?: string;
   bonusToUse?: number;
+  promoCode?: string;
+}
+
+export type PromoCodeType = 'PERCENT' | 'FIXED' | 'FREE_DELIVERY' | 'BONUS';
+
+export interface ApplyPromoResponse {
+  promo: {
+    id: string;
+    code: string;
+    type: PromoCodeType;
+    discount: number;
+    freeDelivery: boolean;
+    bonus: number;
+    description?: string | null;
+  };
+  pricing: {
+    subtotal: number;
+    deliveryCost: number;
+    totalBeforeBonuses: number;
+  };
 }
 
 export const orderApi = {
@@ -68,6 +93,11 @@ export const orderApi = {
 
   createOrder: async (data: CreateOrderRequest): Promise<Order> => {
     const response = await apiClient.post<Order>('/orders/create', data);
+    return response.data;
+  },
+
+  applyPromo: async (promoCode: string): Promise<ApplyPromoResponse> => {
+    const response = await apiClient.post<ApplyPromoResponse>('/orders/apply-promo', { promoCode });
     return response.data;
   },
 

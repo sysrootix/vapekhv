@@ -4,6 +4,7 @@ import { moySkladConfig } from '../config/moysklad';
 import { syncService } from './sync.service';
 import { prisma } from '../config/database';
 import { sendStockNotification } from './bot.service';
+import { referralService } from './referral.service';
 
 
 /**
@@ -108,6 +109,8 @@ export class SchedulerService {
           where: { id: order.id },
           data: { status: 'PAYMENT_EXPIRED' },
         });
+
+        await referralService.revertQualification(order.id);
 
         logger.info(`❌ Заказ ${order.orderNumber} автоматически отменён (истекло время оплаты)`);
       } catch (error) {

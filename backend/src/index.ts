@@ -22,6 +22,7 @@ import cartRoutes from './routes/cart.routes';
 import bonusRoutes from './routes/bonus.routes';
 import orderRoutes from './routes/order.routes';
 import adminRoutes from './routes/admin.routes';
+import referralRoutes from './routes/referral.routes';
 
 // Load environment variables
 dotenv.config();
@@ -71,6 +72,7 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/bonus', bonusRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/referrals', referralRoutes);
 
 // 404 handler
 app.use((_req, res) => {
@@ -146,4 +148,3 @@ process.on('SIGINT', async () => {
 });
 
 startServer();
-

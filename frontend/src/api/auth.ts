@@ -14,10 +14,16 @@ export interface LoginResponse {
 }
 
 export const authApi = {
-  telegramLogin: async (initData: string): Promise<LoginResponse> => {
-    const response = await apiClient.post<LoginResponse>('/auth/telegram', {
-      initData,
-    });
+  telegramLogin: async (payload: { initData: string; referralCode?: string | null }): Promise<LoginResponse> => {
+    const body: Record<string, unknown> = {
+      initData: payload.initData,
+    };
+
+    if (payload.referralCode) {
+      body.referralCode = payload.referralCode.trim().toUpperCase();
+    }
+
+    const response = await apiClient.post<LoginResponse>('/auth/telegram', body);
     return response.data;
   },
 
@@ -26,4 +32,3 @@ export const authApi = {
     return response.data;
   },
 };
-
