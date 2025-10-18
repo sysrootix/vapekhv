@@ -272,11 +272,10 @@ export async function syncOrderWithMoySklad(order: OrderWithRelations): Promise<
 
   try {
     const operations =
-      moyskladOrder.meta || demand?.meta
-        ? [
-            ...(moyskladOrder.meta ? [{ meta: moyskladOrder.meta, linkedSum: orderTotalCoins }] : []),
-            ...(demand?.meta ? [{ meta: demand.meta, linkedSum: orderTotalCoins }] : []),
-          ]
+      demand?.meta
+        ? [{ meta: demand.meta, linkedSum: orderTotalCoins }]
+        : moyskladOrder.meta
+        ? [{ meta: moyskladOrder.meta, linkedSum: orderTotalCoins }]
         : undefined;
 
     const cashInPayload: MoySkladCashIn = {
