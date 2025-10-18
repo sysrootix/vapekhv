@@ -280,7 +280,7 @@ export async function syncOrderWithMoySklad(order: OrderWithRelations): Promise<
       preparedItems.push({
         quantity: 1,
         price: Math.round(deliveryTotal * 100),
-        assortmentMeta: buildMeta('product', moySkladConfig.deliveryProductId),
+        assortmentMeta: buildMeta('service', moySkladConfig.deliveryProductId),
       });
     } else {
       logger.warn(
