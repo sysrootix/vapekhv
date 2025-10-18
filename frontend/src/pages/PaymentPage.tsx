@@ -1,7 +1,7 @@
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, CreditCard, Upload, Clock, CheckCircle, Copy } from 'lucide-react';
+import { ArrowLeft, CreditCard, Upload, Clock, CheckCircle, Copy, XCircle } from 'lucide-react';
 import { orderApi, Order } from '../api/order';
 import LoadingScreen from '../components/LoadingScreen';
 import toast from 'react-hot-toast';
@@ -23,6 +23,7 @@ export default function PaymentPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'sbp'>('card');
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   // Telegram BackButton
   const handleBack = useCallback(() => navigate('/orders'), [navigate]);
@@ -51,6 +52,22 @@ export default function PaymentPage() {
     },
     onError: (error: any) => {
       const message = error?.response?.data?.error || 'Ошибка загрузки чека';
+      toast.error(message);
+    },
+  });
+
+  // Мутация отмены заказа
+  const cancelOrderMutation = useMutation({
+    mutationFn: () => orderApi.cancelOrder(orderId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      toast.success('Заказ отменён');
+      setShowCancelModal(false);
+      navigate('/orders');
+    },
+    onError: (error: any) => {
+      const message = error?.response?.data?.error || 'Ошибка отмены заказа';
       toast.error(message);
     },
   });
@@ -199,6 +216,50 @@ export default function PaymentPage() {
 
   return (
     <div className="min-h-screen bg-tg-bg pb-24">
+      {/* Модальное окно подтверждения отмены */}
+      <AnimatePresence>
+        {showCancelModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+            onClick={() => setShowCancelModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-tg-secondary-bg rounded-2xl p-6 max-w-sm w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <XCircle className="w-8 h-8 text-red-500" />
+                <h2 className="text-xl font-bold text-tg-text">Отменить заказ?</h2>
+              </div>
+              <p className="text-tg-hint mb-6">
+                Вы уверены, что хотите отменить этот заказ? Это действие нельзя отменить.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowCancelModal(false)}
+                  className="flex-1 py-3 px-4 bg-tg-bg text-tg-text rounded-xl font-medium hover:opacity-80 transition-opacity"
+                >
+                  Нет, вернуться
+                </button>
+                <button
+                  onClick={() => cancelOrderMutation.mutate()}
+                  disabled={cancelOrderMutation.isPending}
+                  className="flex-1 py-3 px-4 bg-red-500 text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                >
+                  {cancelOrderMutation.isPending ? 'Отмена...' : 'Да, отменить'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="max-w-2xl mx-auto p-4 space-y-6">
         {/* Header */}
         <motion.div
@@ -245,6 +306,39 @@ export default function PaymentPage() {
           </motion.div>
         )}
 
+        {/* Payment method selection */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-3"
+        >
+          <h2 className="font-semibold text-tg-text text-lg">Выберите способ оплаты:</h2>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => setPaymentMethod('card')}
+              className={`py-4 px-4 rounded-2xl font-semibold transition-all ${
+                paymentMethod === 'card'
+                  ? 'bg-tg-button text-tg-button-text shadow-lg scale-105'
+                  : 'bg-tg-secondary-bg text-tg-hint hover:bg-opacity-80'
+              }`}
+            >
+              <CreditCard className="w-6 h-6 mx-auto mb-2" />
+              По номеру карты
+            </button>
+            <button
+              onClick={() => setPaymentMethod('sbp')}
+              className={`py-4 px-4 rounded-2xl font-semibold transition-all ${
+                paymentMethod === 'sbp'
+                  ? 'bg-tg-button text-tg-button-text shadow-lg scale-105'
+                  : 'bg-tg-secondary-bg text-tg-hint hover:bg-opacity-80'
+              }`}
+            >
+              <Upload className="w-6 h-6 mx-auto mb-2" />
+              По СБП
+            </button>
+          </div>
+        </motion.div>
+
         {/* Payment info */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -255,29 +349,6 @@ export default function PaymentPage() {
             <CreditCard className="w-5 h-5" />
             Реквизиты для оплаты
           </h2>
-
-          <div className="flex bg-tg-bg rounded-xl p-1">
-            <button
-              onClick={() => setPaymentMethod('card')}
-              className={`w-1/2 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                paymentMethod === 'card'
-                  ? 'bg-tg-secondary-bg text-tg-text'
-                  : 'text-tg-hint'
-              }`}
-            >
-              По номеру карты
-            </button>
-            <button
-              onClick={() => setPaymentMethod('sbp')}
-              className={`w-1/2 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                paymentMethod === 'sbp'
-                  ? 'bg-tg-secondary-bg text-tg-text'
-                  : 'text-tg-hint'
-              }`}
-            >
-              По СБП
-            </button>
-          </div>
 
           {paymentMethod === 'card' && (
             <div className="bg-tg-bg rounded-xl p-4 space-y-3">
@@ -409,6 +480,18 @@ export default function PaymentPage() {
             </button>
           </div>
         </motion.div>
+
+        {/* Кнопка отмены заказа */}
+        <motion.button
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          onClick={() => setShowCancelModal(true)}
+          className="w-full bg-red-500 bg-opacity-10 text-red-500 border border-red-500 py-4 rounded-2xl font-semibold hover:bg-opacity-20 transition-colors flex items-center justify-center gap-2"
+        >
+          <XCircle className="w-5 h-5" />
+          Отменить заказ
+        </motion.button>
       </div>
     </div>
   );

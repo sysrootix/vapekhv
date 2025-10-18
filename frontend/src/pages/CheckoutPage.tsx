@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Phone, MapPin, Building, MessageSquare, Calendar, Clock, Truck, ArrowLeft } from 'lucide-react';
+import { Phone, MapPin, Building, MessageSquare, Calendar, Clock, Truck, ArrowLeft, RotateCcw } from 'lucide-react';
 import { useTelegramBackButton } from '../hooks/useTelegramApp';
 import { userApi } from '../api/user';
 import { cartApi } from '../api/cart';
@@ -66,6 +66,12 @@ export default function CheckoutPage() {
     queryFn: cartApi.getCart,
   });
 
+  // Загрузка предыдущих заказов для автозаполнения
+  const { data: previousOrders } = useQuery({
+    queryKey: ['orders'],
+    queryFn: orderApi.getOrders,
+  });
+
   // Состояние формы
   const [phone, setPhone] = useState('');
   const [street, setStreet] = useState('');
@@ -90,6 +96,38 @@ export default function CheckoutPage() {
       phoneInitialized.current = true;
     }
   }, [userData]);
+
+  // Функция автозаполнения из последнего заказа
+  const fillFromLastOrder = useCallback(() => {
+    if (!previousOrders || previousOrders.length === 0) {
+      toast.error('Нет предыдущих заказов');
+      return;
+    }
+
+    const lastOrder = previousOrders[0];
+
+    // Парсинг адреса
+    if (lastOrder.deliveryAddress) {
+      // Формат: "г. Хабаровск, ул. Ленина, д. 123, кв. 45, подъезд 2"
+      const addressMatch = lastOrder.deliveryAddress.match(/г\. Хабаровск,\s*(.+?),\s*д\.\s*(\S+)(?:,\s*кв\.\s*(\S+))?(?:,\s*подъезд\s*(\S+))?/);
+
+      if (addressMatch) {
+        setStreet(addressMatch[1] || '');
+        setHouse(addressMatch[2] || '');
+        setApartment(addressMatch[3] || '');
+        setEntrance(addressMatch[4] || '');
+      }
+    }
+
+    // Телефон
+    if (lastOrder.deliveryPhone) {
+      setPhone(lastOrder.deliveryPhone);
+    }
+
+    // Комментарий можно не заполнять автоматически
+
+    toast.success('Данные из последнего заказа заполнены');
+  }, [previousOrders]);
 
   // Расчет стоимости
   const subtotal = cartData?.total || 0;
@@ -212,6 +250,20 @@ export default function CheckoutPage() {
           onSubmit={handleSubmit}
           className="space-y-4"
         >
+          {/* Кнопка автозаполнения */}
+          {previousOrders && previousOrders.length > 0 && (
+            <motion.button
+              type="button"
+              onClick={fillFromLastOrder}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="w-full bg-tg-button bg-opacity-10 text-tg-button border border-tg-button rounded-2xl p-4 flex items-center justify-center gap-2 hover:bg-opacity-20 transition-colors"
+            >
+              <RotateCcw className="w-5 h-5" />
+              <span className="font-semibold">Заполнить данными из последнего заказа</span>
+            </motion.button>
+          )}
+
           {/* Контактная информация */}
           <div className="bg-tg-secondary-bg rounded-2xl p-4 space-y-4">
             <h2 className="font-semibold text-tg-text flex items-center gap-2">
