@@ -40,9 +40,9 @@ type OrderWithRelations = {
     id: string;
     firstName: string | null;
     lastName: string | null;
-    username: string | null;
-    phone: string | null;
-    telegramId: number | null;
+  username: string | null;
+  phone: string | null;
+  telegramId: bigint | number | null;
   };
   items: OrderItemWithProduct[];
 };
@@ -81,7 +81,9 @@ export async function syncOrderWithMoySklad(order: OrderWithRelations): Promise<
     counterparty = await moySkladAPI.createCounterparty({
       name: counterpartyName,
       phone: preferredPhone,
-      externalCode: order.user.telegramId ? `tg-${order.user.telegramId}` : `user-${order.userId}`,
+      externalCode: order.user.telegramId
+        ? `tg-${order.user.telegramId.toString()}`
+        : `user-${order.userId}`,
       companyType: 'individual',
       actualAddress: order.deliveryAddress || undefined,
     });
