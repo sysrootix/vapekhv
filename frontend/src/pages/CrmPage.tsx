@@ -19,6 +19,8 @@ import {
 import toast from 'react-hot-toast';
 
 import LoadingScreen from '../components/LoadingScreen';
+import RevenueChart from '../components/charts/RevenueChart';
+import NewUsersChart from '../components/charts/NewUsersChart';
 import {
   adminApi,
   AdminAccess,
@@ -456,42 +458,12 @@ export default function CrmPage() {
                 {isRevenueFetching && <Loader2 className="w-4 h-4 animate-spin text-tg-hint" />}
               </div>
 
-              <div className="space-y-3">
-                {isRevenueLoading && (
-                  <div className="flex items-center justify-center py-10 text-tg-hint text-sm">
-                    Загружаем динамику...
-                  </div>
-                )}
-                {!isRevenueLoading && revenueSeries && revenueSeries.points.length > 0 ? (
-                  <div className="space-y-4">
-                    {revenueSeries.points.map(point => {
-                      const maxRevenue = Math.max(...revenueSeries.points.map(p => p.totalAmount));
-                      const barPercent = maxRevenue > 0 ? Math.round((point.totalAmount / maxRevenue) * 100) : 0;
-                      return (
-                        <div key={point.periodStart} className="space-y-2">
-                          <div className="flex items-center justify-between text-xs text-tg-hint">
-                            <span>{formatPeriodLabel(revenueSeries.interval, point.periodStart, point.periodEnd)}</span>
-                            <span>{point.ordersCount} заказов</span>
-                          </div>
-                          <div className="h-2 bg-tg-secondary-bg rounded-full overflow-hidden">
-                            <div
-                              style={{ width: `${barPercent}%` }}
-                              className="h-full bg-gradient-to-r from-tg-button to-emerald-400 transition-all"
-                            />
-                          </div>
-                          <div className="text-sm font-semibold text-tg-text">
-                            {formatCurrency(point.totalAmount)}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center py-8 text-tg-hint text-sm">
-                    Недостаточно данных для выбранного периода
-                  </div>
-                )}
-              </div>
+              <RevenueChart
+                data={revenueSeries?.points || []}
+                interval={crmInterval}
+                chartType="area"
+                isLoading={isRevenueLoading}
+              />
             </div>
 
             <div className="bg-tg-bg rounded-2xl p-5 space-y-4">
@@ -530,39 +502,11 @@ export default function CrmPage() {
                 {isNewUsersFetching && <Loader2 className="w-4 h-4 animate-spin text-tg-hint" />}
               </div>
 
-              <div className="space-y-3">
-                {isNewUsersLoading && (
-                  <div className="flex items-center justify-center py-10 text-tg-hint text-sm">
-                    Загружаем динамику...
-                  </div>
-                )}
-                {!isNewUsersLoading && newUsersPoints.length > 0 ? (
-                  <div className="space-y-4">
-                    {newUsersPoints.map(point => {
-                      const maxUsers = Math.max(...newUsersPoints.map(p => p.usersCount));
-                      const barPercent = maxUsers > 0 ? Math.round((point.usersCount / maxUsers) * 100) : 0;
-                      return (
-                        <div key={point.periodStart} className="space-y-2">
-                          <div className="flex items-center justify-between text-xs text-tg-hint">
-                            <span>{formatPeriodLabel(newUsersInterval, point.periodStart, point.periodEnd)}</span>
-                            <span>{point.usersCount} новых</span>
-                          </div>
-                          <div className="h-2 bg-tg-secondary-bg rounded-full overflow-hidden">
-                            <div
-                              style={{ width: `${barPercent}%` }}
-                              className="h-full bg-gradient-to-r from-blue-500 to-purple-400 transition-all"
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center py-8 text-tg-hint text-sm">
-                    Недостаточно данных для выбранного периода
-                  </div>
-                )}
-              </div>
+              <NewUsersChart
+                data={newUsersPoints}
+                interval={newUsersInterval}
+                isLoading={isNewUsersLoading}
+              />
             </div>
           </div>
 

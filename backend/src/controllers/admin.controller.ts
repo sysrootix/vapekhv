@@ -233,6 +233,38 @@ class AdminController {
           },
         });
 
+        // Записать изменение статуса в историю
+        if (order.status !== status) {
+          await tx.orderHistory.create({
+            data: {
+              orderId: order.id,
+              changedBy: req.user?.id || 'SYSTEM',
+              changedByName: req.user?.firstName
+                ? `${req.user.firstName}${req.user.lastName ? ' ' + req.user.lastName : ''}`.trim()
+                : req.user?.username || 'Администратор',
+              field: 'status',
+              oldValue: order.status,
+              newValue: status,
+            },
+          });
+        }
+
+        // Записать изменение стоимости доставки в историю
+        if (costToSave !== undefined && costToSave !== null && order.adminDeliveryCost !== parseFloat(costToSave.toString())) {
+          await tx.orderHistory.create({
+            data: {
+              orderId: order.id,
+              changedBy: req.user?.id || 'SYSTEM',
+              changedByName: req.user?.firstName
+                ? `${req.user.firstName}${req.user.lastName ? ' ' + req.user.lastName : ''}`.trim()
+                : req.user?.username || 'Администратор',
+              field: 'adminDeliveryCost',
+              oldValue: order.adminDeliveryCost?.toString() || null,
+              newValue: costToSave.toString(),
+            },
+          });
+        }
+
         // Начислить бонусы ТОЛЬКО при статусе DELIVERED и если они еще не начислены
         if (status === 'DELIVERED' && order.bonusEarned > 0 && order.status !== 'DELIVERED') {
           // Проверяем, не были ли уже начислены бонусы
@@ -496,6 +528,240 @@ class AdminController {
       }
       logger.error('Ошибка при обновлении пользователя CRM:', error);
       throw new AppError('Не удалось обновить пользователя', 500);
+    }
+  }
+
+  // Получить историю изменений заказа
+  async getOrderHistory(req: AuthRequest, res: Response) {
+    try {
+      const { id: orderId } = req.params;
+
+      if (!orderId) {
+        throw new AppError('Не передан идентификатор заказа', 400);
+      }
+
+      // Проверить, существует ли заказ
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        select: { id: true, orderNumber: true },
+      });
+
+      if (!order) {
+        throw new AppError('Заказ не найден', 404);
+      }
+
+      // Получить историю изменений
+      const history = await prisma.orderHistory.findMany({
+        where: { orderId },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      res.json({
+        orderNumber: order.orderNumber,
+        history,
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+      logger.error('Ошибка при получении истории заказа:', error);
+      throw new AppError('Не удалось получить историю заказа', 500);
+    }
+  }
+
+  // Получить когортный анализ
+  async getCohorts(_req: AuthRequest, res: Response) {
+    try {
+      // Группировка пользователей по месяцу регистрации
+      const users = await prisma.user.findMany({
+        select: {
+          id: true,
+          createdAt: true,
+          totalSpent: true,
+          orders: {
+            select: {
+              status: true,
+              totalAmount: true,
+              createdAt: true,
+            },
+          },
+        },
+      });
+
+      // Группируем по месяцам регистрации
+      const cohortMap = new Map<string, any>();
+
+      users.forEach((user) => {
+        const cohortMonth = user.createdAt.toISOString().substring(0, 7); // YYYY-MM
+
+        if (!cohortMap.has(cohortMonth)) {
+          cohortMap.set(cohortMonth, {
+            cohort: cohortMonth,
+            usersCount: 0,
+            totalRevenue: 0,
+            activeUsers: 0,
+            avgRevenue: 0,
+          });
+        }
+
+        const cohort = cohortMap.get(cohortMonth);
+        cohort.usersCount++;
+        cohort.totalRevenue += Number(user.totalSpent);
+
+        if (user.orders.some((o) => o.status === 'DELIVERED')) {
+          cohort.activeUsers++;
+        }
+      });
+
+      // Рассчитываем средний доход на пользователя
+      const cohorts = Array.from(cohortMap.values()).map((cohort) => ({
+        ...cohort,
+        avgRevenue: cohort.usersCount > 0 ? cohort.totalRevenue / cohort.usersCount : 0,
+        retentionRate: cohort.usersCount > 0 ? (cohort.activeUsers / cohort.usersCount) * 100 : 0,
+      })).sort((a, b) => b.cohort.localeCompare(a.cohort));
+
+      res.json({ cohorts });
+    } catch (error) {
+      logger.error('Ошибка при получении когортного анализа:', error);
+      throw new AppError('Не удалось получить когортный анализ', 500);
+    }
+  }
+
+  // Получить LTV (Lifetime Value) клиентов
+  async getLTV(_req: AuthRequest, res: Response) {
+    try {
+      const users = await prisma.user.findMany({
+        select: {
+          id: true,
+          totalSpent: true,
+          createdAt: true,
+          orders: {
+            where: { status: 'DELIVERED' },
+            select: {
+              totalAmount: true,
+              createdAt: true,
+            },
+          },
+        },
+      });
+
+      const now = new Date();
+      let totalLTV = 0;
+      let totalCustomers = 0;
+      const segments = {
+        new: { count: 0, ltv: 0 },
+        active: { count: 0, ltv: 0 },
+        loyal: { count: 0, ltv: 0 },
+      };
+
+      users.forEach((user) => {
+        const ltv = Number(user.totalSpent);
+        const daysSinceRegistration = Math.floor(
+          (now.getTime() - user.createdAt.getTime()) / (1000 * 60 * 60 * 24)
+        );
+        const ordersCount = user.orders.length;
+
+        totalLTV += ltv;
+        totalCustomers++;
+
+        if (daysSinceRegistration < 30) {
+          segments.new.count++;
+          segments.new.ltv += ltv;
+        } else if (ordersCount >= 5) {
+          segments.loyal.count++;
+          segments.loyal.ltv += ltv;
+        } else {
+          segments.active.count++;
+          segments.active.ltv += ltv;
+        }
+      });
+
+      const avgLTV = totalCustomers > 0 ? totalLTV / totalCustomers : 0;
+
+      res.json({
+        totalCustomers,
+        averageLTV: avgLTV,
+        totalLTV,
+        segments: {
+          new: {
+            count: segments.new.count,
+            avgLTV: segments.new.count > 0 ? segments.new.ltv / segments.new.count : 0,
+            totalLTV: segments.new.ltv,
+          },
+          active: {
+            count: segments.active.count,
+            avgLTV: segments.active.count > 0 ? segments.active.ltv / segments.active.count : 0,
+            totalLTV: segments.active.ltv,
+          },
+          loyal: {
+            count: segments.loyal.count,
+            avgLTV: segments.loyal.count > 0 ? segments.loyal.ltv / segments.loyal.count : 0,
+            totalLTV: segments.loyal.ltv,
+          },
+        },
+      });
+    } catch (error) {
+      logger.error('Ошибка при расчете LTV:', error);
+      throw new AppError('Не удалось рассчитать LTV', 500);
+    }
+  }
+
+  // Получить топ продуктов
+  async getTopProducts(_req: AuthRequest, res: Response) {
+    try {
+      const topProducts = await prisma.orderItem.groupBy({
+        by: ['productId'],
+        where: {
+          order: {
+            status: 'DELIVERED',
+          },
+        },
+        _sum: {
+          quantity: true,
+          price: true,
+        },
+        _count: {
+          id: true,
+        },
+        orderBy: {
+          _sum: {
+            price: 'desc',
+          },
+        },
+        take: 10,
+      });
+
+      // Получить детали продуктов
+      const productIds = topProducts.map((item) => item.productId);
+      const products = await prisma.product.findMany({
+        where: { id: { in: productIds } },
+        select: {
+          id: true,
+          name: true,
+          imageUrl: true,
+          price: true,
+        },
+      });
+
+      const productsMap = new Map(products.map((p) => [p.id, p]));
+
+      const result = topProducts.map((item) => {
+        const product = productsMap.get(item.productId);
+        return {
+          productId: item.productId,
+          name: product?.name || 'Unknown',
+          imageUrl: product?.imageUrl || null,
+          currentPrice: product?.price || 0,
+          totalQuantity: item._sum.quantity || 0,
+          totalRevenue: Number(item._sum.price) || 0,
+          ordersCount: item._count.id,
+        };
+      });
+
+      res.json({ products: result });
+    } catch (error) {
+      logger.error('Ошибка при получении топ продуктов:', error);
+      throw new AppError('Не удалось получить топ продуктов', 500);
     }
   }
 }

@@ -2,6 +2,43 @@ import { prisma } from '../config/database';
 
 type RevenueInterval = 'daily' | 'weekly' | 'monthly';
 
+export type CustomerSegment = 'VIP' | 'REGULAR' | 'NEW' | 'AT_RISK' | 'CHURNED' | 'NONE';
+
+// Функция для определения сегмента клиента
+export function getCustomerSegment(
+  totalSpent: number,
+  ordersCount: number,
+  daysSinceRegistration: number,
+  daysSinceLastOrder: number | null
+): CustomerSegment {
+  // VIP: потратил > 50000₽ или сделал > 20 заказов
+  if (totalSpent > 50000 || ordersCount > 20) {
+    return 'VIP';
+  }
+
+  // Постоянный: потратил > 10000₽ и сделал >= 5 заказов
+  if (totalSpent > 10000 && ordersCount >= 5) {
+    return 'REGULAR';
+  }
+
+  // Новичок: сделал < 3 заказов и зарегистрирован < 30 дней
+  if (ordersCount < 3 && daysSinceRegistration < 30) {
+    return 'NEW';
+  }
+
+  // Ушедший: последний заказ > 180 дней назад
+  if (daysSinceLastOrder !== null && daysSinceLastOrder > 180) {
+    return 'CHURNED';
+  }
+
+  // Неактивный: последний заказ > 60 дней назад и раньше делал >= 3 заказа
+  if (daysSinceLastOrder !== null && daysSinceLastOrder > 60 && ordersCount >= 3) {
+    return 'AT_RISK';
+  }
+
+  return 'NONE';
+}
+
 interface RevenueSeriesPoint {
   periodStart: string;
   periodEnd: string;
@@ -86,6 +123,7 @@ export interface CrmUsersResponse {
     ordersCount: number;
     deliveredOrders: number;
     averageOrderValue: number;
+    segment: CustomerSegment;
     lastOrder: {
       id: string;
       orderNumber: string;
@@ -788,11 +826,31 @@ export async function fetchCrmUsers(params: CrmUsersParams): Promise<CrmUsersRes
     deliveredCounts.map((item: { userId: string; _count: { _all: number } }) => [item.userId, item._count._all ?? 0])
   );
 
+  const now = new Date();
+
   const items = users.map((user: CrmUserListItem) => {
     const deliveredOrders = deliveredMap.get(user.id) ?? 0;
     const avgOrderValue =
       deliveredOrders > 0 ? Number(user.totalSpent) / deliveredOrders : 0;
     const lastOrder = user.orders[0];
+
+    // Вычисляем дни с регистрации
+    const daysSinceRegistration = Math.floor(
+      (now.getTime() - user.createdAt.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    // Вычисляем дни с последнего заказа
+    const daysSinceLastOrder = lastOrder
+      ? Math.floor((now.getTime() - lastOrder.createdAt.getTime()) / (1000 * 60 * 60 * 24))
+      : null;
+
+    // Определяем сегмент клиента
+    const segment = getCustomerSegment(
+      Number(user.totalSpent),
+      user._count.orders,
+      daysSinceRegistration,
+      daysSinceLastOrder
+    );
 
     return {
       id: user.id,
@@ -805,6 +863,7 @@ export async function fetchCrmUsers(params: CrmUsersParams): Promise<CrmUsersRes
       ordersCount: user._count.orders,
       deliveredOrders,
       averageOrderValue: avgOrderValue,
+      segment,
       lastOrder: lastOrder
         ? {
             id: lastOrder.id,
