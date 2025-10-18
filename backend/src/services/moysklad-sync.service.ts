@@ -29,6 +29,7 @@ type OrderWithRelations = {
   id: string;
   orderNumber: string;
   totalAmount: number;
+  deliveryCost: number;
   deliveryAddress: string | null;
   deliveryPhone: string | null;
   deliveryDate: string | null;
@@ -271,6 +272,23 @@ export async function syncOrderWithMoySklad(order: OrderWithRelations): Promise<
     );
   }
 
+  const deliveryTotalRaw = order.adminDeliveryCost ?? order.deliveryCost ?? 0;
+  const deliveryTotal = deliveryTotalRaw > 0 ? deliveryTotalRaw : 0;
+
+  if (deliveryTotal > 0) {
+    if (moySkladConfig.deliveryProductId) {
+      preparedItems.push({
+        quantity: 1,
+        price: Math.round(deliveryTotal * 100),
+        assortmentMeta: buildMeta('product', moySkladConfig.deliveryProductId),
+      });
+    } else {
+      logger.warn(
+        `Не указан MOYSKLAD_DELIVERY_PRODUCT_ID, позиция доставки не будет добавлена для заказа ${order.orderNumber}`
+      );
+    }
+  }
+
   const customerOrderPositions: MoySkladCustomerOrderPosition[] = preparedItems.map(
     (position) => ({
       quantity: position.quantity,
@@ -296,6 +314,7 @@ export async function syncOrderWithMoySklad(order: OrderWithRelations): Promise<
         ? formatCurrency(order.adminDeliveryCost)
         : 'не указана'
     }`,
+    `Оплата доставки в заказе: ${deliveryTotal > 0 ? formatCurrency(deliveryTotal) : 'не оплачена'}`,
     '',
     'Информация о клиенте:',
     `Имя: ${userFullName}`,

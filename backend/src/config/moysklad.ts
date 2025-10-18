@@ -7,6 +7,7 @@ export const moySkladConfig = {
   token: process.env.MOYSKLAD_TOKEN || '',
   organizationId: process.env.MOYSKLAD_ORGANIZATION_ID || '', // ID нашей организации в МойСклад
   storeId: process.env.MOYSKLAD_STORE_ID || '', // ID склада в МойСклад
+  deliveryProductId: process.env.MOYSKLAD_DELIVERY_PRODUCT_ID || '', // ID товара/услуги "Оплата доставки"
   syncIntervalMinutes: 30, // Синхронизация каждые 30 минут
 
   // Лимиты API
