@@ -77,12 +77,15 @@ export default function CheckoutPage() {
   const [deliveryTime, setDeliveryTime] = useState('');
   const [useNearestTime, setUseNearestTime] = useState(false);
 
+  // Получаем текущую дату для минимального значения (один раз при загрузке)
+  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+
   // Инициализация телефона из профиля
   useEffect(() => {
-    if (userData?.user?.phone) {
+    if (userData?.user?.phone && !phone) {
       setPhone(userData.user.phone);
     }
-  }, [userData]);
+  }, [userData, phone]);
 
   // Расчет стоимости
   const subtotal = cartData?.total || 0;
@@ -173,9 +176,6 @@ export default function CheckoutPage() {
       </div>
     );
   }
-
-  // Получаем текущую дату для минимального значения
-  const today = new Date().toISOString().split('T')[0];
 
   return (
     <div className="min-h-screen bg-tg-bg pb-32">
