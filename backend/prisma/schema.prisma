@@ -193,32 +193,32 @@ model CartItem {
 }
 
 model Order {
-  id              String      @id @default(cuid())
-  orderNumber     String      @unique
-  status          OrderStatus @default(PENDING_PAYMENT)
-  totalAmount     Float
-  deliveryCost    Float       @default(0) // Стоимость доставки
-  bonusUsed       Int         @default(0) // Сколько бонусов использовано
-  bonusEarned     Int         @default(0) // Сколько бонусов начислено
+  id               String      @id @default(cuid())
+  orderNumber      String      @unique
+  status           OrderStatus @default(PENDING_PAYMENT)
+  totalAmount      Float
+  deliveryCost     Float       @default(0) // Стоимость доставки
+  bonusUsed        Int         @default(0) // Сколько бонусов использовано
+  bonusEarned      Int         @default(0) // Сколько бонусов начислено
 
-  userId          String
-  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  deliveryAddress String?
-  deliveryPhone   String?
-  deliveryDate    String?     // Дата доставки
-  deliveryTime    String?     // Время доставки
-  comment         String?
+  deliveryAddress  String?
+  deliveryPhone    String?
+  deliveryDate     String?     // Дата доставки
+  deliveryTime     String?     // Время доставки
+  comment          String?
 
   // Платежная информация
-  receiptImageUrl String?     // URL загруженного чека
-  paymentExpiresAt DateTime?  // Время истечения оплаты (1 час)
-  paidAt          DateTime?   // Время оплаты
+  receiptImageUrl  String?   @map("receipt_image_url")
+  paymentExpiresAt DateTime? @map("payment_expires_at")
+  paidAt           DateTime? @map("paid_at")
 
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 
-  items           OrderItem[]
+  items            OrderItem[]
 
   @@map("orders")
   @@index([userId])
