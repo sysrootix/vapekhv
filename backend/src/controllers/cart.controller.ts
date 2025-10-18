@@ -33,7 +33,7 @@ class CartController {
       });
 
       const total = cartItems.reduce(
-        (sum, item) => sum + item.product.price * item.quantity,
+        (sum: number, item: { product: { price: number }; quantity: number }) => sum + item.product.price * item.quantity,
         0
       );
 
@@ -99,7 +99,7 @@ class CartController {
 
       // Проверить обязательные характеристики
       if (product.characteristics && product.characteristics.length > 0) {
-        const requiredCharacteristics = product.characteristics.filter(c => c.required);
+        const requiredCharacteristics = product.characteristics.filter((c: { required: boolean; }) => c.required);
         for (const char of requiredCharacteristics) {
           if (!selectedOptions || !selectedOptions[char.name]) {
             throw new AppError(`Необходимо выбрать: ${char.name}`, 400);
@@ -112,7 +112,7 @@ class CartController {
         where: { userId, productId },
       });
 
-      const existingItem = existingItems.find(item => {
+      const existingItem = existingItems.find((item: { selectedOptions: any; }) => {
         if (!item.selectedOptions && !selectedOptions) return true;
         if (!item.selectedOptions || !selectedOptions) return false;
         return JSON.stringify(item.selectedOptions) === JSON.stringify(selectedOptions);

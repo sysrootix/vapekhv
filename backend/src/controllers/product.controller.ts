@@ -100,9 +100,9 @@ class ProductController {
         prisma.product.count({ where }),
       ]);
 
-      const products = productsData.map(p => {
+      const products = productsData.map((p: { variants: any[]; stockCount: number; }) => {
         const inStock = p.variants.length > 0
-          ? p.variants.some(v => v.stockCount > 0)
+          ? p.variants.some((v: { stockCount: number; }) => v.stockCount > 0)
           : p.stockCount > 0;
         return { ...p, inStock };
       });
@@ -154,7 +154,7 @@ class ProductController {
       }
 
       const inStock = product.variants.length > 0
-        ? product.variants.some(v => v.stockCount > 0)
+        ? product.variants.some((v: { stockCount: number; }) => v.stockCount > 0)
         : product.stockCount > 0;
 
       res.json({ ...product, inStock });

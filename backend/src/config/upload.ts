@@ -1,6 +1,7 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { Request } from 'express';
 
 // Создать директорию для чеков, если её нет
 const receiptsDir = path.join(__dirname, '../../uploads/receipts');
@@ -10,10 +11,10 @@ if (!fs.existsSync(receiptsDir)) {
 
 // Конфигурация хранилища
 const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
+  destination: (_req: Request, _file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => {
     cb(null, receiptsDir);
   },
-  filename: (_req, file, cb) => {
+  filename: (_req: Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
     // Генерируем уникальное имя файла
     const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
     const ext = path.extname(file.originalname);
@@ -22,7 +23,7 @@ const storage = multer.diskStorage({
 });
 
 // Фильтр файлов - только изображения
-const fileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+const fileFilter = (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 
   if (allowedMimeTypes.includes(file.mimetype)) {

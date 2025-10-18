@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { prisma } from '../config/database';
@@ -158,7 +159,7 @@ class OrderController {
 
       // Рассчитать сумму заказа
       const subtotal = cartItems.reduce(
-        (sum, item) => sum + item.product.price * item.quantity,
+        (sum: number, item: { product: { price: number }; quantity: number }) => sum + item.product.price * item.quantity,
         0
       );
 
@@ -197,7 +198,7 @@ class OrderController {
       paymentExpiresAt.setHours(paymentExpiresAt.getHours() + 1);
 
       // Создать заказ в транзакции
-      const order = await prisma.$transaction(async (tx) => {
+      const order = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         // Создать заказ
         const newOrder = await tx.order.create({
           data: {
@@ -215,7 +216,7 @@ class OrderController {
             status: 'PENDING_PAYMENT',
             paymentExpiresAt,
             items: {
-              create: cartItems.map((item) => ({
+              create: cartItems.map((item: { productId: string; quantity: number; product: { price: number; }; selectedOptions: any; }) => ({
                 product: {
                   connect: { id: item.productId },
                 },
@@ -288,7 +289,7 @@ class OrderController {
       }
 
       // Отменить заказ в транзакции
-      const cancelled = await prisma.$transaction(async (tx) => {
+      const cancelled = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         // Обновить статус заказа
         const updatedOrder = await tx.order.update({
           where: { id },
@@ -507,7 +508,7 @@ class OrderController {
       }
 
       // Подтвердить заказ и выполнить все операции с товарами и бонусами
-      const confirmed = await prisma.$transaction(async (tx) => {
+      const confirmed = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         // Обновить статус заказа
         const updatedOrder = await tx.order.update({
           where: { id: orderId },

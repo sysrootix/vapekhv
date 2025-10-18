@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import bot from './bot.service';
 import TelegramBot from 'node-telegram-bot-api';
 import { logger } from '../config/logger';
@@ -71,7 +72,7 @@ const handleAdminAction = async (query: TelegramBot.CallbackQuery) => {
       }
 
       // Выполняем подтверждение
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         // Обновить статус заказа
         await tx.order.update({
           where: { id: orderId },
