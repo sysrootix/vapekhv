@@ -15,8 +15,11 @@ export const adminApi = {
   },
 
   // Обновить статус заказа
-  updateOrderStatus: async (orderId: string, status: OrderStatus): Promise<AdminOrder> => {
-    const response = await apiClient.put<AdminOrder>(`/admin/orders/${orderId}/status`, { status });
+  updateOrderStatus: async (orderId: string, status: OrderStatus, deliveryCost?: number): Promise<AdminOrder> => {
+    const response = await apiClient.put<AdminOrder>(`/admin/orders/${orderId}/status`, {
+      status,
+      deliveryCost
+    });
     return response.data;
   },
 

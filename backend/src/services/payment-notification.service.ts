@@ -8,6 +8,15 @@ import { prisma } from '../config/database';
 const ADMIN_GROUP_ID = process.env.TELEGRAM_ADMIN_GROUP_ID!;
 const WEBAPP_URL = process.env.WEBAPP_URL;
 
+// Функция для форматирования даты из YYYY-MM-DD в DD.MM.YYYY
+const formatDate = (dateString: string): string => {
+  const date = new Date(dateString);
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}.${month}.${year}`;
+};
+
 // Инициализация обработчика платежных уведомлений
 export const initPaymentBot = () => {
   if (!ADMIN_GROUP_ID) {
@@ -324,7 +333,8 @@ export const sendOrderStatusNotification = async (order: any, status: string) =>
     if (order.deliveryTime === 'Ближайшее время') {
       deliveryDateText = 'Ближайшее время';
     } else if (order.deliveryDate) {
-      deliveryDateText = `${order.deliveryDate}${order.deliveryTime && order.deliveryTime !== 'Ближайшее время' ? ', ' + order.deliveryTime : ''}`;
+      const formattedDate = formatDate(order.deliveryDate);
+      deliveryDateText = `${formattedDate}${order.deliveryTime && order.deliveryTime !== 'Ближайшее время' ? ', ' + order.deliveryTime : ''}`;
     }
 
     // Форматируем список товаров с улучшенной читаемостью
@@ -340,11 +350,8 @@ export const sendOrderStatusNotification = async (order: any, status: string) =>
       .join('\n\n');
 
     // Форматируем дату создания заказа
-    const orderDate = new Date(order.createdAt).toLocaleDateString('ru-RU', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    });
+    const orderDateObj = new Date(order.createdAt);
+    const orderDate = formatDate(orderDateObj.toISOString().split('T')[0]);
 
     // Формируем основное сообщение
     let message = `<b>${statusInfo.title}</b>\n\n${statusInfo.description}\n\n`;
@@ -407,7 +414,8 @@ export const sendPaymentNotification = async (order: any) => {
     if (order.deliveryTime === 'Ближайшее время') {
       deliveryDateText = 'Ближайшее время';
     } else if (order.deliveryDate) {
-      deliveryDateText = `${order.deliveryDate} ${order.deliveryTime || ''}`;
+      const formattedDate = formatDate(order.deliveryDate);
+      deliveryDateText = `${formattedDate} ${order.deliveryTime || ''}`;
     }
 
     // Добавляем +10 часов для хабаровского времени

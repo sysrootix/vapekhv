@@ -53,6 +53,9 @@ export default function AdminPage() {
   const [selectedFilter, setSelectedFilter] = useState<OrderStatus | 'ALL'>('ALL');
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showDeliveryCostModal, setShowDeliveryCostModal] = useState(false);
+  const [deliveryCost, setDeliveryCost] = useState('');
+  const [pendingStatusChange, setPendingStatusChange] = useState<{ orderId: string; status: OrderStatus } | null>(null);
   const queryClient = useQueryClient();
 
   // Загрузка заказов
@@ -64,12 +67,15 @@ export default function AdminPage() {
 
   // Мутация для изменения статуса
   const updateStatusMutation = useMutation({
-    mutationFn: ({ orderId, status }: { orderId: string; status: OrderStatus }) =>
-      adminApi.updateOrderStatus(orderId, status),
+    mutationFn: ({ orderId, status, deliveryCost }: { orderId: string; status: OrderStatus; deliveryCost?: number }) =>
+      adminApi.updateOrderStatus(orderId, status, deliveryCost),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
       toast.success('Статус заказа обновлен');
       setExpandedOrder(null);
+      setShowDeliveryCostModal(false);
+      setDeliveryCost('');
+      setPendingStatusChange(null);
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || 'Ошибка при обновлении статуса');
@@ -77,7 +83,29 @@ export default function AdminPage() {
   });
 
   const handleStatusChange = (orderId: string, newStatus: OrderStatus) => {
-    updateStatusMutation.mutate({ orderId, status: newStatus });
+    // Если статус SHIPPED (передал курьеру), показываем модальное окно для ввода стоимости доставки
+    if (newStatus === OrderStatus.SHIPPED) {
+      setPendingStatusChange({ orderId, status: newStatus });
+      setShowDeliveryCostModal(true);
+    } else {
+      updateStatusMutation.mutate({ orderId, status: newStatus });
+    }
+  };
+
+  const handleDeliveryCostSubmit = () => {
+    if (!pendingStatusChange) return;
+
+    const cost = parseFloat(deliveryCost);
+    if (isNaN(cost) || cost < 0) {
+      toast.error('Введите корректную стоимость доставки');
+      return;
+    }
+
+    updateStatusMutation.mutate({
+      orderId: pendingStatusChange.orderId,
+      status: pendingStatusChange.status,
+      deliveryCost: cost,
+    });
   };
 
   if (isLoading) {
@@ -419,6 +447,88 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+
+      {/* Модальное окно для ввода стоимости доставки */}
+      <AnimatePresence>
+        {showDeliveryCostModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            onClick={() => {
+              setShowDeliveryCostModal(false);
+              setDeliveryCost('');
+              setPendingStatusChange(null);
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-tg-secondary-bg rounded-2xl p-6 max-w-md w-full space-y-4"
+            >
+              <div className="flex items-center gap-3">
+                <Truck className="w-6 h-6 text-tg-button" />
+                <h3 className="text-xl font-bold text-tg-text">Стоимость доставки</h3>
+              </div>
+
+              <p className="text-sm text-tg-hint">
+                Укажите сумму, которую вы заплатили за доставку этого заказа
+              </p>
+
+              <div>
+                <label className="block text-sm text-tg-hint mb-2">
+                  Стоимость такси (в рублях) *
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="10"
+                  value={deliveryCost}
+                  onChange={(e) => setDeliveryCost(e.target.value)}
+                  placeholder="Например: 300"
+                  className="w-full px-4 py-3 bg-tg-bg text-tg-text rounded-xl outline-none focus:ring-2 focus:ring-tg-button"
+                  autoFocus
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      handleDeliveryCostSubmit();
+                    }
+                  }}
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowDeliveryCostModal(false);
+                    setDeliveryCost('');
+                    setPendingStatusChange(null);
+                  }}
+                  className="flex-1 px-4 py-3 bg-tg-bg text-tg-text rounded-xl font-medium hover:opacity-80 transition-opacity"
+                >
+                  Отмена
+                </button>
+                <button
+                  onClick={handleDeliveryCostSubmit}
+                  disabled={updateStatusMutation.isPending || !deliveryCost}
+                  className="flex-1 px-4 py-3 bg-tg-button text-tg-button-text rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {updateStatusMutation.isPending ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Сохранение...</span>
+                    </div>
+                  ) : (
+                    'Подтвердить'
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

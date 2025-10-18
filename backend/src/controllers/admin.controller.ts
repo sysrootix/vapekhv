@@ -94,7 +94,7 @@ class AdminController {
   async updateOrderStatus(req: AuthRequest, res: Response) {
     try {
       const { id: orderId } = req.params;
-      const { status } = req.body;
+      const { status, deliveryCost } = req.body;
 
       if (!status) {
         throw new AppError('Укажите статус заказа', 400);
@@ -119,6 +119,14 @@ class AdminController {
 
       if (!order) {
         throw new AppError('Заказ не найден', 404);
+      }
+
+      // Если передается стоимость доставки, сохраняем её
+      if (deliveryCost !== undefined && deliveryCost !== null) {
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { deliveryCost: parseFloat(deliveryCost.toString()) },
+        });
       }
 
       // Используем существующий метод из order.controller для обновления статуса

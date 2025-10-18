@@ -1,11 +1,12 @@
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Phone, MapPin, Building, MessageSquare, Calendar, Clock, Truck, ArrowLeft, RotateCcw } from 'lucide-react';
+import { Phone, MapPin, Building, MessageSquare, Calendar, Clock, Truck, ArrowLeft, RotateCcw, Gift } from 'lucide-react';
 import { useTelegramBackButton } from '../hooks/useTelegramApp';
 import { userApi } from '../api/user';
 import { cartApi } from '../api/cart';
 import { orderApi } from '../api/order';
+import { bonusApi } from '../api/bonus';
 import LoadingScreen from '../components/LoadingScreen';
 import toast from 'react-hot-toast';
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
@@ -72,6 +73,12 @@ export default function CheckoutPage() {
     queryFn: orderApi.getOrders,
   });
 
+  // Загрузка информации о бонусах
+  const { data: bonusInfo } = useQuery({
+    queryKey: ['bonus'],
+    queryFn: bonusApi.getBonusInfo,
+  });
+
   // Состояние формы
   const [phone, setPhone] = useState('');
   const [street, setStreet] = useState('');
@@ -82,6 +89,8 @@ export default function CheckoutPage() {
   const [deliveryDate, setDeliveryDate] = useState('');
   const [deliveryTime, setDeliveryTime] = useState('');
   const [useNearestTime, setUseNearestTime] = useState(false);
+  const [useBonuses, setUseBonuses] = useState(false);
+  const [bonusAmount, setBonusAmount] = useState(0);
 
   // Получаем текущую дату для минимального значения (один раз при загрузке)
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
@@ -129,12 +138,19 @@ export default function CheckoutPage() {
     toast.success('Данные из последнего заказа заполнены');
   }, [previousOrders]);
 
-  // Расчет стоимости
+  // Расчет стоимости с учетом бонусов
   const subtotal = cartData?.total || 0;
   const deliveryCost = useMemo(() => {
     return subtotal >= FREE_DELIVERY_THRESHOLD ? 0 : DELIVERY_COST;
   }, [subtotal]);
-  const total = subtotal + deliveryCost;
+
+  const totalBeforeBonuses = subtotal + deliveryCost;
+  const availableBonuses = bonusInfo?.balance || 0;
+  const maxBonusUsage = Math.floor(totalBeforeBonuses * 0.5); // Максимум 50% от суммы
+  const maxBonusToUse = Math.min(availableBonuses, maxBonusUsage);
+
+  const bonusDiscount = useBonuses ? Math.min(bonusAmount, maxBonusToUse) : 0;
+  const total = totalBeforeBonuses - bonusDiscount;
 
   // Мутация создания заказа
   const createOrderMutation = useMutation({
@@ -200,6 +216,7 @@ export default function CheckoutPage() {
       deliveryDate: useNearestTime ? today : deliveryDate,
       deliveryTime: useNearestTime ? 'Ближайшее время' : deliveryTime,
       comment: comment || undefined,
+      bonusToUse: bonusDiscount,
     });
   };
 
@@ -447,6 +464,78 @@ export default function CheckoutPage() {
           </div>
         </motion.form>
 
+        {/* Бонусы */}
+        {availableBonuses > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-tg-secondary-bg rounded-2xl p-4 space-y-3"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Gift className="w-5 h-5 text-yellow-500" />
+                <h3 className="font-semibold text-tg-text">Бонусы</h3>
+              </div>
+              <span className="text-sm text-tg-hint">
+                Доступно: {availableBonuses} б.
+              </span>
+            </div>
+
+            <div className="text-xs text-tg-hint bg-tg-bg p-2 rounded-xl">
+              Вы можете списать до 50% от стоимости заказа (максимум {maxBonusToUse} бонусов)
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                const newValue = !useBonuses;
+                setUseBonuses(newValue);
+                if (newValue) {
+                  setBonusAmount(maxBonusToUse);
+                } else {
+                  setBonusAmount(0);
+                }
+              }}
+              className={`w-full py-3 rounded-xl font-medium transition-all ${
+                useBonuses
+                  ? 'bg-tg-button text-tg-button-text'
+                  : 'bg-tg-bg text-tg-text hover:bg-opacity-80'
+              }`}
+            >
+              {useBonuses ? '✓ ' : ''}Использовать бонусы
+            </button>
+
+            {useBonuses && (
+              <div className="space-y-2">
+                <label className="block text-sm text-tg-hint">
+                  Количество бонусов для списания:
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max={maxBonusToUse}
+                  value={bonusAmount}
+                  onChange={(e) => setBonusAmount(Number(e.target.value))}
+                  className="w-full accent-tg-button"
+                />
+                <div className="flex items-center justify-between text-sm">
+                  <input
+                    type="number"
+                    min="0"
+                    max={maxBonusToUse}
+                    value={bonusAmount}
+                    onChange={(e) => setBonusAmount(Math.min(Number(e.target.value), maxBonusToUse))}
+                    className="w-24 px-3 py-2 bg-tg-bg text-tg-text rounded-lg outline-none focus:ring-2 focus:ring-tg-button"
+                  />
+                  <span className="text-green-500 font-medium">
+                    -{bonusAmount.toLocaleString()}₽
+                  </span>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+
         {/* Итого и кнопка оформления */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -471,6 +560,19 @@ export default function CheckoutPage() {
               {deliveryCost === 0 ? 'Бесплатно' : `${deliveryCost.toLocaleString()}₽`}
             </span>
           </div>
+
+          {/* Скидка бонусами */}
+          {bonusDiscount > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center gap-2">
+                <Gift className="w-4 h-4 text-yellow-500" />
+                <span className="text-tg-hint">Бонусы:</span>
+              </div>
+              <span className="font-medium text-green-500">
+                -{bonusDiscount.toLocaleString()}₽
+              </span>
+            </div>
+          )}
 
           {/* Итого */}
           <div className="border-t border-tg-bg pt-2">
