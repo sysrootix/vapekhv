@@ -261,8 +261,8 @@ export default function CheckoutPage() {
               className="bg-tg-secondary-bg rounded-2xl p-4"
             >
               <div className="flex items-center gap-3 mb-3">
-                <div className="p-2 bg-tg-button bg-opacity-10 rounded-xl">
-                  <RotateCcw className="w-5 h-5 text-tg-button" />
+                <div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl">
+                  <RotateCcw className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold text-tg-text">Быстрое оформление</h3>

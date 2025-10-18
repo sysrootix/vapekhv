@@ -123,7 +123,7 @@ export default function DashboardPage() {
                 onClick={() => navigate('/catalog', { state: { categoryId: category.id } })}
                 className="bg-tg-secondary-bg rounded-2xl p-4 text-left hover:bg-opacity-80 transition-all"
               >
-                <div className="w-12 h-12 bg-tg-button bg-opacity-10 rounded-xl flex items-center justify-center mb-3 text-tg-button">
+                <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center mb-3 text-white">
                   {getCategoryIcon(category.name)}
                 </div>
                 <h3 className="font-semibold text-tg-text mb-1">{category.name}</h3>

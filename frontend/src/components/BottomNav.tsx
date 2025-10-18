@@ -70,11 +70,7 @@ export default function BottomNav() {
             >
               {/* Active Indicator */}
               {item.active && (
-                <motion.div
-                  layoutId="activeTab"
-                  className="absolute top-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-tg-button rounded-b-full"
-                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                />
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-tg-button rounded-b-full" />
               )}
 
               {/* Icon Container */}
