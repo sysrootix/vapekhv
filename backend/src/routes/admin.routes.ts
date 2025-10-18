@@ -1,20 +1,26 @@
 import { Router } from 'express';
-import adminController, { requireAdmin } from '../controllers/admin.controller';
+import adminController, { requireAdmin, requireCrmAccess } from '../controllers/admin.controller';
 import { authMiddleware } from '../middleware/auth';
 
 const router = Router();
 
-// Все роуты требуют аутентификации и прав администратора
 router.use(authMiddleware);
-router.use(requireAdmin);
+
+router.get('/access', adminController.getAccess.bind(adminController));
 
 // Получить все заказы (с фильтрацией по статусу)
-router.get('/orders', adminController.getOrders.bind(adminController));
+router.get('/orders', requireAdmin, adminController.getOrders.bind(adminController));
 
 // Обновить статус заказа
-router.put('/orders/:id/status', adminController.updateOrderStatus.bind(adminController));
+router.put('/orders/:id/status', requireAdmin, adminController.updateOrderStatus.bind(adminController));
 
 // Получить статистику
-router.get('/stats', adminController.getStats.bind(adminController));
+router.get('/stats', requireCrmAccess, adminController.getStats.bind(adminController));
+
+// CRM endpoints
+router.get('/crm/overview', requireCrmAccess, adminController.getCrmOverview.bind(adminController));
+router.get('/crm/revenue', requireCrmAccess, adminController.getRevenueSeries.bind(adminController));
+router.get('/crm/users', requireCrmAccess, adminController.getCrmUsers.bind(adminController));
+router.get('/crm/users/:id', requireCrmAccess, adminController.getCrmUserDetails.bind(adminController));
 
 export default router;
