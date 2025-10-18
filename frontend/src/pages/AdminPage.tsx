@@ -12,7 +12,10 @@ import {
   Phone,
   Calendar,
   ChevronDown,
-  Loader2
+  Loader2,
+  Search,
+  MessageCircle,
+  Shield
 } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -49,6 +52,7 @@ const availableStatusTransitions: Record<OrderStatus, OrderStatus[]> = {
 export default function AdminPage() {
   const [selectedFilter, setSelectedFilter] = useState<OrderStatus | 'ALL'>('ALL');
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const queryClient = useQueryClient();
 
   // Загрузка заказов
@@ -80,7 +84,23 @@ export default function AdminPage() {
     return <LoadingScreen />;
   }
 
-  const filteredOrders = orders || [];
+  // Фильтрация заказов по поисковому запросу
+  const filteredOrders = (orders || []).filter(order => {
+    if (!searchQuery.trim()) return true;
+
+    const query = searchQuery.toLowerCase();
+    const searchableFields = [
+      order.orderNumber,
+      order.user.firstName,
+      order.user.lastName,
+      order.user.username,
+      order.user.telegramId?.toString(),
+      order.deliveryPhone,
+      order.deliveryAddress,
+    ].filter(Boolean).map(field => field?.toString().toLowerCase());
+
+    return searchableFields.some(field => field?.includes(query));
+  });
 
   return (
     <div className="min-h-screen bg-tg-bg pb-6">
@@ -93,12 +113,30 @@ export default function AdminPage() {
         >
           <div className="flex items-center gap-3">
             <div className="p-2 bg-tg-button bg-opacity-10 rounded-xl">
-              <Package className="w-6 h-6 text-tg-button" />
+              <Shield className="w-6 h-6 text-tg-button" />
             </div>
             <h1 className="text-2xl font-bold text-tg-text">Админ-панель</h1>
           </div>
           <div className="text-sm text-tg-hint">
             {filteredOrders.length} {filteredOrders.length === 1 ? 'заказ' : 'заказов'}
+          </div>
+        </motion.div>
+
+        {/* Search */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+        >
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-tg-hint pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Поиск по номеру, имени, телефону, telegram..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-12 pr-4 py-3 bg-tg-secondary-bg text-tg-text placeholder-tg-hint rounded-xl border-2 border-transparent focus:border-tg-button focus:outline-none transition-all"
+            />
           </div>
         </motion.div>
 
@@ -195,11 +233,23 @@ export default function AdminPage() {
                               Заказ #{order.orderNumber}
                             </h3>
                           </div>
-                          <div className="flex items-center gap-4 text-sm text-tg-hint mb-2">
+                          <div className="flex items-center gap-4 text-sm text-tg-hint mb-2 flex-wrap">
                             <div className="flex items-center gap-1">
                               <User className="w-4 h-4" />
                               <span>{order.user.firstName} {order.user.lastName || ''}</span>
                             </div>
+                            {order.user.username && (
+                              <a
+                                href={`https://t.me/${order.user.username}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="flex items-center gap-1 text-tg-link hover:underline"
+                              >
+                                <MessageCircle className="w-4 h-4" />
+                                <span>@{order.user.username}</span>
+                              </a>
+                            )}
                             <div className="flex items-center gap-1">
                               <Calendar className="w-4 h-4" />
                               <span>
@@ -241,15 +291,26 @@ export default function AdminPage() {
                               <h4 className="text-sm font-semibold text-tg-text mb-2">Товары:</h4>
                               <div className="space-y-2">
                                 {order.items.map((item) => (
-                                  <div key={item.id} className="flex items-center gap-2 text-sm bg-tg-bg rounded-lg p-2">
-                                    <Package className="w-4 h-4 text-tg-hint flex-shrink-0" />
-                                    <span className="text-tg-text flex-1 truncate">
-                                      {item.product.name}
-                                    </span>
-                                    <span className="text-tg-hint">× {item.quantity}</span>
-                                    <span className="text-tg-text font-medium">
-                                      {(item.price * item.quantity).toLocaleString()}₽
-                                    </span>
+                                  <div key={item.id} className="bg-tg-bg rounded-lg p-3 space-y-1">
+                                    <div className="flex items-center gap-2 text-sm">
+                                      <Package className="w-4 h-4 text-tg-hint flex-shrink-0" />
+                                      <span className="text-tg-text flex-1 font-medium">
+                                        {item.product.name}
+                                      </span>
+                                      <span className="text-tg-hint">× {item.quantity}</span>
+                                      <span className="text-tg-text font-medium">
+                                        {(item.price * item.quantity).toLocaleString()}₽
+                                      </span>
+                                    </div>
+                                    {item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && (
+                                      <div className="pl-6 text-xs text-tg-hint">
+                                        {Object.entries(item.selectedOptions).map(([key, value]) => (
+                                          <span key={key} className="inline-block mr-3">
+                                            {key}: <span className="text-tg-text">{value as string}</span>
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
                                 ))}
                               </div>
