@@ -272,8 +272,7 @@ export async function syncOrderWithMoySklad(order: OrderWithRelations): Promise<
     );
   }
 
-  const deliveryTotalRaw = order.adminDeliveryCost ?? order.deliveryCost ?? 0;
-  const deliveryTotal = deliveryTotalRaw > 0 ? deliveryTotalRaw : 0;
+  const deliveryTotal = order.deliveryCost ?? 0;
 
   if (deliveryTotal > 0) {
     if (moySkladConfig.deliveryProductId) {
