@@ -367,7 +367,7 @@ export async function fetchCrmOverview(rangeDays = 30): Promise<CrmOverview> {
 
   type TopCustomerGroup = { userId: string; _sum: { totalAmount: unknown }; _count: { _all: number } };
 
-  const topCustomersRaw = await prisma.order.groupBy({
+  const topCustomersRaw = (await prisma.order.groupBy({
     by: ['userId'],
     where: { status: 'DELIVERED' },
     _sum: { totalAmount: true },
@@ -378,7 +378,7 @@ export async function fetchCrmOverview(rangeDays = 30): Promise<CrmOverview> {
       },
     },
     take: 5,
-  }) as TopCustomerGroup[];
+  })) as TopCustomerGroup[];
 
   const topCustomerIds = topCustomersRaw.map((item: TopCustomerGroup) => item.userId);
   const topCustomersUsers: UserSummary[] = topCustomerIds.length
@@ -678,14 +678,14 @@ export async function fetchCrmUsers(params: CrmUsersParams): Promise<CrmUsersRes
 
   const userIds = users.map(user => user.id);
   const deliveredCounts = userIds.length
-    ? (await prisma.order.groupBy({
+    ? ((await prisma.order.groupBy({
         by: ['userId'],
         where: {
           userId: { in: userIds },
           status: 'DELIVERED',
         },
         _count: { _all: true },
-      })) as Array<{ userId: string; _count: { _all: number } }>
+      })) as Array<{ userId: string; _count: { _all: number } }>)
     : [];
 
   const deliveredMap = new Map<string, number>(
