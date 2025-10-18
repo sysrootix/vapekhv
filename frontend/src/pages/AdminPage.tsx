@@ -140,7 +140,7 @@ export default function AdminPage() {
           className="flex items-center justify-between"
         >
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-tg-button bg-opacity-10 rounded-xl">
+            <div className="p-2 bg-tg-secondary-bg rounded-xl">
               <Shield className="w-6 h-6 text-tg-button" />
             </div>
             <h1 className="text-2xl font-bold text-tg-text">Админ-панель</h1>
@@ -200,7 +200,7 @@ export default function AdminPage() {
                   {count > 0 && (
                     <span className={`
                       px-2 py-0.5 rounded-full text-xs font-bold
-                      ${isActive ? 'bg-white bg-opacity-20' : 'bg-tg-button bg-opacity-10 text-tg-button'}
+                      ${isActive ? 'bg-white bg-opacity-20' : 'bg-tg-bg text-tg-button'}
                     `}>
                       {count}
                     </span>
