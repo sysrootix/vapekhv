@@ -2,7 +2,7 @@ import bot from './bot.service';
 import TelegramBot from 'node-telegram-bot-api';
 import { logger } from '../config/logger';
 import { prisma } from '../config/database';
-import { OrderStatus } from '@prisma/client';
+
 
 const ADMIN_GROUP_ID = process.env.TELEGRAM_ADMIN_GROUP_ID!;
 const WEBAPP_URL = process.env.WEBAPP_URL;
@@ -62,7 +62,7 @@ const handleAdminAction = async (query: TelegramBot.CallbackQuery) => {
 
     if (action === 'approve') {
       // Подтвердить оплату
-      if (order.status !== OrderStatus.PENDING) {
+      if (order.status !== 'PENDING') {
         await bot.answerCallbackQuery(query.id, {
           text: '⚠️ Заказ уже обработан',
           show_alert: true,
@@ -75,7 +75,7 @@ const handleAdminAction = async (query: TelegramBot.CallbackQuery) => {
         // Обновить статус заказа
         await tx.order.update({
           where: { id: orderId },
-          data: { status: OrderStatus.CONFIRMED },
+          data: { status: 'CONFIRMED' },
         });
 
         // Списать использованные бонусы
@@ -188,7 +188,7 @@ const handleAdminAction = async (query: TelegramBot.CallbackQuery) => {
 
     } else if (action === 'cancel') {
       // Отменить заказ
-      if (order.status === OrderStatus.CANCELLED || order.status === OrderStatus.PAYMENT_EXPIRED) {
+      if (order.status === 'CANCELLED' || order.status === 'PAYMENT_EXPIRED') {
         await bot.answerCallbackQuery(query.id, {
           text: '⚠️ Заказ уже отменён',
           show_alert: true,
@@ -198,7 +198,7 @@ const handleAdminAction = async (query: TelegramBot.CallbackQuery) => {
 
       await prisma.order.update({
         where: { id: orderId },
-        data: { status: OrderStatus.CANCELLED },
+        data: { status: 'CANCELLED' },
       });
 
       // Обновить сообщение в группе

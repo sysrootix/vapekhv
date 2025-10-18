@@ -5,6 +5,10 @@ import { syncService } from './sync.service';
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const WEBAPP_URL = process.env.WEBAPP_URL;
 
+if (!WEBAPP_URL) {
+  throw new Error('WEBAPP_URL is not defined in environment variables');
+}
+
 // Список ID админов (можно вынести в .env как ADMIN_CHAT_IDS=123,456,789)
 const ADMIN_CHAT_IDS = process.env.ADMIN_CHAT_IDS
   ? process.env.ADMIN_CHAT_IDS.split(',').map((id) => parseInt(id.trim()))

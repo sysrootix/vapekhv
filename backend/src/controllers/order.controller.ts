@@ -4,7 +4,7 @@ import { prisma } from '../config/database';
 import { logger } from '../config/logger';
 import { AppError } from '../middleware/errorHandler';
 import { sendPaymentNotification } from '../services/payment-notification.service';
-import { OrderStatus } from '@prisma/client';
+
 
 // Константы для доставки
 const DELIVERY_COST = 500;
@@ -212,7 +212,7 @@ class OrderController {
             deliveryDate,
             deliveryTime,
             comment: comment || null,
-            status: OrderStatus.PENDING_PAYMENT,
+            status: 'PENDING_PAYMENT',
             paymentExpiresAt,
             items: {
               create: cartItems.map((item) => ({
@@ -279,11 +279,11 @@ class OrderController {
         throw new AppError('Заказ не найден', 404);
       }
 
-      if (order.status === OrderStatus.CANCELLED) {
+      if (order.status === 'CANCELLED') {
         throw new AppError('Заказ уже отменен', 400);
       }
 
-      if ([OrderStatus.DELIVERED, OrderStatus.SHIPPED].includes(order.status)) {
+      if (['DELIVERED', 'SHIPPED'].includes(order.status)) {
         throw new AppError('Невозможно отменить доставленный или отправленный заказ', 400);
       }
 
@@ -292,7 +292,7 @@ class OrderController {
         // Обновить статус заказа
         const updatedOrder = await tx.order.update({
           where: { id },
-          data: { status: OrderStatus.CANCELLED },
+          data: { status: 'CANCELLED' },
           include: {
             items: {
               include: {
@@ -429,7 +429,7 @@ class OrderController {
         throw new AppError('Заказ не найден', 404);
       }
 
-      if (order.status !== OrderStatus.PENDING_PAYMENT) {
+      if (order.status !== 'PENDING_PAYMENT') {
         throw new AppError('Заказ не ожидает оплаты', 400);
       }
 
@@ -437,7 +437,7 @@ class OrderController {
       if (order.paymentExpiresAt && new Date(order.paymentExpiresAt) < new Date()) {
         await prisma.order.update({
           where: { id: orderId },
-          data: { status: OrderStatus.PAYMENT_EXPIRED },
+          data: { status: 'PAYMENT_EXPIRED' },
         });
         throw new AppError('Время оплаты истекло', 400);
       }
@@ -450,7 +450,7 @@ class OrderController {
         where: { id: orderId },
         data: {
           receiptImageUrl: receiptUrl,
-          status: OrderStatus.PENDING, // Меняем статус на ожидание подтверждения
+          status: 'PENDING', // Меняем статус на ожидание подтверждения
           paidAt: new Date(),
         },
         include: {
@@ -502,7 +502,7 @@ class OrderController {
         throw new AppError('Заказ не найден', 404);
       }
 
-      if (order.status !== OrderStatus.PENDING) {
+      if (order.status !== 'PENDING') {
         throw new AppError('Заказ не ожидает подтверждения', 400);
       }
 
@@ -511,7 +511,7 @@ class OrderController {
         // Обновить статус заказа
         const updatedOrder = await tx.order.update({
           where: { id: orderId },
-          data: { status: OrderStatus.CONFIRMED },
+          data: { status: 'CONFIRMED' },
           include: {
             items: {
               include: {
