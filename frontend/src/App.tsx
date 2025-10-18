@@ -14,6 +14,7 @@ import OrdersPage from './pages/OrdersPage';
 import PaymentPage from './pages/PaymentPage';
 import ProductDetailPage from './pages/ProductDetailPage';
 import AdminPage from './pages/AdminPage';
+import CrmPage from './pages/CrmPage';
 import LoadingScreen from './components/LoadingScreen';
 import BottomNav from './components/BottomNav';
 
@@ -55,7 +56,14 @@ function App() {
 
 function AppContent({ isAuthenticated }: { isAuthenticated: boolean }) {
   const location = useLocation();
-  const showBottomNav = isAuthenticated && location.pathname !== '/auth' && !location.pathname.startsWith('/product/') && location.pathname !== '/checkout' && !location.pathname.startsWith('/payment/') && location.pathname !== '/admin';
+  const showBottomNav =
+    isAuthenticated &&
+    location.pathname !== '/auth' &&
+    !location.pathname.startsWith('/product/') &&
+    location.pathname !== '/checkout' &&
+    !location.pathname.startsWith('/payment/') &&
+    location.pathname !== '/admin' &&
+    location.pathname !== '/crm';
 
   // Прокрутка вверх при переходе между страницами
   useEffect(() => {
@@ -109,6 +117,10 @@ function AppContent({ isAuthenticated }: { isAuthenticated: boolean }) {
           path="/admin"
           element={isAuthenticated ? <AdminPage /> : <Navigate to="/auth" replace />}
         />
+        <Route
+          path="/crm"
+          element={isAuthenticated ? <CrmPage /> : <Navigate to="/auth" replace />}
+        />
         <Route path="/" element={<Navigate to={isAuthenticated ? '/dashboard' : '/auth'} replace />} />
       </Routes>
       {showBottomNav && <BottomNav />}
@@ -117,4 +129,3 @@ function AppContent({ isAuthenticated }: { isAuthenticated: boolean }) {
 }
 
 export default App;
-

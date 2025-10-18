@@ -61,19 +61,22 @@ const resolveAccess = (req: AuthRequest): AdminAccess => {
     };
   }
 
+  const crmIds = getCrmChatIds();
   const adminIds = getAdminChatIds();
-  if (adminIds.includes(telegramId)) {
+  const isAdmin = adminIds.includes(telegramId);
+  const isCrm = crmIds.includes(telegramId);
+
+  if (isAdmin) {
     return {
       role: 'ADMIN',
       permissions: {
         manageOrders: true,
-        viewCrm: true,
+        viewCrm: isCrm,
       },
     };
   }
 
-  const crmIds = getCrmChatIds();
-  if (crmIds.includes(telegramId)) {
+  if (isCrm) {
     return {
       role: 'CRM',
       permissions: {

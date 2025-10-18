@@ -14,8 +14,16 @@ const ADMIN_CHAT_IDS = process.env.ADMIN_CHAT_IDS
   ? process.env.ADMIN_CHAT_IDS.split(',').map((id) => parseInt(id.trim()))
   : [];
 
+const CRM_CHAT_IDS = process.env.CRM_CHAT_IDS
+  ? process.env.CRM_CHAT_IDS.split(',').map((id) => parseInt(id.trim()))
+  : [];
+
 const isAdmin = (chatId: number): boolean => {
   return ADMIN_CHAT_IDS.includes(chatId);
+};
+
+const isCrmMember = (chatId: number): boolean => {
+  return CRM_CHAT_IDS.includes(chatId);
 };
 
 if (!BOT_TOKEN) {
@@ -35,6 +43,7 @@ export const initBot = () => {
     const chatId = msg.chat.id;
     const firstName = msg.from?.first_name || 'друг';
     const isUserAdmin = isAdmin(chatId);
+    const isUserCrm = isCrmMember(chatId);
 
     try {
       // Формируем кнопки в зависимости от прав пользователя
@@ -57,6 +66,15 @@ export const initBot = () => {
         ]);
       }
 
+      if (isUserCrm) {
+        keyboard.push([
+          {
+            text: '📊 CRM-панель',
+            web_app: { url: `${WEBAPP_URL}/crm` },
+          },
+        ]);
+      }
+
       // Отправляем приветственное сообщение с инлайн кнопками webapp
       let welcomeMessage = `👋 <b>Привет, ${firstName}!</b>\n\n`;
       welcomeMessage += `Добро пожаловать в <b>VapeKHV</b>\n`;
@@ -72,6 +90,9 @@ export const initBot = () => {
       if (isUserAdmin) {
         welcomeMessage += `\n\n⚙️ <b>Вам доступна админ-панель</b>\nДля управления заказами и товарами`;
       }
+      if (isUserCrm) {
+        welcomeMessage += `\n\n📊 <b>Вам доступна CRM-панель</b>\nДля аналитики и работы с клиентами`;
+      }
 
       await bot.sendMessage(
         chatId,
@@ -84,7 +105,11 @@ export const initBot = () => {
         }
       );
 
-      logger.info(`✅ Пользователь ${firstName} (ID: ${msg.from?.id}) запустил бота${isUserAdmin ? ' [ADMIN]' : ''}`);
+      let accessTag = '';
+      if (isUserAdmin) accessTag += ' [ADMIN]';
+      if (isUserCrm) accessTag += ' [CRM]';
+
+      logger.info(`✅ Пользователь ${firstName} (ID: ${msg.from?.id}) запустил бота${accessTag}`);
     } catch (error) {
       logger.error('Ошибка при обработке команды /start:', error);
       await bot.sendMessage(
@@ -267,4 +292,3 @@ export const stopBot = async () => {
 };
 
 export default bot;
-
