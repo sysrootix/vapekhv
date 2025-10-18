@@ -166,6 +166,8 @@ export async function syncOrderWithMoySklad(order: OrderWithRelations): Promise<
     order.user.username ||
     (preferredPhone ? `Покупатель ${preferredPhone}` : `Покупатель ${order.userId}`);
 
+  const bonusDiscountCoins = Math.max(0, Math.round(order.bonusUsed * 100));
+
   let counterparty: MoySkladCounterparty | null =
     await moySkladAPI.findCounterpartyByPhone(preferredPhone);
 
@@ -333,6 +335,7 @@ export async function syncOrderWithMoySklad(order: OrderWithRelations): Promise<
     deliveryPlannedMoment: deliveryMoment,
     applicable: true,
     shipmentAddress: order.deliveryAddress || undefined,
+    discount: bonusDiscountCoins > 0 ? { sum: bonusDiscountCoins } : undefined,
   };
 
   const moyskladOrder = await moySkladAPI.createCustomerOrder(moyskladOrderPayload);

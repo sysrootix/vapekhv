@@ -195,6 +195,11 @@ export interface MoySkladCustomerOrderPosition {
   reserve?: number; // Резерв под позицию
 }
 
+export interface MoySkladDocumentDiscount {
+  sum?: number; // Сумма скидки в копейках
+  percent?: number; // Процент скидки
+}
+
 // Заказ покупателя
 export interface MoySkladCustomerOrder {
   id?: string;
@@ -209,6 +214,7 @@ export interface MoySkladCustomerOrder {
   description?: string; // Комментарий
   applicable?: boolean; // Проведен ли документ
   positions: MoySkladCustomerOrderPosition[];
+  discount?: MoySkladDocumentDiscount;
   // Дополнительные поля для доставки
   deliveryPlannedMoment?: string; // Планируемая дата отгрузки
   // customFields?: { [key: string]: any }; // Пользовательские поля
