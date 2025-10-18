@@ -252,71 +252,81 @@ export default function AdminPage() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -20 }}
                       transition={{ delay: orderIdx * 0.02 }}
-                      className="bg-tg-bg rounded-2xl p-5 shadow-sm space-y-4 border border-transparent hover:border-tg-button/30 transition-all h-full"
+                      className="bg-tg-bg rounded-2xl p-4 sm:p-5 border border-transparent hover:border-tg-button/30 transition-all space-y-4"
                     >
-                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                        <div className="flex items-start gap-4">
-                          <div className="p-3 bg-tg-secondary-bg rounded-xl">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start gap-3">
+                          <div className="p-2.5 bg-tg-secondary-bg rounded-xl shadow-sm">
                             <Package className="w-5 h-5 text-tg-button" />
                           </div>
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <h3 className="text-lg font-semibold text-tg-text">
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="text-base sm:text-lg font-semibold text-tg-text break-all">
                                 Заказ #{order.orderNumber}
                               </h3>
-                              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusInfo.color} bg-tg-secondary-bg`}>
+                              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${statusInfo.color} bg-tg-secondary-bg`}>
                                 {statusInfo.text}
                               </span>
                             </div>
-                            <div className="text-sm text-tg-hint">
-                              {new Date(order.createdAt).toLocaleString('ru-RU')}
-                            </div>
-                            <div className="flex flex-wrap gap-3 text-sm text-tg-hint">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-tg-hint">
                               <span className="flex items-center gap-1">
-                                <User className="w-4 h-4" />
+                                <Calendar className="w-3.5 h-3.5" />
+                                {new Date(order.createdAt).toLocaleString('ru-RU')}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <User className="w-3.5 h-3.5" />
                                 {order.user.firstName || order.user.lastName
                                   ? `${order.user.firstName ?? ''} ${order.user.lastName ?? ''}`.trim()
                                   : order.user.username
                                     ? `@${order.user.username}`
                                     : String(order.user.telegramId)}
                               </span>
-                              {order.user.phone && (
-                                <span className="flex items-center gap-1">
-                                  <Phone className="w-4 h-4" />
-                                  {order.user.phone}
-                                </span>
-                              )}
-                              {order.deliveryAddress && (
-                                <span className="flex items-center gap-1">
-                                  <MapPin className="w-4 h-4" />
-                                  {order.deliveryAddress}
-                                </span>
-                              )}
                             </div>
+                            {order.deliveryAddress && (
+                              <div className="flex items-start gap-2 text-xs sm:text-sm text-tg-text/80 leading-snug">
+                                <MapPin className="w-3.5 h-3.5 text-tg-hint mt-0.5 flex-shrink-0" />
+                                <span>{order.deliveryAddress}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                          <div className="text-right">
-                            <div className="text-2xl font-bold text-tg-text">
-                              {order.totalAmount.toLocaleString('ru-RU')}₽
-                            </div>
-                            <div className="text-sm text-tg-hint">
-                              {totalItems} {totalItems === 1 ? 'товар' : 'товаров'}
-                            </div>
+                        <div className="flex flex-col items-end text-right gap-1 min-w-[84px]">
+                          <div className="text-xl font-bold text-tg-text">
+                            {order.totalAmount.toLocaleString('ru-RU')}₽
                           </div>
-                          <motion.button
-                            whileTap={{ scale: 0.97 }}
-                            onClick={() => setActiveOrder(order)}
-                            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-tg-secondary-bg text-tg-text text-sm font-medium"
-                          >
-                            Открыть
-                            <ChevronDown className="w-4 h-4" />
-                          </motion.button>
+                          <div className="text-xs text-tg-hint">
+                            {totalItems} {totalItems === 1 ? 'товар' : 'товаров'}
+                          </div>
                         </div>
                       </div>
 
+                      <div className="flex items-center justify-between gap-3 pt-3 border-t border-white/5">
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-tg-hint">
+                          {order.user.phone && (
+                            <span className="flex items-center gap-1">
+                              <Phone className="w-3.5 h-3.5" />
+                              {order.user.phone}
+                            </span>
+                          )}
+                          {order.deliveryDate && (
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5" />
+                              {new Date(order.deliveryDate).toLocaleDateString('ru-RU')}
+                              {order.deliveryTime && `, ${order.deliveryTime}`}
+                            </span>
+                          )}
+                        </div>
 
+                        <motion.button
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() => setActiveOrder(order)}
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-tg-secondary-bg text-tg-text text-sm font-medium shadow-sm"
+                        >
+                          Открыть
+                          <ChevronDown className="w-4 h-4" />
+                        </motion.button>
+                      </div>
                     </motion.div>
                   );
                 })}
@@ -448,7 +458,6 @@ function OrderDetailsModal({
   }, []);
 
   const statusInfo = statusConfig[order.status as keyof typeof statusConfig] || statusConfig.ALL;
-  const totalItems = order.items.reduce((sum, item) => sum + item.quantity, 0);
   const totalWithoutDelivery = order.totalAmount - (order.deliveryCost || 0);
   const customerName = order.user.firstName || order.user.lastName
     ? `${order.user.firstName ?? ''} ${order.user.lastName ?? ''}`.trim() || 'Нет имени'
@@ -493,37 +502,21 @@ function OrderDetailsModal({
         </button>
 
         <div className="space-y-6 pr-2">
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl font-semibold text-tg-text">
-                  Заказ #{order.orderNumber}
-                </h2>
-                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusInfo.color} bg-tg-bg`}>
-                  {statusInfo.text}
-                </span>
-              </div>
-              <div className="text-sm text-tg-hint">
-                Создан: {createdAt}
-              </div>
-              <div className="flex items-center gap-2 text-sm text-tg-hint">
-                <User className="w-4 h-4" />
-                <span>{customerName}</span>
-              </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-semibold text-tg-text">
+                Заказ #{order.orderNumber}
+              </h2>
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusInfo.color} bg-tg-bg`}>
+                {statusInfo.text}
+              </span>
             </div>
-
-            <div className="text-right space-y-1">
-              <div className="text-2xl font-bold text-tg-text">
-                {order.totalAmount.toLocaleString('ru-RU')}₽
-              </div>
-              <div className="text-sm text-tg-hint">
-                {totalItems} {totalItems === 1 ? 'товар' : 'товаров'}
-              </div>
-              {order.deliveryCost > 0 && (
-                <div className="text-xs text-tg-hint">
-                  Доставка: {order.deliveryCost.toLocaleString('ru-RU')}₽
-                </div>
-              )}
+            <div className="text-sm text-tg-hint">
+              Создан: {createdAt}
+            </div>
+            <div className="flex items-center gap-2 text-sm text-tg-hint">
+              <User className="w-4 h-4" />
+              <span>{customerName}</span>
             </div>
           </div>
 
