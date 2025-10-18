@@ -282,12 +282,6 @@ export default function AdminPage() {
                                     : String(order.user.telegramId)}
                               </span>
                             </div>
-                            {order.deliveryAddress && (
-                              <div className="flex items-start gap-2 text-xs sm:text-sm text-tg-text/80 leading-snug">
-                                <MapPin className="w-3.5 h-3.5 text-tg-hint mt-0.5 flex-shrink-0" />
-                                <span>{order.deliveryAddress}</span>
-                              </div>
-                            )}
                           </div>
                         </div>
 
@@ -474,6 +468,11 @@ function OrderDetailsModal({
       : null;
   const createdAt = new Date(order.createdAt).toLocaleString('ru-RU');
   const lastUpdatedAt = new Date(order.updatedAt).toLocaleString('ru-RU');
+  const deliveryDateLabel = order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString('ru-RU') : null;
+  const deliveryTimeLabel = order.deliveryTime ?? null;
+  const deliveryScheduleLabel = deliveryDateLabel || deliveryTimeLabel
+    ? `${deliveryDateLabel ?? ''}${deliveryTimeLabel ? `${deliveryDateLabel ? ', ' : ''}${deliveryTimeLabel}` : ''}`
+    : null;
 
   return (
     <>
@@ -520,48 +519,48 @@ function OrderDetailsModal({
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="bg-tg-bg rounded-2xl p-4 space-y-2">
-              <span className="text-xs uppercase text-tg-hint font-semibold tracking-wide">
-                Клиент
-              </span>
-              <div className="text-sm text-tg-text space-y-1">
-                <div className="font-semibold">{customerName}</div>
-                <div className="text-xs text-tg-hint">
-                  Telegram ID: {String(order.user.telegramId)}
+          <div className="bg-tg-bg rounded-2xl p-4 space-y-3">
+            <span className="text-xs uppercase text-tg-hint font-semibold tracking-wide">
+              Клиент и доставка
+            </span>
+            <div className="space-y-2 text-sm text-tg-text">
+              <div>
+                <div className="font-semibold text-base">{customerName}</div>
+                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-tg-hint mt-1">
+                  <span>Telegram ID: {String(order.user.telegramId)}</span>
+                  {order.user.username && <span>{`@${order.user.username}`}</span>}
                 </div>
-                {order.user.username && (
-                  <div className="text-xs text-tg-hint">{`@${order.user.username}`}</div>
-                )}
-                {order.user.bonusPoints !== undefined && (
-                  <div className="flex items-center gap-2 text-xs text-emerald-400">
-                    <Gift className="w-4 h-4" />
-                    <span>Бонусов: {order.user.bonusPoints}</span>
-                  </div>
-                )}
               </div>
+              {order.user.bonusPoints !== undefined && (
+                <div className="flex items-center gap-2 text-xs text-emerald-400">
+                  <Gift className="w-4 h-4" />
+                  <span>Бонусов: {order.user.bonusPoints}</span>
+                </div>
+              )}
             </div>
-
-            <div className="bg-tg-bg rounded-2xl p-4 space-y-2">
-              <span className="text-xs uppercase text-tg-hint font-semibold tracking-wide">
-                Контакты
-              </span>
-              <div className="space-y-2 text-sm text-tg-text">
-                {phoneNumber ? (
-                  <div className="flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-tg-hint" />
-                    <span>{phoneNumber}</span>
-                  </div>
-                ) : (
-                  <div className="text-xs text-tg-hint">Телефон не указан</div>
-                )}
-                {order.deliveryAddress && (
-                  <div className="flex items-start gap-2">
-                    <MapPin className="w-4 h-4 text-tg-hint flex-shrink-0 mt-0.5" />
-                    <span>{order.deliveryAddress}</span>
-                  </div>
-                )}
-              </div>
+            <div className="space-y-2 text-sm text-tg-text pt-1">
+              {phoneNumber ? (
+                <div className="flex items-center gap-2">
+                  <Phone className="w-4 h-4 text-tg-hint" />
+                  <span>{phoneNumber}</span>
+                </div>
+              ) : (
+                <div className="text-xs text-tg-hint">Телефон не указан</div>
+              )}
+              {order.deliveryAddress && (
+                <div className="flex items-start gap-2">
+                  <MapPin className="w-4 h-4 text-tg-hint flex-shrink-0 mt-0.5" />
+                  <span>{order.deliveryAddress}</span>
+                </div>
+              )}
+              {deliveryScheduleLabel && (
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-tg-hint" />
+                  <span>{deliveryScheduleLabel}</span>
+                </div>
+              )}
+            </div>
+            {(phoneHref || telegramLink) && (
               <div className="flex flex-wrap gap-2 pt-2">
                 {phoneHref && (
                   <a
@@ -583,23 +582,6 @@ function OrderDetailsModal({
                     Telegram
                   </a>
                 )}
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-tg-bg rounded-2xl p-4 space-y-2">
-            <span className="text-xs uppercase text-tg-hint font-semibold tracking-wide">
-              Итоговая сумма
-            </span>
-            <div className="text-2xl font-bold text-tg-text">
-              {order.totalAmount.toLocaleString('ru-RU')}₽
-            </div>
-            <div className="text-xs text-tg-hint">
-              Товары: {totalWithoutDelivery.toLocaleString('ru-RU')}₽
-            </div>
-            {order.deliveryCost > 0 && (
-              <div className="text-xs text-tg-hint">
-                Доставка: {order.deliveryCost.toLocaleString('ru-RU')}₽
               </div>
             )}
           </div>
@@ -633,34 +615,22 @@ function OrderDetailsModal({
             </div>
           </div>
 
-          {(order.deliveryAddress || order.deliveryDate || order.deliveryPhone) && (
-            <div className="bg-tg-bg rounded-2xl p-4 space-y-3 text-sm text-tg-text">
-              <div className="text-xs uppercase text-tg-hint font-semibold tracking-wide">
-                Доставка
-              </div>
-              {order.deliveryAddress && (
-                <div className="flex items-start gap-2">
-                  <MapPin className="w-4 h-4 text-tg-hint flex-shrink-0 mt-0.5" />
-                  <span>{order.deliveryAddress}</span>
-                </div>
-              )}
-              {order.deliveryPhone && (
-                <div className="flex items-center gap-2">
-                  <Phone className="w-4 h-4 text-tg-hint flex-shrink-0" />
-                  <span>{order.deliveryPhone}</span>
-                </div>
-              )}
-              {order.deliveryDate && (
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-tg-hint flex-shrink-0" />
-                  <span>
-                    {new Date(order.deliveryDate).toLocaleDateString('ru-RU')}
-                    {order.deliveryTime && `, ${order.deliveryTime}`}
-                  </span>
-                </div>
-              )}
+          <div className="bg-tg-bg rounded-2xl p-4 space-y-2">
+            <span className="text-xs uppercase text-tg-hint font-semibold tracking-wide">
+              Итоговая сумма
+            </span>
+            <div className="text-2xl font-bold text-tg-text">
+              {order.totalAmount.toLocaleString('ru-RU')}₽
             </div>
-          )}
+            <div className="text-xs text-tg-hint">
+              Товары: {totalWithoutDelivery.toLocaleString('ru-RU')}₽
+            </div>
+            {order.deliveryCost > 0 && (
+              <div className="text-xs text-tg-hint">
+                Доставка: {order.deliveryCost.toLocaleString('ru-RU')}₽
+              </div>
+            )}
+          </div>
 
           {order.comment && (
             <div className="bg-tg-bg rounded-2xl p-4 space-y-2">
