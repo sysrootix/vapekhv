@@ -45,6 +45,61 @@ const formatPhoneNumber = (value: string): string => {
   return '';
 };
 
+const parseDeliveryAddress = (address?: string | null) => {
+  const result = {
+    street: '',
+    house: '',
+    apartment: '',
+    entrance: '',
+  };
+
+  if (!address) {
+    return result;
+  }
+
+  const withoutCity = address.replace(/^г\.\s*[^,]+,\s*/i, '');
+  const segments = withoutCity
+    .split(',')
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  for (const segment of segments) {
+    const lower = segment.toLowerCase();
+
+    if (!result.street && /(ул\.|улица|проспект|пр\.|пер\.|переулок|шоссе|ш\.)/.test(lower)) {
+      result.street = segment;
+      continue;
+    }
+
+    if (!result.house && /(д\.|дом)/.test(lower)) {
+      result.house = segment.replace(/^(д\.|дом)\s*/i, '');
+      continue;
+    }
+
+    if (!result.apartment && /(кв\.|квартира)/.test(lower)) {
+      result.apartment = segment.replace(/^(кв\.|квартира)\s*/i, '').replace(/^№/i, '').trim();
+      continue;
+    }
+
+    if (!result.entrance && /подъезд/.test(lower)) {
+      result.entrance = segment.replace(/^подъезд\s*№?\s*/i, '').trim();
+    }
+  }
+
+  if (!result.street && segments[0]) {
+    result.street = segments[0];
+  }
+
+  if (!result.house) {
+    const houseSegment = segments.find((segment) => /(д\.|дом)/i.test(segment));
+    if (houseSegment) {
+      result.house = houseSegment.replace(/^(д\.|дом)\s*/i, '').trim();
+    }
+  }
+
+  return result;
+};
+
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -123,15 +178,16 @@ export default function CheckoutPage() {
 
     // Парсинг адреса
     if (lastOrder.deliveryAddress) {
-      // Формат: "г. Хабаровск, ул. Ленина, д. 123, кв. 45, подъезд 2"
-      const addressMatch = lastOrder.deliveryAddress.match(/г\. Хабаровск,\s*(.+?),\s*д\.\s*(\S+)(?:,\s*кв\.\s*(\S+))?(?:,\s*подъезд\s*(\S+))?/);
-
-      if (addressMatch) {
-        setStreet(addressMatch[1] || '');
-        setHouse(addressMatch[2] || '');
-        setApartment(addressMatch[3] || '');
-        setEntrance(addressMatch[4] || '');
-      }
+      const parsedAddress = parseDeliveryAddress(lastOrder.deliveryAddress);
+      setStreet(parsedAddress.street || '');
+      setHouse(parsedAddress.house || '');
+      setApartment(parsedAddress.apartment || '');
+      setEntrance(parsedAddress.entrance || '');
+    } else {
+      setStreet('');
+      setHouse('');
+      setApartment('');
+      setEntrance('');
     }
 
     // Телефон
@@ -139,7 +195,7 @@ export default function CheckoutPage() {
       setPhone(lastOrder.deliveryPhone);
     }
 
-    // Комментарий можно не заполнять автоматически
+    setComment(lastOrder.comment || '');
 
     toast.success('Данные из последнего заказа заполнены');
   }, [previousOrders]);
