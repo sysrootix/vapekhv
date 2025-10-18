@@ -151,6 +151,46 @@ export interface MoySkladVariant {
   updated?: string;
 }
 
+// Агент (Покупатель или наша организация)
+export interface MoySkladAgent {
+  meta: MoySkladMeta;
+  id?: string;
+  name?: string;
+  phone?: string;
+  email?: string;
+}
+
+// Наша организация (для создания заказа)
+export interface MoySkladOrganization {
+  meta: MoySkladMeta;
+  id?: string;
+}
+
+// Позиция заказа покупателя
+export interface MoySkladCustomerOrderPosition {
+  quantity: number;
+  price: number; // Цена в копейках
+  assortment: MoySkladReference; // Ссылка на товар или модификацию
+  reserve?: number; // Резерв под позицию
+}
+
+// Заказ покупателя
+export interface MoySkladCustomerOrder {
+  name: string; // Номер заказа
+  moment: string; // Дата и время заказа
+  organization: MoySkladReference; // Наша организация
+  agent: MoySkladReference; // Покупатель
+  store?: MoySkladReference; // Склад
+  state?: MoySkladReference; // Статус заказа
+  sum: number; // Сумма заказа в копейках
+  description?: string; // Комментарий
+  applicable?: boolean; // Проведен ли документ
+  positions: MoySkladCustomerOrderPosition[];
+  // Дополнительные поля для доставки
+  deliveryPlannedMoment?: string; // Планируемая дата отгрузки
+  // customFields?: { [key: string]: any }; // Пользовательские поля
+}
+
 // Ошибка API
 export interface MoySkladError {
   errors: Array<{
