@@ -6,7 +6,7 @@ import { generateToken } from '../middleware/auth';
 import { logger } from '../config/logger';
 import { AppError } from '../middleware/errorHandler';
 import { referralService } from '../services/referral.service';
-import { sendReferralInviteNotification } from '../services/bot.service';
+import { sendReferralInviteNotification, sendWebAppWelcomeMessage } from '../services/bot.service';
 
 const extractReferralCode = (initData: string, explicitCode?: string): string | null => {
   if (explicitCode && typeof explicitCode === 'string') {
@@ -100,6 +100,19 @@ class AuthController {
           } catch (notificationError) {
             logger.error('Ошибка отправки уведомления о реферале:', notificationError);
           }
+        }
+
+        try {
+          await sendWebAppWelcomeMessage(user.telegramId, {
+            firstName: telegramUser.first_name || telegramUser.username || user.firstName || user.username,
+            referralInviterName:
+              referralContext?.inviter?.firstName
+                ? `${referralContext.inviter.firstName}${referralContext.inviter.lastName ? ` ${referralContext.inviter.lastName}` : ''}`.trim()
+                : referralContext?.inviter?.username || null,
+            referralBonusAmount: referralContext?.referral?.bonusAmount ?? null,
+          });
+        } catch (welcomeError) {
+          logger.error('Ошибка отправки приветственного сообщения пользователю:', welcomeError);
         }
       } else {
         // Обновляем время последнего входа

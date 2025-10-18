@@ -2,6 +2,7 @@ import TelegramBot from 'node-telegram-bot-api';
 import { logger } from '../config/logger';
 import { syncService } from './sync.service';
 import { buildReferralLink } from '../utils/referral';
+import { referralService } from './referral.service';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const WEBAPP_URL = process.env.WEBAPP_URL;
@@ -362,6 +363,53 @@ ${payload.inviteeName} сделал первый заказ.
     });
   } catch (error) {
     logger.error(`Ошибка отправки уведомления о реферальном бонусе пользователю ${telegramId}:`, error);
+  }
+};
+
+export const sendWebAppWelcomeMessage = async (
+  telegramId: bigint,
+  payload: {
+    firstName?: string | null;
+    referralInviterName?: string | null;
+    referralBonusAmount?: number | null;
+  } = {}
+): Promise<void> => {
+  try {
+    const keyboard: TelegramBot.InlineKeyboardButton[][] = [
+      [
+        {
+          text: '🛍️ Открыть магазин',
+          web_app: { url: WEBAPP_URL },
+        },
+      ],
+    ];
+
+    const name = payload.firstName?.trim() || 'друг';
+    const inviterName = payload.referralInviterName?.trim();
+    const bonusAmount = payload.referralBonusAmount ?? referralService.getReferralBonusAmount();
+
+    let message = `
+👋 <b>Привет, ${name}!</b>
+
+Добро пожаловать в <b>VapeKHV</b> — наш Telegram-магазин.
+`.trim();
+
+    if (inviterName) {
+      message += `\n\nВы пришли по приглашению <b>${inviterName}</b>. После первой покупки мы начислим тебе <b>${bonusAmount}₽</b> бонусов.`;
+    } else {
+      message += `\n\nОформляй первый заказ и получай бонусы за покупки.`;
+    }
+
+    message += `\n\nНажми кнопку ниже, чтобы открыть каталог.`;
+
+    await bot.sendMessage(Number(telegramId), message, {
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: keyboard,
+      },
+    });
+  } catch (error) {
+    logger.error(`Ошибка отправки приветственного сообщения пользователю ${telegramId}:`, error);
   }
 };
 
