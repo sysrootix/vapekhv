@@ -198,6 +198,7 @@ model Order {
   status           OrderStatus @default(PENDING_PAYMENT)
   totalAmount      Float
   deliveryCost     Float       @default(0) // Стоимость доставки
+  adminDeliveryCost Float?     // Стоимость доставки, установленная админом
   bonusUsed        Int         @default(0) // Сколько бонусов использовано
   bonusEarned      Int         @default(0) // Сколько бонусов начислено
 
