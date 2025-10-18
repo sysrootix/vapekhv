@@ -163,6 +163,26 @@ export interface CrmUserDetails {
   }>;
 }
 
+export interface NewUsersSeries {
+  interval: 'daily' | 'weekly' | 'monthly';
+  periods: number;
+  from: string;
+  to: string;
+  points: Array<{
+    periodStart: string;
+    periodEnd: string;
+    usersCount: number;
+  }>;
+}
+
+export interface UpdateCrmUserPayload {
+  firstName?: string | null;
+  lastName?: string | null;
+  username?: string | null;
+  phone?: string | null;
+  bonusPoints?: number;
+}
+
 export const adminApi = {
   getAccess: async (): Promise<AdminAccess> => {
     const response = await apiClient.get<AdminAccess>('/admin/access');
@@ -220,6 +240,18 @@ export const adminApi = {
 
   getCrmUserDetails: async (userId: string): Promise<CrmUserDetails> => {
     const response = await apiClient.get<CrmUserDetails>(`/admin/crm/users/${userId}`);
+    return response.data;
+  },
+
+  getNewUsersSeries: async (interval: NewUsersSeries['interval'], periods: number): Promise<NewUsersSeries> => {
+    const response = await apiClient.get<NewUsersSeries>('/admin/crm/new-users', {
+      params: { interval, periods },
+    });
+    return response.data;
+  },
+
+  updateCrmUser: async (userId: string, payload: UpdateCrmUserPayload): Promise<CrmUserDetails> => {
+    const response = await apiClient.patch<CrmUserDetails>(`/admin/crm/users/${userId}`, payload);
     return response.data;
   },
 };

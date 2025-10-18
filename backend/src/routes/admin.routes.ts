@@ -20,7 +20,9 @@ router.get('/stats', requireCrmAccess, adminController.getStats.bind(adminContro
 // CRM endpoints
 router.get('/crm/overview', requireCrmAccess, adminController.getCrmOverview.bind(adminController));
 router.get('/crm/revenue', requireCrmAccess, adminController.getRevenueSeries.bind(adminController));
+router.get('/crm/new-users', requireCrmAccess, adminController.getNewUsersSeries.bind(adminController));
 router.get('/crm/users', requireCrmAccess, adminController.getCrmUsers.bind(adminController));
 router.get('/crm/users/:id', requireCrmAccess, adminController.getCrmUserDetails.bind(adminController));
+router.patch('/crm/users/:id', requireCrmAccess, adminController.updateCrmUser.bind(adminController));
 
 export default router;

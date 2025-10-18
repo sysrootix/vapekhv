@@ -11,6 +11,7 @@ import {
   fetchCrmUsers,
   fetchCrmUserDetails,
   fetchRevenueSeries,
+  fetchNewUsersSeries,
 } from '../services/crm.service';
 
 const parseChatIds = (value?: string | null): number[] => {
@@ -354,6 +355,23 @@ class AdminController {
     }
   }
 
+  async getNewUsersSeries(req: AuthRequest, res: Response) {
+    try {
+      const intervalRaw = typeof req.query.interval === 'string' ? req.query.interval : 'daily';
+      const allowedIntervals = new Set(['daily', 'weekly', 'monthly']);
+      const interval = allowedIntervals.has(intervalRaw) ? (intervalRaw as 'daily' | 'weekly' | 'monthly') : 'daily';
+
+      const periodsParam = typeof req.query.periods === 'string' ? parseInt(req.query.periods, 10) : undefined;
+      const periods = periodsParam && !Number.isNaN(periodsParam) ? periodsParam : interval === 'monthly' ? 12 : 14;
+
+      const series = await fetchNewUsersSeries({ interval, periods });
+      res.json(series);
+    } catch (error) {
+      logger.error('Ошибка при получении динамики новых пользователей:', error);
+      throw new AppError('Не удалось получить динамику новых пользователей', 500);
+    }
+  }
+
   async getCrmUsers(req: AuthRequest, res: Response) {
     try {
       const pageParam = typeof req.query.page === 'string' ? parseInt(req.query.page, 10) : 1;
@@ -399,6 +417,82 @@ class AdminController {
 
       logger.error('Ошибка при получении данных пользователя CRM:', error);
       throw new AppError('Не удалось получить данные пользователя', 500);
+    }
+  }
+
+  async updateCrmUser(req: AuthRequest, res: Response) {
+    try {
+      const { id } = req.params;
+      if (!id) {
+        throw new AppError('Не передан идентификатор пользователя', 400);
+      }
+
+      const {
+        firstName,
+        lastName,
+        username,
+        phone,
+        bonusPoints,
+      } = req.body as {
+        firstName?: string | null;
+        lastName?: string | null;
+        username?: string | null;
+        phone?: string | null;
+        bonusPoints?: number;
+      };
+
+      const trimmed = (value?: string | null) => {
+        if (value === null || value === undefined) return undefined;
+        const normalized = value.trim();
+        return normalized.length === 0 ? null : normalized;
+      };
+
+      const updateData: Record<string, any> = {};
+      const maybeFirstName = trimmed(firstName);
+      if (maybeFirstName !== undefined) {
+        updateData.firstName = maybeFirstName;
+      }
+      const maybeLastName = trimmed(lastName);
+      if (maybeLastName !== undefined) {
+        updateData.lastName = maybeLastName;
+      }
+      const maybeUsername = trimmed(username);
+      if (maybeUsername !== undefined) {
+        updateData.username = maybeUsername;
+      }
+      const maybePhone = trimmed(phone);
+      if (maybePhone !== undefined) {
+        updateData.phone = maybePhone;
+      }
+      if (bonusPoints !== undefined) {
+        const parsedBonus = Number(bonusPoints);
+        if (Number.isNaN(parsedBonus) || !Number.isFinite(parsedBonus)) {
+          throw new AppError('Некорректное значение бонусов', 400);
+        }
+        updateData.bonusPoints = Math.round(parsedBonus);
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        throw new AppError('Нет данных для обновления', 400);
+      }
+
+      await prisma.user.update({
+        where: { id },
+        data: updateData,
+      });
+
+      const details = await fetchCrmUserDetails(id);
+      if (!details) {
+        throw new AppError('Пользователь не найден после обновления', 404);
+      }
+
+      res.json(details);
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+      logger.error('Ошибка при обновлении пользователя CRM:', error);
+      throw new AppError('Не удалось обновить пользователя', 500);
     }
   }
 }

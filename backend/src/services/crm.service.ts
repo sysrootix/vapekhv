@@ -9,6 +9,12 @@ interface RevenueSeriesPoint {
   ordersCount: number;
 }
 
+interface NewUsersSeriesPoint {
+  periodStart: string;
+  periodEnd: string;
+  usersCount: number;
+}
+
 interface CrmOverviewTopCustomer {
   id: string;
   telegramId: string;
@@ -575,6 +581,93 @@ export async function fetchRevenueSeries(params: {
       periodEnd: periodEnd.toISOString(),
       totalAmount: bucket.totalAmount,
       ordersCount: bucket.ordersCount,
+    });
+  }
+
+  return {
+    interval,
+    periods: clampedPeriods,
+    from: fromStart.toISOString(),
+    to: addInterval(fromStart, clampedPeriods).toISOString(),
+    points,
+  };
+}
+
+export async function fetchNewUsersSeries(params: {
+  interval: RevenueInterval;
+  periods: number;
+}): Promise<{
+  interval: RevenueInterval;
+  periods: number;
+  from: string;
+  to: string;
+  points: NewUsersSeriesPoint[];
+}> {
+  const interval = params.interval;
+  const clampedPeriods = clampNumber(params.periods, 1, 180);
+  const now = new Date();
+
+  const computeStart = (reference: Date): Date => {
+    switch (interval) {
+      case 'weekly':
+        return startOfWeekUtc(reference);
+      case 'monthly':
+        return startOfMonthUtc(reference);
+      default:
+        return startOfDayUtc(reference);
+    }
+  };
+
+  const addInterval = (value: Date, count: number): Date => {
+    switch (interval) {
+      case 'weekly':
+        return addWeeksUtc(value, count);
+      case 'monthly':
+        return addMonthsUtc(value, count);
+      default:
+        return addDaysUtc(value, count);
+    }
+  };
+
+  const endPeriodStart = computeStart(now);
+  const fromStart = addInterval(endPeriodStart, -1 * (clampedPeriods - 1));
+
+  const intervalUnitMap: Record<RevenueInterval, string> = {
+    daily: 'day',
+    weekly: 'week',
+    monthly: 'month',
+  };
+
+  const rawRows = (await prisma.$queryRaw`
+    SELECT
+      date_trunc('${intervalUnitMap[interval]}', "createdAt") AS "period",
+      COUNT(*) AS "usersCount"
+    FROM "users"
+    WHERE "createdAt" >= ${fromStart}
+    GROUP BY 1
+    ORDER BY 1 ASC
+  `) as Array<{
+    period: Date;
+    usersCount: unknown;
+  }>;
+
+  const bucketMap = new Map<string, number>();
+  rawRows.forEach((row) => {
+    const bucketKey = new Date(row.period).toISOString();
+    bucketMap.set(bucketKey, toNumber(row.usersCount));
+  });
+
+  const points: NewUsersSeriesPoint[] = [];
+  for (let index = 0; index < clampedPeriods; index += 1) {
+    const periodStart = addInterval(fromStart, index);
+    const periodEnd = addInterval(periodStart, 1);
+    const key = periodStart.toISOString();
+    const usersCount = bucketMap.get(key) ?? 0;
+
+    points.push({
+      periodStart: periodStart.toISOString(),
+      periodEnd: periodEnd.toISOString(),
+      usersCount,
     });
   }
 
