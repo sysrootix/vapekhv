@@ -163,7 +163,7 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-tg-bg pb-6">
-      <div className="max-w-5xl mx-auto p-6 space-y-6">
+      <div className="w-full px-4 sm:px-6 lg:px-10 space-y-6">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -178,7 +178,7 @@ export default function AdminPage() {
           </div>
         </motion.div>
 
-        <section className="bg-tg-secondary-bg rounded-3xl p-6 space-y-6 border border-transparent">
+        <section className="space-y-6">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-tg-hint pointer-events-none" />
@@ -230,7 +230,7 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className={filteredOrders.length === 0 ? 'space-y-4' : 'grid gap-4 lg:grid-cols-2 2xl:grid-cols-3'}>
             {filteredOrders.length === 0 ? (
               <div className="bg-tg-bg rounded-2xl p-10 text-center space-y-3">
                 <Package className="w-10 h-10 text-tg-hint mx-auto" />
@@ -253,7 +253,7 @@ export default function AdminPage() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -20 }}
                       transition={{ delay: orderIdx * 0.02 }}
-                      className="bg-tg-bg rounded-2xl p-5 shadow-sm space-y-4 border border-transparent hover:border-tg-button/30 transition-all"
+                      className="bg-tg-bg rounded-2xl p-5 shadow-sm space-y-4 border border-transparent hover:border-tg-button/30 transition-all h-full"
                     >
                       <div
                         className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 cursor-pointer"
