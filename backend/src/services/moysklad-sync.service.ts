@@ -35,13 +35,22 @@ type OrderWithRelations = {
   deliveryTime: string | null;
   adminDeliveryCost: number | null;
   comment: string | null;
+  bonusUsed: number;
+  bonusEarned: number;
+  status: string;
+  createdAt: Date;
   userId: string;
   user: {
     id: string;
+    createdAt: Date;
+    updatedAt: Date;
+    lastLoginAt: Date;
+    totalSpent: number;
+    bonusPoints: number;
     firstName: string | null;
     lastName: string | null;
-  username: string | null;
-  phone: string | null;
+    username: string | null;
+    phone: string | null;
   telegramId: bigint | number | null;
   };
   items: OrderItemWithProduct[];
@@ -113,6 +122,29 @@ const normalizeDeliveryMoment = (dateInput: string | null, timeInput: string | n
   return formatMoySkladDate(parsed);
 };
 
+const formatHumanDateTime = (date?: Date | null): string => {
+  if (!date) {
+    return '—';
+  }
+
+  return new Intl.DateTimeFormat('ru-RU', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date);
+};
+
+const formatCurrency = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return '—';
+  }
+
+  return new Intl.NumberFormat('ru-RU', {
+    style: 'currency',
+    currency: 'RUB',
+    maximumFractionDigits: 0,
+  }).format(value);
+};
+
 export async function syncOrderWithMoySklad(order: OrderWithRelations): Promise<void> {
   const hasMoySkladConfig =
     Boolean(moySkladConfig.token) &&
@@ -154,6 +186,28 @@ export async function syncOrderWithMoySklad(order: OrderWithRelations): Promise<
   }
 
   const agentReference = { meta: counterparty.meta };
+
+  const [totalOrdersAgg, deliveredOrdersCount, firstOrderInfo, bonusSpentAgg] = await Promise.all([
+    prisma.order.aggregate({
+      _count: { _all: true },
+      where: { userId: order.userId },
+    }),
+    prisma.order.count({
+      where: { userId: order.userId, status: 'DELIVERED' },
+    }),
+    prisma.order.findFirst({
+      where: { userId: order.userId },
+      orderBy: { createdAt: 'asc' },
+      select: { createdAt: true, orderNumber: true },
+    }),
+    prisma.order.aggregate({
+      _sum: { bonusUsed: true },
+      where: { userId: order.userId },
+    }),
+  ]);
+
+  const totalOrders = totalOrdersAgg._count._all;
+  const totalBonusSpent = bonusSpentAgg._sum.bonusUsed ?? 0;
 
   const preparedItems = (
     await Promise.all(
@@ -225,6 +279,44 @@ export async function syncOrderWithMoySklad(order: OrderWithRelations): Promise<
 
   const deliveryMoment = normalizeDeliveryMoment(order.deliveryDate, order.deliveryTime);
 
+  const userFullName =
+    [order.user.firstName, order.user.lastName].filter(Boolean).join(' ') ||
+    order.user.username ||
+    'Не указано';
+
+  const descriptionLines = [
+    'Заказ из Telegram WebApp.',
+    `Адрес: ${order.deliveryAddress || '—'}`,
+    `Время доставки: ${order.deliveryDate || '—'} ${order.deliveryTime || ''}`.trim(),
+    `Комментарий: ${order.comment || '—'}`,
+    `Админская стоимость доставки: ${
+      order.adminDeliveryCost !== null && order.adminDeliveryCost !== undefined
+        ? formatCurrency(order.adminDeliveryCost)
+        : 'не указана'
+    }`,
+    '',
+    'Информация о клиенте:',
+    `Имя: ${userFullName}`,
+    `Телефон: ${preferredPhone || '—'}`,
+    `Telegram: ${order.user.username ? `@${order.user.username}` : '—'} (ID: ${
+      order.user.telegramId ? order.user.telegramId.toString() : order.userId
+    })`,
+    `Зарегистрирован: ${formatHumanDateTime(order.user.createdAt)}`,
+    `Последний вход: ${formatHumanDateTime(order.user.lastLoginAt)}`,
+    `Всего заказов: ${totalOrders}`,
+    `Доставленных заказов: ${deliveredOrdersCount}`,
+    `Первый заказ: ${
+      firstOrderInfo?.createdAt
+        ? `${formatHumanDateTime(firstOrderInfo.createdAt)} (${firstOrderInfo.orderNumber})`
+        : '—'
+    }`,
+    `Всего потрачено: ${formatCurrency(order.user.totalSpent)}`,
+    `Текущие бонусы: ${order.user.bonusPoints}`,
+    `Бонусы списаны в заказе: ${order.bonusUsed}`,
+    `Бонусы будут начислены: ${order.bonusEarned}`,
+    `Бонусы списаны за всё время: ${totalBonusSpent}`,
+  ].join('\n');
+
   const moyskladOrderPayload: MoySkladCustomerOrder = {
     name: order.orderNumber,
     moment: formatMoySkladDate(new Date()),
@@ -236,7 +328,7 @@ export async function syncOrderWithMoySklad(order: OrderWithRelations): Promise<
     },
     store: storeRef,
     sum: orderTotalCoins,
-    description: `Заказ из Telegram WebApp. Адрес: ${order.deliveryAddress || '—'}. Время доставки: ${order.deliveryDate || '—'} ${order.deliveryTime || ''}. Комментарий: ${order.comment || '—'}. Стоимость доставки (админ): ${order.adminDeliveryCost ?? 'не указана'}`,
+    description: descriptionLines,
     positions: customerOrderPositions,
     deliveryPlannedMoment: deliveryMoment,
     applicable: true,
