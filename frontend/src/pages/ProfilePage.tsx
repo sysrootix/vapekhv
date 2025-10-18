@@ -288,12 +288,14 @@ export default function ProfilePage() {
             label="Мои заказы"
             description="История покупок"
             onClick={() => navigate('/orders')}
+            color="blue"
           />
           <ActionButton
             icon={<Gift className="w-5 h-5" />}
             label="Бонусная программа"
             description="Скидки и бонусы"
             onClick={() => navigate('/bonus')}
+            color="green"
           />
           <ActionButton
             icon={<MessageCircle className="w-5 h-5" />}
@@ -303,12 +305,14 @@ export default function ProfilePage() {
               // Открыть ссылку в Telegram
               window.open('https://t.me/your_support_bot', '_blank');
             }}
+            color="purple"
           />
           <ActionButton
             icon={<Trash2 className="w-5 h-5" />}
             label="Очистить кэш изображений"
             description="Для отладки загрузки картинок"
             onClick={handleClearImageCache}
+            color="orange"
           />
         </motion.div>
       </div>
@@ -328,24 +332,34 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
   );
 }
 
-function ActionButton({ 
-  icon, 
-  label, 
-  description, 
-  onClick 
-}: { 
-  icon: React.ReactNode; 
-  label: string; 
+function ActionButton({
+  icon,
+  label,
+  description,
+  onClick,
+  color = 'purple'
+}: {
+  icon: React.ReactNode;
+  label: string;
   description: string;
   onClick: () => void;
+  color?: 'purple' | 'blue' | 'green' | 'orange' | 'red';
 }) {
+  const colorClasses = {
+    purple: 'bg-gradient-to-br from-purple-500 to-purple-600',
+    blue: 'bg-gradient-to-br from-blue-500 to-blue-600',
+    green: 'bg-gradient-to-br from-green-500 to-green-600',
+    orange: 'bg-gradient-to-br from-orange-500 to-orange-600',
+    red: 'bg-gradient-to-br from-red-500 to-red-600',
+  };
+
   return (
     <motion.button
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
       className="w-full bg-tg-secondary-bg rounded-2xl p-4 flex items-center gap-4 hover:bg-opacity-80 transition-all"
     >
-      <div className="p-3 bg-tg-button bg-opacity-10 text-tg-button rounded-xl">
+      <div className={`p-3 rounded-xl text-white ${colorClasses[color]}`}>
         {icon}
       </div>
       <div className="flex-1 text-left">

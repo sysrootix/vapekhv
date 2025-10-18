@@ -7,6 +7,7 @@ import AuthPage from './pages/AuthPage';
 import DashboardPage from './pages/DashboardPage';
 import CatalogPage from './pages/CatalogPage';
 import CartPage from './pages/CartPage';
+import CheckoutPage from './pages/CheckoutPage';
 import ProfilePage from './pages/ProfilePage';
 import BonusPage from './pages/BonusPage';
 import OrdersPage from './pages/OrdersPage';
@@ -52,7 +53,7 @@ function App() {
 
 function AppContent({ isAuthenticated }: { isAuthenticated: boolean }) {
   const location = useLocation();
-  const showBottomNav = isAuthenticated && location.pathname !== '/auth' && !location.pathname.startsWith('/product/');
+  const showBottomNav = isAuthenticated && location.pathname !== '/auth' && !location.pathname.startsWith('/product/') && location.pathname !== '/checkout';
 
   // Прокрутка вверх при переходе между страницами
   useEffect(() => {
@@ -81,6 +82,10 @@ function AppContent({ isAuthenticated }: { isAuthenticated: boolean }) {
         <Route
           path="/cart"
           element={isAuthenticated ? <CartPage /> : <Navigate to="/auth" replace />}
+        />
+        <Route
+          path="/checkout"
+          element={isAuthenticated ? <CheckoutPage /> : <Navigate to="/auth" replace />}
         />
         <Route
           path="/profile"

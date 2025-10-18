@@ -19,6 +19,7 @@ import userRoutes from './routes/user.routes';
 import productRoutes from './routes/product.routes';
 import cartRoutes from './routes/cart.routes';
 import bonusRoutes from './routes/bonus.routes';
+import orderRoutes from './routes/order.routes';
 
 // Load environment variables
 dotenv.config();
@@ -61,6 +62,7 @@ app.use('/api/users', userRoutes);
 app.use('/api', productRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/bonus', bonusRoutes);
+app.use('/api/orders', orderRoutes);
 
 // 404 handler
 app.use((_req, res) => {

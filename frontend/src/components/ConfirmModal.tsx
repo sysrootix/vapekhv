@@ -50,7 +50,7 @@ export default function ConfirmModal({
             initial={{ opacity: 0, scale: 0.9, y: 50 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 50 }}
-            className="fixed inset-x-4 top-1/2 -translate-y-1/2 bg-tg-secondary-bg rounded-3xl p-6 z-[110] max-w-md mx-auto"
+            className="fixed inset-x-0 bottom-0 bg-tg-secondary-bg rounded-t-3xl p-6 z-[110] safe-bottom"
           >
             <div className="flex flex-col items-center text-center space-y-4">
               {/* Icon */}

@@ -1,13 +1,17 @@
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ShoppingCart, Trash2, Plus, Minus, Package } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus, Package, Truck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cartApi } from '../api/cart';
 import { productApi } from '../api/product';
 import LoadingScreen from '../components/LoadingScreen';
 import ConfirmModal from '../components/ConfirmModal';
 import toast from 'react-hot-toast';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+
+// Константы для доставки
+const DELIVERY_COST = 500;
+const FREE_DELIVERY_THRESHOLD = 2500;
 
 export default function CartPage() {
   const navigate = useNavigate();
@@ -74,7 +78,14 @@ export default function CartPage() {
   }
 
   const cartItems = data?.items || [];
-  const total = data?.total || 0;
+  const subtotal = data?.total || 0;
+
+  // Расчет доставки
+  const deliveryCost = useMemo(() => {
+    return subtotal >= FREE_DELIVERY_THRESHOLD ? 0 : DELIVERY_COST;
+  }, [subtotal]);
+
+  const total = subtotal + deliveryCost;
 
   if (cartItems.length === 0) {
     return (
@@ -246,16 +257,45 @@ export default function CartPage() {
         animate={{ opacity: 1, y: 0 }}
         className="fixed bottom-16 left-0 right-0 bg-tg-secondary-bg border-t border-tg-bg p-4"
       >
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-tg-hint">Итого:</span>
-            <span className="text-2xl font-bold text-tg-text">
-              {total.toLocaleString()}₽
+        <div className="max-w-4xl mx-auto space-y-3">
+          {/* Подитог */}
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-tg-hint">Подитог:</span>
+            <span className="text-tg-text font-medium">
+              {subtotal.toLocaleString()}₽
             </span>
           </div>
 
+          {/* Доставка */}
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-2">
+              <Truck className="w-4 h-4 text-tg-hint" />
+              <span className="text-tg-hint">Доставка:</span>
+            </div>
+            <span className={`font-medium ${deliveryCost === 0 ? 'text-green-500' : 'text-tg-text'}`}>
+              {deliveryCost === 0 ? 'Бесплатно' : `${deliveryCost.toLocaleString()}₽`}
+            </span>
+          </div>
+
+          {/* Подсказка */}
+          {deliveryCost > 0 && (
+            <div className="text-xs text-tg-hint bg-tg-bg p-2 rounded-xl">
+              Добавьте товаров на {(FREE_DELIVERY_THRESHOLD - subtotal).toLocaleString()}₽ для бесплатной доставки
+            </div>
+          )}
+
+          {/* Разделитель */}
+          <div className="border-t border-tg-bg pt-2">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-tg-text font-semibold">Итого:</span>
+              <span className="text-2xl font-bold text-tg-text">
+                {total.toLocaleString()}₽
+              </span>
+            </div>
+          </div>
+
           <button
-            onClick={() => toast('Оформление заказа в разработке', { icon: '🚧' })}
+            onClick={() => navigate('/checkout')}
             className="w-full bg-tg-button text-tg-button-text py-4 rounded-2xl font-semibold hover:opacity-90 transition-opacity"
           >
             Оформить заказ

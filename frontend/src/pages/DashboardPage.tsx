@@ -1,11 +1,44 @@
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingBag, TrendingUp, Star, ArrowRight } from 'lucide-react';
+import { ShoppingBag, TrendingUp, Star, ArrowRight, Droplets, Wind, Package, Sparkles, Flame, Zap, BoxSelect, Gift } from 'lucide-react';
 import { productApi } from '../api/product';
 import { userApi } from '../api/user';
 import LoadingScreen from '../components/LoadingScreen';
 import ProductPlaceholder from '../components/ProductPlaceholder';
+
+// Функция для получения иконки категории
+const getCategoryIcon = (categoryName: string) => {
+  const name = categoryName.toLowerCase();
+
+  if (name.includes('жидкост') || name.includes('жиж') || name.includes('liquid')) {
+    return <Droplets className="w-6 h-6" />;
+  }
+  if (name.includes('однораз') || name.includes('disposable') || name.includes('вейп')) {
+    return <Wind className="w-6 h-6" />;
+  }
+  if (name.includes('картридж') || name.includes('под') || name.includes('pod') || name.includes('система')) {
+    return <BoxSelect className="w-6 h-6" />;
+  }
+  if (name.includes('аксессуар') || name.includes('accessori')) {
+    return <Package className="w-6 h-6" />;
+  }
+  if (name.includes('новинк') || name.includes('new')) {
+    return <Sparkles className="w-6 h-6" />;
+  }
+  if (name.includes('хит') || name.includes('популярн') || name.includes('hit')) {
+    return <Flame className="w-6 h-6" />;
+  }
+  if (name.includes('акци') || name.includes('скидк') || name.includes('sale')) {
+    return <Gift className="w-6 h-6" />;
+  }
+  if (name.includes('устройств') || name.includes('device')) {
+    return <Zap className="w-6 h-6" />;
+  }
+
+  // По умолчанию
+  return <ShoppingBag className="w-6 h-6" />;
+};
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -90,8 +123,8 @@ export default function DashboardPage() {
                 onClick={() => navigate('/catalog', { state: { categoryId: category.id } })}
                 className="bg-tg-secondary-bg rounded-2xl p-4 text-left hover:bg-opacity-80 transition-all"
               >
-                <div className="w-12 h-12 bg-tg-button bg-opacity-10 rounded-xl flex items-center justify-center mb-3">
-                  <ShoppingBag className="w-6 h-6 text-tg-button" />
+                <div className="w-12 h-12 bg-tg-button bg-opacity-10 rounded-xl flex items-center justify-center mb-3 text-tg-button">
+                  {getCategoryIcon(category.name)}
                 </div>
                 <h3 className="font-semibold text-tg-text mb-1">{category.name}</h3>
                 <p className="text-xs text-tg-hint">

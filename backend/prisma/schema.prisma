@@ -197,19 +197,22 @@ model Order {
   orderNumber     String      @unique
   status          OrderStatus @default(PENDING)
   totalAmount     Float
+  deliveryCost    Float       @default(0) // Стоимость доставки
   bonusUsed       Int         @default(0) // Сколько бонусов использовано
   bonusEarned     Int         @default(0) // Сколько бонусов начислено
-  
+
   userId          String
   user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   deliveryAddress String?
   deliveryPhone   String?
+  deliveryDate    String?     // Дата доставки
+  deliveryTime    String?     // Время доставки
   comment         String?
-  
+
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
-  
+
   items           OrderItem[]
 
   @@map("orders")
