@@ -137,6 +137,7 @@ export default function CrmPage() {
   useEffect(() => {
     window.Telegram?.WebApp?.expand();
     window.Telegram?.WebApp?.disableVerticalSwipes?.();
+    window.Telegram?.WebApp?.requestFullscreen?.();
   }, []);
 
   useEffect(() => {
