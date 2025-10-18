@@ -904,7 +904,7 @@ class OrderController {
             where: {
               userId,
               productId: product.id,
-              selectedOptions: item.selectedOptions || undefined,
+              ...(item.selectedOptions ? { selectedOptions: { equals: item.selectedOptions } } : {}),
             },
           });
 
@@ -927,7 +927,7 @@ class OrderController {
                 userId,
                 productId: product.id,
                 quantity: quantityToAdd,
-                selectedOptions: item.selectedOptions || undefined,
+                selectedOptions: item.selectedOptions ?? null,
               },
             });
           }
