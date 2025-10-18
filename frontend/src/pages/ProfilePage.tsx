@@ -260,18 +260,11 @@ export default function ProfilePage() {
               }
             />
             {bonusData && (
-              <>
-                <InfoRow
-                  icon={<Coins className="w-5 h-5" />}
-                  label="Бонусный баланс"
-                  value={`${bonusData.balance.toLocaleString()} ₽`}
-                />
-                <InfoRow
-                  icon={<Gift className="w-5 h-5" />}
-                  label="Всего потрачено"
-                  value={`${bonusData.totalSpent.toLocaleString()} ₽`}
-                />
-              </>
+              <InfoRow
+                icon={<Coins className="w-5 h-5" />}
+                label="Бонусный баланс"
+                value={`${bonusData.balance.toLocaleString()} ₽`}
+              />
             )}
           </div>
         </motion.div>

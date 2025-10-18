@@ -72,8 +72,7 @@ export default function BottomNav() {
               {item.active && (
                 <motion.div
                   layoutId="activeTab"
-                  className="absolute top-0 w-12 h-1 bg-tg-button rounded-b-full"
-                  style={{ left: '50%', transform: 'translateX(-50%)' }}
+                  className="absolute top-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-tg-button rounded-b-full"
                   transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                 />
               )}
