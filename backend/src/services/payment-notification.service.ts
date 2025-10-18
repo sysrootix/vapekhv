@@ -294,15 +294,30 @@ export const sendOrderStatusNotification = async (order: any, status: string) =>
   }
 
   try {
-    const statusMessages: { [key: string]: string } = {
-      CONFIRMED: '✅ <b>Заказ подтвержден</b>\n\nВаш заказ подтвержден и принят в обработку.',
-      PROCESSING: '🔄 <b>Заказ в обработке</b>\n\nВаш заказ находится в обработке.',
-      SHIPPED: '📦 <b>Заказ отправлен</b>\n\nВаш заказ отправлен курьером.',
-      DELIVERED: '✅ <b>Заказ доставлен</b>\n\nВаш заказ успешно доставлен!',
-      CANCELLED: '❌ <b>Заказ отменен</b>\n\nВаш заказ был отменен.',
+    const statusMessages: { [key: string]: { title: string; description: string } } = {
+      CONFIRMED: {
+        title: '✅ Заказ подтвержден',
+        description: 'Ваш заказ подтвержден и принят в обработку'
+      },
+      PROCESSING: {
+        title: '🔄 Заказ в обработке',
+        description: 'Ваш заказ находится в обработке'
+      },
+      SHIPPED: {
+        title: '📦 Заказ отправлен',
+        description: 'Ваш заказ передан курьеру для доставки'
+      },
+      DELIVERED: {
+        title: '✅ Заказ доставлен',
+        description: 'Ваш заказ успешно доставлен!'
+      },
+      CANCELLED: {
+        title: '❌ Заказ отменен',
+        description: 'Ваш заказ был отменен'
+      },
     };
 
-    const statusText = statusMessages[status] || 'ℹ️ Статус заказа обновлен';
+    const statusInfo = statusMessages[status] || { title: 'ℹ️ Статус заказа обновлен', description: '' };
 
     // Форматирование даты доставки
     let deliveryDateText = 'Не указана';
@@ -312,32 +327,49 @@ export const sendOrderStatusNotification = async (order: any, status: string) =>
       deliveryDateText = `${order.deliveryDate}${order.deliveryTime && order.deliveryTime !== 'Ближайшее время' ? ', ' + order.deliveryTime : ''}`;
     }
 
+    // Форматируем список товаров с улучшенной читаемостью
     const items = order.items
-      .map((item: any) => {
+      .map((item: any, index: number) => {
         const options = item.selectedOptions
-          ? Object.entries(item.selectedOptions)
-              .map(([key, value]) => `${key}: ${value}`)
+          ? '\n  ' + Object.entries(item.selectedOptions)
+              .map(([key, value]) => `<i>${key}:</i> ${value}`)
               .join(', ')
           : '';
-        return `${item.product.name} × ${item.quantity}${options ? `\n(${options})` : ''}`;
+        return `<b>${index + 1}.</b> ${item.product.name} × ${item.quantity}${options}`;
       })
-      .join('\n');
+      .join('\n\n');
 
-    const message = `
-${statusText}
+    // Форматируем дату создания заказа
+    const orderDate = new Date(order.createdAt).toLocaleDateString('ru-RU', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
 
-📦 Заказ: <b>#${order.orderNumber}</b>
-📅 ${new Date(order.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+    // Формируем основное сообщение
+    let message = `<b>${statusInfo.title}</b>\n\n${statusInfo.description}\n\n`;
+    message += `━━━━━━━━━━━━━━━━━━━\n\n`;
+    message += `📦 <b>Заказ:</b> #${order.orderNumber}\n`;
+    message += `📅 <b>Дата:</b> ${orderDate}\n\n`;
+    message += `━━━━━━━━━━━━━━━━━━━\n\n`;
+    message += `<b>Товары:</b>\n\n${items}\n\n`;
+    message += `━━━━━━━━━━━━━━━━━━━\n\n`;
+    message += `💰 <b>Итого:</b> ${order.totalAmount.toLocaleString('ru-RU')}₽\n`;
 
-${items}
+    // Добавляем информацию о бонусах
+    if (order.bonusUsed > 0) {
+      message += `🎁 <b>Использовано бонусов:</b> ${order.bonusUsed}\n`;
+    }
+    if (status === 'DELIVERED' && order.bonusEarned > 0) {
+      message += `⭐️ <b>Начислено бонусов:</b> +${order.bonusEarned}\n`;
+    }
 
-💰 Итого: <b>${order.totalAmount.toLocaleString()}₽</b>
-${status === 'DELIVERED' && order.bonusEarned > 0 ? `\n⭐️ <b>НАЧИСЛЕНО</b> бонусов: ${order.bonusEarned}` : ''}
-
-📍 ${order.deliveryAddress || 'Адрес не указан'}
-📞 ${order.deliveryPhone || 'Телефон не указан'}
-📅 ${deliveryDateText}
-`;
+    // Информация о доставке
+    message += `\n━━━━━━━━━━━━━━━━━━━\n\n`;
+    message += `<b>Информация о доставке:</b>\n\n`;
+    message += `📍 ${order.deliveryAddress || 'Адрес не указан'}\n`;
+    message += `📞 ${order.deliveryPhone || 'Телефон не указан'}\n`;
+    message += `📅 ${deliveryDateText}`;
 
     await bot.sendMessage(order.user.telegramId, message, {
       parse_mode: 'HTML',
@@ -357,16 +389,18 @@ export const sendPaymentNotification = async (order: any) => {
   }
 
   try {
+    // Форматируем список товаров с улучшенной читаемостью
     const items = order.items
-      .map((item: any) => {
+      .map((item: any, index: number) => {
+        const itemTotal = (item.price * item.quantity).toLocaleString('ru-RU');
         const options = item.selectedOptions
-          ? Object.entries(item.selectedOptions)
-              .map(([key, value]) => `${key}: ${value}`)
+          ? '\n     ' + Object.entries(item.selectedOptions)
+              .map(([key, value]) => `<i>${key}:</i> ${value}`)
               .join(', ')
           : '';
-        return `  • ${item.product.name} × ${item.quantity} - ${(item.price * item.quantity).toLocaleString()}₽${options ? `\n    (${options})` : ''}`;
+        return `  <b>${index + 1}.</b> ${item.product.name}\n     Количество: ${item.quantity} шт.\n     Сумма: ${itemTotal}₽${options}`;
       })
-      .join('\n');
+      .join('\n\n');
 
     // Форматирование даты доставки
     let deliveryDateText = 'Не указана';
@@ -379,29 +413,45 @@ export const sendPaymentNotification = async (order: any) => {
     // Добавляем +10 часов для хабаровского времени
     const khabarovskTime = new Date(order.createdAt);
     khabarovskTime.setHours(khabarovskTime.getHours() + 10);
+    const formattedTime = khabarovskTime.toLocaleString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
 
-    const message = `
-🔔 <b>НОВАЯ ОПЛАТА</b>
+    // Формируем основное сообщение
+    let message = `🔔 <b>НОВАЯ ОПЛАТА</b>\n\n`;
+    message += `━━━━━━━━━━━━━━━━━━━\n\n`;
+    message += `📦 <b>Заказ:</b> #${order.orderNumber}\n`;
+    message += `⏰ <b>Создан:</b> ${formattedTime}\n\n`;
+    message += `━━━━━━━━━━━━━━━━━━━\n\n`;
+    message += `<b>Информация о клиенте:</b>\n\n`;
+    message += `👤 ${order.user.firstName || ''} ${order.user.lastName || ''}\n`;
+    message += `   @${order.user.username || 'без username'}\n`;
+    message += `   ID: <code>${order.user.telegramId}</code>\n\n`;
+    message += `━━━━━━━━━━━━━━━━━━━\n\n`;
+    message += `<b>Товары:</b>\n\n${items}\n\n`;
+    message += `━━━━━━━━━━━━━━━━━━━\n\n`;
+    message += `💰 <b>Итого:</b> ${order.totalAmount.toLocaleString('ru-RU')}₽\n`;
 
-📦 Заказ: <b>#${order.orderNumber}</b>
-👤 Клиент: ${order.user.firstName || ''} ${order.user.lastName || ''}
-   @${order.user.username || 'без username'}
-   ID: <code>${order.user.telegramId}</code>
+    if (order.bonusUsed > 0) {
+      message += `🎁 <b>Использовано бонусов:</b> ${order.bonusUsed}\n`;
+    }
+    if (order.bonusEarned > 0) {
+      message += `⭐️ <b>К начислению бонусов:</b> +${order.bonusEarned}\n`;
+    }
 
-💰 Сумма: <b>${order.totalAmount.toLocaleString()}₽</b>
-${order.bonusUsed > 0 ? `🎁 Использовано бонусов: ${order.bonusUsed}\n` : ''}
-${order.bonusEarned > 0 ? `⭐️ К начислению: ${order.bonusEarned}\n` : ''}
+    message += `\n━━━━━━━━━━━━━━━━━━━\n\n`;
+    message += `<b>Информация о доставке:</b>\n\n`;
+    message += `📍 ${order.deliveryAddress || 'Не указан'}\n`;
+    message += `📞 ${order.deliveryPhone || 'Не указан'}\n`;
+    message += `📅 ${deliveryDateText}`;
 
-📍 Адрес: ${order.deliveryAddress || 'Не указан'}
-📞 Телефон: ${order.deliveryPhone || 'Не указан'}
-📅 Дата доставки: ${deliveryDateText}
-${order.comment ? `💬 Комментарий: ${order.comment}\n` : ''}
-
-🛒 Товары:
-${items}
-
-⏰ Создан: ${khabarovskTime.toLocaleString('ru-RU')}
-`;
+    if (order.comment) {
+      message += `\n\n💬 <b>Комментарий:</b>\n${order.comment}`;
+    }
 
     // Отправить чек если есть
     if (order.receiptImageUrl) {

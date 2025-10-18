@@ -58,12 +58,24 @@ export const initBot = () => {
       }
 
       // Отправляем приветственное сообщение с инлайн кнопками webapp
+      let welcomeMessage = `👋 <b>Привет, ${firstName}!</b>\n\n`;
+      welcomeMessage += `Добро пожаловать в <b>VapeKHV</b>\n`;
+      welcomeMessage += `Ваш магазин вейп-продукции в Telegram!\n\n`;
+      welcomeMessage += `━━━━━━━━━━━━━━━━━━━\n\n`;
+      welcomeMessage += `🛍️ Широкий ассортимент товаров\n`;
+      welcomeMessage += `⚡️ Быстрая доставка\n`;
+      welcomeMessage += `⭐️ Программа лояльности\n`;
+      welcomeMessage += `💳 Удобная оплата\n\n`;
+      welcomeMessage += `━━━━━━━━━━━━━━━━━━━\n\n`;
+      welcomeMessage += `Нажмите кнопку ниже, чтобы открыть каталог`;
+
+      if (isUserAdmin) {
+        welcomeMessage += `\n\n⚙️ <b>Вам доступна админ-панель</b>\nДля управления заказами и товарами`;
+      }
+
       await bot.sendMessage(
         chatId,
-        `👋 Привет, ${firstName}!\n\n` +
-          `Добро пожаловать в <b>VapeKHV</b> - ваш магазин вейпов в Telegram!\n\n` +
-          `🛍️ Нажмите кнопку ниже, чтобы открыть каталог и сделать заказ.` +
-          (isUserAdmin ? `\n\n⚙️ Вам доступна админ-панель для управления заказами.` : ''),
+        welcomeMessage,
         {
           parse_mode: 'HTML',
           reply_markup: {
@@ -87,21 +99,32 @@ export const initBot = () => {
     const chatId = msg.chat.id;
 
     try {
-      let helpText = `ℹ️ <b>Помощь - VapeKHV</b>\n\n` +
-        `<b>Доступные команды:</b>\n` +
-        `/start - Запустить бота и открыть магазин\n` +
-        `/help - Показать это сообщение\n\n` +
-        `<b>Как сделать заказ:</b>\n` +
-        `1. Нажмите на кнопку "Открыть магазин"\n` +
-        `2. Выберите товары из каталога\n` +
-        `3. Добавьте их в корзину\n` +
-        `4. Оформите заказ\n\n` +
-        `По всем вопросам обращайтесь к @support`;
+      let helpText = `ℹ️ <b>Справка - VapeKHV</b>\n\n`;
+      helpText += `━━━━━━━━━━━━━━━━━━━\n\n`;
+      helpText += `<b>Доступные команды:</b>\n\n`;
+      helpText += `• /start — Запустить бота\n`;
+      helpText += `• /help — Справка\n\n`;
+      helpText += `━━━━━━━━━━━━━━━━━━━\n\n`;
+      helpText += `<b>Как сделать заказ:</b>\n\n`;
+      helpText += `<b>1.</b> Нажмите кнопку "Открыть магазин"\n`;
+      helpText += `<b>2.</b> Выберите товары из каталога\n`;
+      helpText += `<b>3.</b> Добавьте товары в корзину\n`;
+      helpText += `<b>4.</b> Перейдите в корзину\n`;
+      helpText += `<b>5.</b> Укажите адрес доставки\n`;
+      helpText += `<b>6.</b> Оформите и оплатите заказ\n\n`;
+      helpText += `━━━━━━━━━━━━━━━━━━━\n\n`;
+      helpText += `<b>Программа лояльности:</b>\n\n`;
+      helpText += `⭐️ Получайте бонусы за покупки\n`;
+      helpText += `💰 Оплачивайте до 50% заказа бонусами\n`;
+      helpText += `🎁 Копите бонусы на следующие покупки\n\n`;
+      helpText += `━━━━━━━━━━━━━━━━━━━\n\n`;
+      helpText += `📞 <b>Поддержка:</b> @support`;
 
       // Добавляем админские команды для администраторов
       if (isAdmin(chatId)) {
-        helpText += `\n\n<b>Админ команды:</b>\n` +
-          `/sync - Запустить синхронизацию с МойСклад`;
+        helpText += `\n\n━━━━━━━━━━━━━━━━━━━\n\n`;
+        helpText += `<b>Команды администратора:</b>\n\n`;
+        helpText += `• /sync — Синхронизация с МойСклад`;
       }
 
       await bot.sendMessage(
@@ -198,10 +221,16 @@ export const initBot = () => {
     }
 
     try {
+      let message = `ℹ️ <b>Доступные команды:</b>\n\n`;
+      message += `• /start — Открыть магазин\n`;
+      message += `• /help — Справка и инструкции\n\n`;
+      message += `Нажмите кнопку ниже для быстрого доступа к каталогу`;
+
       await bot.sendMessage(
         chatId,
-        `Используйте команду /start для открытия магазина или /help для помощи.`,
+        message,
         {
+          parse_mode: 'HTML',
           reply_markup: {
             inline_keyboard: [
               [
