@@ -47,12 +47,10 @@ type PromoEvaluationResult = {
 
 const evaluatePromoCode = async ({
   code,
-  userId,
   subtotal,
   deliveryCost,
 }: {
   code: string;
-  userId: string;
   subtotal: number;
   deliveryCost: number;
 }): Promise<PromoEvaluationResult> => {
@@ -161,7 +159,6 @@ class OrderController {
 
       const promoResult = await evaluatePromoCode({
         code: promoCode,
-        userId,
         subtotal,
         deliveryCost: baseDeliveryCost,
       });
@@ -358,7 +355,6 @@ class OrderController {
       if (normalizedPromo) {
         promoResult = await evaluatePromoCode({
           code: normalizedPromo,
-          userId,
           subtotal,
           deliveryCost,
         });
@@ -407,7 +403,9 @@ class OrderController {
         // Создать заказ
         const newOrder = await tx.order.create({
           data: {
-            userId,
+            user: {
+              connect: { id: userId },
+            },
             orderNumber,
             totalAmount,
             deliveryCost: appliedDeliveryCost,
