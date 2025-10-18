@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -18,6 +18,7 @@ import {
   MessageCircle,
   Shield,
   Gift,
+  X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -71,7 +72,7 @@ const filterOrders = (orders: AdminOrder[], search: string) => {
 export default function AdminPage() {
   const queryClient = useQueryClient();
   const [selectedFilter, setSelectedFilter] = useState<OrderStatus | 'ALL'>('ALL');
-  const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
+  const [activeOrder, setActiveOrder] = useState<AdminOrder | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showDeliveryCostModal, setShowDeliveryCostModal] = useState(false);
   const [deliveryCost, setDeliveryCost] = useState('');
@@ -101,7 +102,7 @@ export default function AdminPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
       toast.success('Статус заказа обновлен');
-      setExpandedOrder(null);
+      setActiveOrder(null);
       setShowDeliveryCostModal(false);
       setDeliveryCost('');
       setPendingStatusChange(null);
@@ -241,9 +242,7 @@ export default function AdminPage() {
               <AnimatePresence>
                 {filteredOrders.map((order, orderIdx) => {
                   const statusInfo = statusConfig[order.status as keyof typeof statusConfig] || statusConfig.ALL;
-                  const transitions = availableStatusTransitions[order.status as OrderStatus] || [];
                   const totalItems = order.items.reduce((sum, item) => sum + item.quantity, 0);
-                  const totalWithoutDelivery = order.totalAmount - (order.deliveryCost || 0);
 
                   return (
                     <motion.div
@@ -255,10 +254,7 @@ export default function AdminPage() {
                       transition={{ delay: orderIdx * 0.02 }}
                       className="bg-tg-bg rounded-2xl p-5 shadow-sm space-y-4 border border-transparent hover:border-tg-button/30 transition-all h-full"
                     >
-                      <div
-                        className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 cursor-pointer"
-                        onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}
-                      >
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                         <div className="flex items-start gap-4">
                           <div className="p-3 bg-tg-secondary-bg rounded-xl">
                             <Package className="w-5 h-5 text-tg-button" />
@@ -311,213 +307,16 @@ export default function AdminPage() {
                           </div>
                           <motion.button
                             whileTap={{ scale: 0.97 }}
+                            onClick={() => setActiveOrder(order)}
                             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-tg-secondary-bg text-tg-text text-sm font-medium"
                           >
-                            Подробности
-                            <ChevronDown
-                              className={`w-4 h-4 transition-transform ${expandedOrder === order.id ? 'rotate-180' : ''}`}
-                            />
+                            Открыть
+                            <ChevronDown className="w-4 h-4" />
                           </motion.button>
                         </div>
                       </div>
 
-                      <AnimatePresence>
-                        {expandedOrder === order.id && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.25 }}
-                            className="overflow-hidden"
-                          >
-                            <div className="grid gap-5 mt-4">
-                              <div className="grid md:grid-cols-3 gap-4">
-                                <div className="bg-tg-secondary-bg rounded-xl p-4 space-y-2">
-                                  <span className="text-xs uppercase text-tg-hint font-semibold tracking-wide">
-                                    Итоговая сумма
-                                  </span>
-                                  <div className="text-2xl font-bold text-tg-text">
-                                    {order.totalAmount.toLocaleString('ru-RU')}₽
-                                  </div>
-                                  {order.deliveryCost > 0 && (
-                                    <div className="text-xs text-tg-hint">
-                                      Доставка: {order.deliveryCost.toLocaleString('ru-RU')}₽
-                                    </div>
-                                  )}
-                                  <div className="text-xs text-tg-hint">
-                                    Товары: {totalWithoutDelivery.toLocaleString('ru-RU')}₽
-                                  </div>
-                                </div>
 
-                                <div className="bg-tg-secondary-bg rounded-xl p-4 space-y-2">
-                                  <span className="text-xs uppercase text-tg-hint font-semibold tracking-wide">
-                                    Клиент
-                                  </span>
-                                  <div className="text-sm text-tg-text">
-                                    <div className="font-semibold">
-                                      {order.user.firstName || order.user.lastName
-                                        ? `${order.user.firstName ?? ''} ${order.user.lastName ?? ''}`.trim()
-                                        : 'Нет имени'}
-                                    </div>
-                                    <div className="text-xs text-tg-hint">
-                                      Telegram ID: {String(order.user.telegramId)}
-                                    </div>
-                                    {order.user.username && (
-                                      <div className="text-xs text-tg-hint">
-                                        @{order.user.username}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-
-                                <div className="bg-tg-secondary-bg rounded-xl p-4 space-y-2">
-                                  <span className="text-xs uppercase text-tg-hint font-semibold tracking-wide">
-                                    Контакты
-                                  </span>
-                                  <div className="space-y-1 text-sm text-tg-text">
-                                    {order.deliveryPhone ? (
-                                      <div className="flex items-center gap-2">
-                                        <Phone className="w-4 h-4 text-tg-hint" />
-                                        <span>{order.deliveryPhone}</span>
-                                      </div>
-                                    ) : (
-                                      <div className="text-xs text-tg-hint">Телефон не указан</div>
-                                    )}
-                                    {order.user.bonusPoints !== undefined && (
-                                      <div className="flex items-center gap-2 text-xs text-emerald-400">
-                                        <Gift className="w-4 h-4" />
-                                        <span>Бонусов: {order.user.bonusPoints}</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div>
-                                <h4 className="text-sm font-semibold text-tg-text mb-2">Товары:</h4>
-                                <div className="space-y-2">
-                                  {order.items.map((item) => (
-                                    <div key={item.id} className="bg-tg-secondary-bg rounded-lg p-3 space-y-1">
-                                      <div className="flex items-center gap-2 text-sm">
-                                        <Package className="w-4 h-4 text-tg-hint flex-shrink-0" />
-                                        <span className="text-tg-text flex-1 font-medium">
-                                          {item.product.name}
-                                        </span>
-                                        <span className="text-tg-hint">× {item.quantity}</span>
-                                        <span className="text-tg-text font-semibold">
-                                          {(item.price * item.quantity).toLocaleString()}₽
-                                        </span>
-                                      </div>
-                                      {item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && (
-                                        <div className="pl-6 text-xs text-tg-hint">
-                                          {Object.entries(item.selectedOptions).map(([key, value]) => (
-                                            <span key={key} className="inline-block mr-3">
-                                              {key}: <span className="text-tg-text">{value as string}</span>
-                                            </span>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-
-                              {order.deliveryAddress && (
-                                <div className="space-y-2">
-                                  <h4 className="text-sm font-semibold text-tg-text">Доставка:</h4>
-                                  <div className="bg-tg-secondary-bg rounded-lg p-3 space-y-2 text-sm">
-                                    <div className="flex items-start gap-2">
-                                      <MapPin className="w-4 h-4 text-tg-hint flex-shrink-0 mt-0.5" />
-                                      <span className="text-tg-text">{order.deliveryAddress}</span>
-                                    </div>
-                                    {order.deliveryPhone && (
-                                      <div className="flex items-center gap-2">
-                                        <Phone className="w-4 h-4 text-tg-hint flex-shrink-0" />
-                                        <span className="text-tg-text">{order.deliveryPhone}</span>
-                                      </div>
-                                    )}
-                                    {order.deliveryDate && (
-                                      <div className="flex items-center gap-2">
-                                        <Calendar className="w-4 h-4 text-tg-hint flex-shrink-0" />
-                                        <span className="text-tg-text">
-                                          {new Date(order.deliveryDate).toLocaleDateString('ru-RU')}
-                                          {order.deliveryTime && `, ${order.deliveryTime}`}
-                                        </span>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-
-                              {order.comment && (
-                                <div>
-                                  <h4 className="text-sm font-semibold text-tg-text mb-2">Комментарий:</h4>
-                                  <p className="text-sm text-tg-hint bg-tg-secondary-bg rounded-lg p-3">
-                                    {order.comment}
-                                  </p>
-                                </div>
-                              )}
-
-                              {(order.bonusUsed > 0 || order.bonusEarned > 0) && (
-                                <div className="flex items-center justify-between text-sm bg-tg-secondary-bg rounded-lg p-3">
-                                  {order.bonusUsed > 0 && (
-                                    <span className="text-orange-500">
-                                      Использовано: {order.bonusUsed} б.
-                                    </span>
-                                  )}
-                                  {order.bonusEarned > 0 && (
-                                    <span className="text-green-500">
-                                      Начислено: {order.bonusEarned} б.
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-
-                              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                                <div className="flex items-center gap-3 text-sm text-tg-hint">
-                                  <MessageCircle className="w-4 h-4" />
-                                  <span>
-                                    Последнее изменение: {new Date(order.updatedAt).toLocaleString('ru-RU')}
-                                  </span>
-                                </div>
-
-                                {transitions.length > 0 && (
-                                  <div className="flex flex-wrap gap-2">
-                                    {transitions.map((newStatus) => {
-                                      const newStatusInfo = statusConfig[newStatus];
-                                      const NewStatusIcon = newStatusInfo.icon;
-                                      const isUpdating = updateStatusMutation.isPending && pendingStatusChange?.orderId === order.id && pendingStatusChange.status === newStatus;
-
-                                      return (
-                                        <button
-                                          key={newStatus}
-                                          onClick={() => handleStatusChange(order.id, newStatus)}
-                                          disabled={updateStatusMutation.isPending}
-                                          className={`
-                                            flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-all
-                                            ${newStatus === OrderStatus.CANCELLED
-                                              ? 'bg-red-500 bg-opacity-10 text-red-500 hover:bg-opacity-20'
-                                              : 'bg-tg-button text-tg-button-text hover:opacity-90'
-                                            }
-                                            disabled:opacity-50 disabled:cursor-not-allowed
-                                          `}
-                                        >
-                                          {isUpdating ? (
-                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                          ) : (
-                                            <NewStatusIcon className="w-4 h-4" />
-                                          )}
-                                          <span className="text-sm">{newStatusInfo.text}</span>
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
                     </motion.div>
                   );
                 })}
@@ -526,6 +325,19 @@ export default function AdminPage() {
           </div>
         </section>
       </div>
+
+      <AnimatePresence>
+        {activeOrder && (
+          <OrderDetailsModal
+            order={activeOrder}
+            onClose={() => setActiveOrder(null)}
+            transitions={availableStatusTransitions[activeOrder.status as OrderStatus] || []}
+            onStatusChange={(status) => handleStatusChange(activeOrder.id, status)}
+            isUpdating={updateStatusMutation.isPending}
+            pendingStatusChange={pendingStatusChange}
+          />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {showDeliveryCostModal && (
@@ -608,5 +420,325 @@ export default function AdminPage() {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+interface OrderDetailsModalProps {
+  order: AdminOrder;
+  onClose: () => void;
+  transitions: OrderStatus[];
+  onStatusChange: (status: OrderStatus) => void;
+  isUpdating: boolean;
+  pendingStatusChange: { orderId: string; status: OrderStatus } | null;
+}
+
+function OrderDetailsModal({
+  order,
+  onClose,
+  transitions,
+  onStatusChange,
+  isUpdating,
+  pendingStatusChange,
+}: OrderDetailsModalProps) {
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
+
+  const statusInfo = statusConfig[order.status as keyof typeof statusConfig] || statusConfig.ALL;
+  const totalItems = order.items.reduce((sum, item) => sum + item.quantity, 0);
+  const totalWithoutDelivery = order.totalAmount - (order.deliveryCost || 0);
+  const customerName = order.user.firstName || order.user.lastName
+    ? `${order.user.firstName ?? ''} ${order.user.lastName ?? ''}`.trim() || 'Нет имени'
+    : order.user.username
+      ? `@${order.user.username}`
+      : String(order.user.telegramId);
+  const phoneNumber = order.deliveryPhone || order.user.phone || null;
+  const sanitizedPhone = phoneNumber ? phoneNumber.replace(/[^+\\d]/g, '') : null;
+  const phoneHref = sanitizedPhone ? `tel:${sanitizedPhone}` : null;
+  const telegramLink = order.user.username
+    ? `https://t.me/${order.user.username}`
+    : order.user.telegramId
+      ? `tg://user?id=${order.user.telegramId}`
+      : null;
+  const createdAt = new Date(order.createdAt).toLocaleString('ru-RU');
+  const lastUpdatedAt = new Date(order.updatedAt).toLocaleString('ru-RU');
+
+  return (
+    <>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[120]"
+        onClick={onClose}
+      />
+      <motion.div
+        initial={{ y: '100%', opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: '100%', opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 260, damping: 30 }}
+        className="fixed inset-x-0 bottom-0 z-[130] bg-tg-secondary-bg rounded-t-3xl p-6 pb-8 max-h-[90vh] overflow-y-auto sm:max-w-3xl sm:mx-auto sm:rounded-3xl sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2 sm:max-h-[85vh]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-2 rounded-full hover:bg-tg-bg transition-colors"
+          aria-label="Закрыть"
+        >
+          <X className="w-5 h-5 text-tg-hint" />
+        </button>
+
+        <div className="space-y-6 pr-2">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-semibold text-tg-text">
+                  Заказ #{order.orderNumber}
+                </h2>
+                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusInfo.color} bg-tg-bg`}>
+                  {statusInfo.text}
+                </span>
+              </div>
+              <div className="text-sm text-tg-hint">
+                Создан: {createdAt}
+              </div>
+              <div className="flex items-center gap-2 text-sm text-tg-hint">
+                <User className="w-4 h-4" />
+                <span>{customerName}</span>
+              </div>
+            </div>
+
+            <div className="text-right space-y-1">
+              <div className="text-2xl font-bold text-tg-text">
+                {order.totalAmount.toLocaleString('ru-RU')}₽
+              </div>
+              <div className="text-sm text-tg-hint">
+                {totalItems} {totalItems === 1 ? 'товар' : 'товаров'}
+              </div>
+              {order.deliveryCost > 0 && (
+                <div className="text-xs text-tg-hint">
+                  Доставка: {order.deliveryCost.toLocaleString('ru-RU')}₽
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="bg-tg-bg rounded-2xl p-4 space-y-2">
+              <span className="text-xs uppercase text-tg-hint font-semibold tracking-wide">
+                Клиент
+              </span>
+              <div className="text-sm text-tg-text space-y-1">
+                <div className="font-semibold">{customerName}</div>
+                <div className="text-xs text-tg-hint">
+                  Telegram ID: {String(order.user.telegramId)}
+                </div>
+                {order.user.username && (
+                  <div className="text-xs text-tg-hint">{`@${order.user.username}`}</div>
+                )}
+                {order.user.bonusPoints !== undefined && (
+                  <div className="flex items-center gap-2 text-xs text-emerald-400">
+                    <Gift className="w-4 h-4" />
+                    <span>Бонусов: {order.user.bonusPoints}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-tg-bg rounded-2xl p-4 space-y-2">
+              <span className="text-xs uppercase text-tg-hint font-semibold tracking-wide">
+                Контакты
+              </span>
+              <div className="space-y-2 text-sm text-tg-text">
+                {phoneNumber ? (
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-tg-hint" />
+                    <span>{phoneNumber}</span>
+                  </div>
+                ) : (
+                  <div className="text-xs text-tg-hint">Телефон не указан</div>
+                )}
+                {order.deliveryAddress && (
+                  <div className="flex items-start gap-2">
+                    <MapPin className="w-4 h-4 text-tg-hint flex-shrink-0 mt-0.5" />
+                    <span>{order.deliveryAddress}</span>
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2 pt-2">
+                {phoneHref && (
+                  <a
+                    href={phoneHref}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-500 text-white text-sm font-medium hover:bg-emerald-600 transition-colors"
+                  >
+                    <Phone className="w-4 h-4" />
+                    Позвонить
+                  </a>
+                )}
+                {telegramLink && (
+                  <a
+                    href={telegramLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-sky-500 text-white text-sm font-medium hover:bg-sky-600 transition-colors"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    Telegram
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-tg-bg rounded-2xl p-4 space-y-2">
+            <span className="text-xs uppercase text-tg-hint font-semibold tracking-wide">
+              Итоговая сумма
+            </span>
+            <div className="text-2xl font-bold text-tg-text">
+              {order.totalAmount.toLocaleString('ru-RU')}₽
+            </div>
+            <div className="text-xs text-tg-hint">
+              Товары: {totalWithoutDelivery.toLocaleString('ru-RU')}₽
+            </div>
+            {order.deliveryCost > 0 && (
+              <div className="text-xs text-tg-hint">
+                Доставка: {order.deliveryCost.toLocaleString('ru-RU')}₽
+              </div>
+            )}
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold text-tg-text mb-2">Товары</h3>
+            <div className="space-y-2">
+              {order.items.map((item) => (
+                <div key={item.id} className="bg-tg-bg rounded-xl p-3 space-y-1">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Package className="w-4 h-4 text-tg-hint flex-shrink-0" />
+                    <span className="text-tg-text flex-1 font-medium">
+                      {item.product.name}
+                    </span>
+                    <span className="text-tg-hint">× {item.quantity}</span>
+                    <span className="text-tg-text font-semibold">
+                      {(item.price * item.quantity).toLocaleString('ru-RU')}₽
+                    </span>
+                  </div>
+                  {item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && (
+                    <div className="pl-6 text-xs text-tg-hint space-x-3">
+                      {Object.entries(item.selectedOptions).map(([key, value]) => (
+                        <span key={key}>
+                          {key}: <span className="text-tg-text">{value as string}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {(order.deliveryAddress || order.deliveryDate || order.deliveryPhone) && (
+            <div className="bg-tg-bg rounded-2xl p-4 space-y-3 text-sm text-tg-text">
+              <div className="text-xs uppercase text-tg-hint font-semibold tracking-wide">
+                Доставка
+              </div>
+              {order.deliveryAddress && (
+                <div className="flex items-start gap-2">
+                  <MapPin className="w-4 h-4 text-tg-hint flex-shrink-0 mt-0.5" />
+                  <span>{order.deliveryAddress}</span>
+                </div>
+              )}
+              {order.deliveryPhone && (
+                <div className="flex items-center gap-2">
+                  <Phone className="w-4 h-4 text-tg-hint flex-shrink-0" />
+                  <span>{order.deliveryPhone}</span>
+                </div>
+              )}
+              {order.deliveryDate && (
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-tg-hint flex-shrink-0" />
+                  <span>
+                    {new Date(order.deliveryDate).toLocaleDateString('ru-RU')}
+                    {order.deliveryTime && `, ${order.deliveryTime}`}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {order.comment && (
+            <div className="bg-tg-bg rounded-2xl p-4 space-y-2">
+              <span className="text-xs uppercase text-tg-hint font-semibold tracking-wide">
+                Комментарий
+              </span>
+              <p className="text-sm text-tg-text leading-relaxed">
+                {order.comment}
+              </p>
+            </div>
+          )}
+
+          {(order.bonusUsed > 0 || order.bonusEarned > 0) && (
+            <div className="flex flex-wrap gap-3 text-sm bg-tg-bg rounded-2xl p-4">
+              {order.bonusUsed > 0 && (
+                <span className="text-orange-500 font-medium">
+                  Использовано: {order.bonusUsed} б.
+                </span>
+              )}
+              {order.bonusEarned > 0 && (
+                <span className="text-green-500 font-medium">
+                  Начислено: {order.bonusEarned} б.
+                </span>
+              )}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-3 text-sm text-tg-hint">
+              <MessageCircle className="w-4 h-4" />
+              <span>Последнее изменение: {lastUpdatedAt}</span>
+            </div>
+
+            {transitions.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {transitions.map((newStatus) => {
+                  const newStatusInfo = statusConfig[newStatus];
+                  const NewStatusIcon = newStatusInfo.icon;
+                  const isStatusUpdating =
+                    isUpdating &&
+                    pendingStatusChange?.orderId === order.id &&
+                    pendingStatusChange.status === newStatus;
+
+                  return (
+                    <button
+                      key={newStatus}
+                      onClick={() => onStatusChange(newStatus)}
+                      disabled={isUpdating}
+                      className={`
+                        flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-all
+                        ${newStatus === OrderStatus.CANCELLED
+                          ? 'bg-red-500 bg-opacity-10 text-red-500 hover:bg-opacity-20'
+                          : 'bg-tg-button text-tg-button-text hover:opacity-90'
+                        }
+                        disabled:opacity-50 disabled:cursor-not-allowed
+                      `}
+                    >
+                      {isStatusUpdating ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <NewStatusIcon className="w-4 h-4" />
+                      )}
+                      <span className="text-sm">{newStatusInfo.text}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    </>
   );
 }
