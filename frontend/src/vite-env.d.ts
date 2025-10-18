@@ -19,6 +19,7 @@ interface Window {
       expand: () => void;
       ready: () => void;
       close: () => void;
+      requestFullscreen?: () => void;
       disableVerticalSwipes?: () => void;
       HapticFeedback: {
         impactOccurred: (style: string) => void;
@@ -34,4 +35,3 @@ interface Window {
     };
   };
 }
-

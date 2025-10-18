@@ -21,12 +21,18 @@ model User {
   languageCode      String?
   isPremium         Boolean  @default(false)
   isBot             Boolean  @default(false)
-  
+
   // Бонусная программа
   bonusPoints       Int      @default(0)
   totalSpent        Float    @default(0)
   firstOrderDiscount Boolean @default(true) // 10% на первый заказ
-  
+
+  // Реферальная программа
+  referralCode      String?  @unique // Уникальный реферальный код пользователя
+  referredById      String?  // ID пользователя, который пригласил
+  referredBy        User?    @relation("Referrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals         User[]   @relation("Referrals")
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   lastLoginAt       DateTime @default(now())
@@ -34,9 +40,15 @@ model User {
   cartItems         CartItem[]
   orders            Order[]
   bonusTransactions BonusTransaction[]
+  productViews      ProductView[]
+  savedAddresses    SavedAddress[]
+  userAchievements  UserAchievement[]
+  stockNotifications StockNotification[]
 
   @@map("users")
   @@index([telegramId])
+  @@index([referralCode])
+  @@index([referredById])
 }
 
 model BonusTransaction {
@@ -124,6 +136,8 @@ model Product {
   orderItems      OrderItem[]
   variants        ProductVariant[]
   characteristics ProductCharacteristic[]
+  productViews    ProductView[]
+  stockNotifications StockNotification[]
 
   @@map("products")
   @@index([categoryId])
@@ -255,5 +269,150 @@ enum OrderStatus {
   DELIVERED          // Доставлен
   CANCELLED          // Отменен
   PAYMENT_EXPIRED    // Время оплаты истекло
+}
+
+// История изменений заказов
+model OrderHistory {
+  id          String   @id @default(cuid())
+  orderId     String
+  changedBy   String   // ID администратора или 'SYSTEM'
+  changedByName String? // Имя администратора
+  field       String   // 'status', 'deliveryCost', etc.
+  oldValue    String?
+  newValue    String?
+  createdAt   DateTime @default(now())
+
+  @@map("order_history")
+  @@index([orderId])
+  @@index([createdAt])
+}
+
+// Промокоды
+model PromoCode {
+  id              String          @id @default(cuid())
+  code            String          @unique
+  type            PromoCodeType
+  value           Float           // Процент скидки или фиксированная сумма
+  minOrderAmount  Float           @default(0)
+  validFrom       DateTime        @default(now())
+  validUntil      DateTime?
+  usageLimit      Int?            // Лимит использований (null = безлимит)
+  usedCount       Int             @default(0)
+  isActive        Boolean         @default(true)
+  description     String?
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@map("promo_codes")
+  @@index([code])
+  @@index([validUntil])
+}
+
+enum PromoCodeType {
+  PERCENT         // Процентная скидка
+  FIXED           // Фиксированная скидка
+  FREE_DELIVERY   // Бесплатная доставка
+}
+
+// Достижения
+model Achievement {
+  id              String   @id @default(cuid())
+  title           String
+  description     String
+  icon            String   // emoji или URL иконки
+  requirement     String   // Текстовое описание требования
+  requirementType AchievementType
+  requirementValue Float   // Значение для проверки (например, 10 заказов)
+  reward          Int      // Бонусы за достижение
+  sortOrder       Int      @default(0)
+  isActive        Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  userAchievements UserAchievement[]
+
+  @@map("achievements")
+  @@index([requirementType])
+}
+
+enum AchievementType {
+  FIRST_ORDER       // Первый заказ
+  ORDERS_COUNT      // Количество заказов
+  TOTAL_SPENT       // Общая сумма покупок
+  ORDERS_IN_ROW     // Заказов подряд в месяц
+  REFERRALS_COUNT   // Количество приглашенных
+}
+
+// Связь пользователя и достижений
+model UserAchievement {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  progress      Float       @default(0) // Текущий прогресс
+  isCompleted   Boolean     @default(false)
+  completedAt   DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("user_achievements")
+  @@unique([userId, achievementId])
+  @@index([userId])
+  @@index([achievementId])
+  @@index([isCompleted])
+}
+
+// История просмотров товаров
+model ProductView {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  viewedAt  DateTime @default(now())
+
+  @@map("product_views")
+  @@index([userId, viewedAt])
+  @@index([productId])
+}
+
+// Сохраненные адреса доставки
+model SavedAddress {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label       String   // "Дом", "Работа", "Другой"
+  address     String
+  phone       String?
+  comment     String?
+  isDefault   Boolean  @default(false)
+  sortOrder   Int      @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("saved_addresses")
+  @@index([userId])
+}
+
+// Уведомления о наличии товара
+model StockNotification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  notified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  notifiedAt DateTime?
+
+  @@map("stock_notifications")
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
+  @@index([notified])
 }
 

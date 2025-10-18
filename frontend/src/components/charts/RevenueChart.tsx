@@ -1,0 +1,142 @@
+import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { motion } from 'framer-motion';
+
+interface DataPoint {
+  periodStart: string;
+  periodEnd: string;
+  totalAmount: number;
+  ordersCount: number;
+}
+
+interface RevenueChartProps {
+  data: DataPoint[];
+  interval: 'daily' | 'weekly' | 'monthly';
+  chartType?: 'line' | 'area';
+  isLoading?: boolean;
+}
+
+const formatCurrency = (value: number): string =>
+  `${value.toLocaleString('ru-RU', {
+    minimumFractionDigits: value < 1000 ? 2 : 0,
+    maximumFractionDigits: value < 1000 ? 2 : 0,
+  })}₽`;
+
+const formatPeriodLabel = (interval: 'daily' | 'weekly' | 'monthly', start: string, end: string): string => {
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+
+  if (interval === 'monthly') {
+    return startDate.toLocaleDateString('ru-RU', { month: 'short', year: 'numeric' });
+  }
+
+  if (interval === 'weekly') {
+    const weekEnd = new Date(endDate.getTime() - 86400000);
+    return `${startDate.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}`;
+  }
+
+  return startDate.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+};
+
+export default function RevenueChart({ data, interval, chartType = 'area', isLoading }: RevenueChartProps) {
+  if (isLoading) {
+    return (
+      <div className="h-[300px] flex items-center justify-center text-tg-hint text-sm">
+        Загружаем данные...
+      </div>
+    );
+  }
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="h-[300px] flex items-center justify-center text-tg-hint text-sm">
+        Нет данных для отображения
+      </div>
+    );
+  }
+
+  const chartData = data.map(point => ({
+    name: formatPeriodLabel(interval, point.periodStart, point.periodEnd),
+    amount: point.totalAmount,
+    orders: point.ordersCount,
+  }));
+
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-tg-secondary-bg border-2 border-tg-button/30 rounded-xl p-3 shadow-lg"
+        >
+          <p className="text-sm font-semibold text-tg-text mb-1">{payload[0].payload.name}</p>
+          <p className="text-lg font-bold text-tg-button">{formatCurrency(payload[0].value)}</p>
+          <p className="text-xs text-tg-hint mt-1">Заказов: {payload[0].payload.orders}</p>
+        </motion.div>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      {chartType === 'area' ? (
+        <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="var(--tg-theme-button-color)" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="var(--tg-theme-button-color)" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--tg-theme-hint-color)" opacity={0.1} />
+          <XAxis
+            dataKey="name"
+            stroke="var(--tg-theme-hint-color)"
+            style={{ fontSize: '12px' }}
+            tickLine={false}
+          />
+          <YAxis
+            stroke="var(--tg-theme-hint-color)"
+            style={{ fontSize: '12px' }}
+            tickLine={false}
+            tickFormatter={(value) => `${Math.round(value / 1000)}k`}
+          />
+          <Tooltip content={<CustomTooltip />} />
+          <Area
+            type="monotone"
+            dataKey="amount"
+            stroke="var(--tg-theme-button-color)"
+            strokeWidth={3}
+            fill="url(#revenueGradient)"
+            animationDuration={800}
+          />
+        </AreaChart>
+      ) : (
+        <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--tg-theme-hint-color)" opacity={0.1} />
+          <XAxis
+            dataKey="name"
+            stroke="var(--tg-theme-hint-color)"
+            style={{ fontSize: '12px' }}
+            tickLine={false}
+          />
+          <YAxis
+            stroke="var(--tg-theme-hint-color)"
+            style={{ fontSize: '12px' }}
+            tickLine={false}
+            tickFormatter={(value) => `${Math.round(value / 1000)}k`}
+          />
+          <Tooltip content={<CustomTooltip />} />
+          <Line
+            type="monotone"
+            dataKey="amount"
+            stroke="var(--tg-theme-button-color)"
+            strokeWidth={3}
+            dot={{ fill: 'var(--tg-theme-button-color)', r: 4 }}
+            activeDot={{ r: 6 }}
+            animationDuration={800}
+          />
+        </LineChart>
+      )}
+    </ResponsiveContainer>
+  );
+}
