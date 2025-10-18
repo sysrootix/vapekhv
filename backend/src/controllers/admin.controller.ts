@@ -1,8 +1,10 @@
+import { Prisma } from '@prisma/client';
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { prisma } from '../config/database';
 import { logger } from '../config/logger';
 import { AppError } from '../middleware/errorHandler';
+import { sendPaymentNotification, sendOrderStatusNotification } from '../services/payment-notification.service';
 
 // Получить список админов из переменных окружения
 const getAdminChatIds = (): number[] => {
@@ -121,23 +123,73 @@ class AdminController {
         throw new AppError('Заказ не найден', 404);
       }
 
-      // Если передается стоимость доставки, сохраняем её
-      if (adminDeliveryCost !== undefined && adminDeliveryCost !== null) {
-        await prisma.order.update({
+      const updated = await prisma.$transaction(async (tx) => {
+        const updateData: Prisma.OrderUpdateInput = { status };
+
+        if (adminDeliveryCost !== undefined && adminDeliveryCost !== null) {
+          updateData.adminDeliveryCost = parseFloat(adminDeliveryCost.toString());
+        }
+
+        const updatedOrder = await tx.order.update({
           where: { id: orderId },
-          data: { adminDeliveryCost: parseFloat(adminDeliveryCost.toString()) },
+          data: updateData,
+          include: {
+            items: {
+              include: {
+                product: true,
+              },
+            },
+            user: true,
+          },
         });
+
+        // Начислить бонусы ТОЛЬКО при статусе DELIVERED и если они еще не начислены
+        if (status === 'DELIVERED' && order.bonusEarned > 0 && order.status !== 'DELIVERED') {
+          // Проверяем, не были ли уже начислены бонусы
+          const existingTransaction = await tx.bonusTransaction.findFirst({
+            where: {
+              orderId: order.id,
+              type: 'EARNED',
+            },
+          });
+
+          if (!existingTransaction) {
+            await tx.user.update({
+              where: { id: order.userId },
+              data: {
+                bonusPoints: {
+                  increment: order.bonusEarned,
+                },
+                totalSpent: {
+                  increment: updatedOrder.totalAmount - updatedOrder.deliveryCost,
+                },
+              },
+            });
+
+            await tx.bonusTransaction.create({
+              data: {
+                userId: order.userId,
+                amount: order.bonusEarned,
+                type: 'EARNED',
+                description: `Начислено за доставленный заказ ${updatedOrder.orderNumber}`,
+                orderId: updatedOrder.id,
+              },
+            });
+          }
+        }
+        return updatedOrder;
+      });
+
+      // Отправить уведомление пользователю об изменении статуса
+      try {
+        await sendOrderStatusNotification(updated, status);
+      } catch (error) {
+        logger.error('Ошибка отправки уведомления пользователю:', error);
       }
 
-      // Используем существующий метод из order.controller для обновления статуса
-      // Это гарантирует единообразную логику начисления бонусов и уведомлений
-      const OrderController = (await import('./order.controller')).default;
+      logger.info(`Статус заказа ${order.orderNumber} изменен на ${status}`);
 
-      // Вызываем метод напрямую
-      req.params.id = orderId;
-      req.body.status = status;
-
-      return OrderController.updateOrderStatus(req, res);
+      res.json(updated);
     } catch (error) {
       if (error instanceof AppError) throw error;
       logger.error('Ошибка при обновлении статуса заказа:', error);

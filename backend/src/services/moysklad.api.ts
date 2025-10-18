@@ -366,6 +366,20 @@ export class MoySkladAPI {
       throw error;
     }
   }
+
+  /**
+   * Создать Заказ покупателя в МойСклад
+   */
+  async createCustomerOrder(order: MoySkladCustomerOrder): Promise<MoySkladCustomerOrder> {
+    try {
+      const response = await this.client.post<MoySkladCustomerOrder>('/entity/customerorder', order);
+      logger.info(`Заказ покупателя ${order.name} успешно создан в МойСклад`);
+      return response.data;
+    } catch (error) {
+      logger.error('Ошибка создания Заказа покупателя в МойСклад:', error);
+      throw error;
+    }
+  }
 }
 
 // Экспорт singleton instance

@@ -5,6 +5,8 @@ import { prisma } from '../config/database';
 import { logger } from '../config/logger';
 import { AppError } from '../middleware/errorHandler';
 import { sendPaymentNotification, sendOrderStatusNotification } from '../services/payment-notification.service';
+import { moySkladAPI } from '../services/moysklad.api';
+import { MoySkladCustomerOrder, MoySkladCustomerOrderPosition } from '../types/moysklad.types';
 
 
 // Константы для доставки
@@ -583,6 +585,51 @@ class OrderController {
 
         return updatedOrder;
       });
+
+      // Создать заказ в МойСклад
+      try {
+        const moyskladPositions: MoySkladCustomerOrderPosition[] = confirmed.items.map(item => ({
+          quantity: item.quantity,
+          price: item.price * 100, // Цена в копейках
+          assortment: {
+            meta: {
+              href: `https://api.moysklad.ru/api/remap/1.2/entity/product/${item.productId}`, // TODO: Handle variants
+              type: 'product',
+              mediaType: 'application/json',
+            },
+          },
+        }));
+
+        const moyskladOrder: MoySkladCustomerOrder = {
+          name: confirmed.orderNumber,
+          moment: new Date().toISOString(),
+          organization: {
+            meta: {
+              href: 'https://api.moysklad.ru/api/remap/1.2/entity/organization/YOUR_ORGANIZATION_ID', // TODO: Replace with actual organization ID
+              type: 'organization',
+              mediaType: 'application/json',
+            },
+          },
+          agent: {
+            meta: {
+              href: 'https://api.moysklad.ru/api/remap/1.2/entity/counterparty/YOUR_COUNTERPARTY_ID', // TODO: Replace with actual counterparty ID or create new
+              type: 'counterparty',
+              mediaType: 'application/json',
+            },
+            name: confirmed.user.firstName + ' ' + confirmed.user.lastName,
+            phone: confirmed.deliveryPhone,
+          },
+          sum: confirmed.totalAmount * 100, // Сумма в копейках
+          description: `Заказ из Telegram WebApp. Адрес: ${confirmed.deliveryAddress}. Время доставки: ${confirmed.deliveryDate} ${confirmed.deliveryTime}. Комментарий: ${confirmed.comment || ''}`,
+          positions: moyskladPositions,
+          deliveryPlannedMoment: confirmed.deliveryDate ? new Date(confirmed.deliveryDate).toISOString() : undefined,
+        };
+
+        await moySkladAPI.createCustomerOrder(moyskladOrder);
+      } catch (moyskladError) {
+        logger.error('Ошибка при создании заказа в МойСклад:', moyskladError);
+        // Не выбрасываем ошибку, чтобы основной процесс подтверждения заказа не прерывался
+      }
 
       logger.info(`Заказ ${order.orderNumber} подтвержден администратором`);
 
