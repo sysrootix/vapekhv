@@ -939,7 +939,13 @@ class AdminController {
         throw new AppError('Текст сообщения обязателен', 400);
       }
 
-      if (!target || (!target.userIds && !target.segment && target.segment !== 'all')) {
+      if (
+        !target ||
+        (!target.userIds?.length &&
+          !target.segment &&
+          !target.audienceId &&
+          !target.filters)
+      ) {
         throw new AppError('Необходимо указать целевую аудиторию', 400);
       }
 

@@ -27,6 +27,7 @@ import { MetricCard } from '../components/crm/MetricCard';
 import { ImprovedPagination } from '../components/crm/ImprovedPagination';
 import { UserDetailsModal } from '../components/crm/UserDetailsModal';
 import { BroadcastForm } from '../components/crm/BroadcastForm';
+import { AudienceManager } from '../components/crm/audiences/AudienceManager';
 import {
   adminApi,
   AdminAccess,
@@ -106,6 +107,7 @@ export default function CrmPage() {
   const [crmPage, setCrmPage] = useState(1);
   const crmPageSize = 20;
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedAudienceId, setSelectedAudienceId] = useState<string | null>(null);
 
   const [newUsersInterval, setNewUsersInterval] = useState<IntervalOption>('daily');
   const [newUsersPeriods, setNewUsersPeriods] = useState<number>(14);
@@ -1326,14 +1328,23 @@ export default function CrmPage() {
               exit={{ opacity: 0, y: -20 }}
               className="space-y-6"
             >
-              <div className="bg-tg-secondary-bg rounded-2xl p-4 sm:p-6">
-                <div className="mb-4">
-                  <h2 className="text-lg sm:text-xl font-bold text-tg-text mb-2">Создать рассылку</h2>
-                  <p className="text-sm text-tg-hint">
-                    Отправьте сообщение выбранной аудитории с поддержкой медиафайлов и кнопок
-                  </p>
+              <div className="grid lg:grid-cols-2 gap-6">
+                <AudienceManager
+                  selectedAudienceId={selectedAudienceId}
+                  onSelectAudience={setSelectedAudienceId}
+                />
+                <div className="bg-tg-secondary-bg rounded-2xl p-4 sm:p-6">
+                  <div className="mb-4">
+                    <h2 className="text-lg sm:text-xl font-bold text-tg-text mb-2">Создать рассылку</h2>
+                    <p className="text-sm text-tg-hint">
+                      Отправьте сообщение выбранной аудитории с поддержкой медиафайлов и кнопок
+                    </p>
+                  </div>
+                  <BroadcastForm
+                    selectedAudienceId={selectedAudienceId}
+                    onAudienceSelected={setSelectedAudienceId}
+                  />
                 </div>
-                <BroadcastForm />
               </div>
             </motion.div>
           )}

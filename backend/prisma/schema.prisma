@@ -47,6 +47,7 @@ model User {
   userAchievements  UserAchievement[]
   stockNotifications StockNotification[]
   reviews           Review[]
+  audiencesCreated  Audience[] @relation("AudienceCreatedBy")
 
   @@map("users")
   @@index([telegramId])
@@ -500,5 +501,24 @@ model Review {
   @@index([productId])
   @@index([orderId])
   @@index([rating])
+  @@index([createdAt])
+}
+
+model Audience {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  filters         Json
+  userCount       Int      @default(0)
+  lastEvaluatedAt DateTime?
+
+  createdById     String?
+  createdBy       User?    @relation("AudienceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("crm_audiences")
+  @@index([createdById])
   @@index([createdAt])
 }

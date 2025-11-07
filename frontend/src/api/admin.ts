@@ -297,6 +297,77 @@ export interface RFMAnalysis {
   }>;
 }
 
+export interface AudienceFilters {
+  telegramIds?: string[];
+  includeUserIds?: string[];
+  excludeUserIds?: string[];
+  hasTelegramUsername?: boolean;
+  usernameContains?: string;
+  hasPhone?: boolean;
+  isPremium?: boolean;
+  hasOrders?: boolean;
+  bonusPointsMin?: number;
+  bonusPointsMax?: number;
+  totalSpentMin?: number;
+  totalSpentMax?: number;
+  ordersCountMin?: number;
+  ordersCountMax?: number;
+  daysSinceLastOrderMin?: number;
+  daysSinceLastOrderMax?: number;
+  daysSinceLastLoginMin?: number;
+  daysSinceLastLoginMax?: number;
+  daysSinceRegistrationMin?: number;
+  daysSinceRegistrationMax?: number;
+}
+
+export interface AudienceListItem {
+  id: string;
+  name: string;
+  description?: string | null;
+  userCount: number;
+  lastEvaluatedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AudienceDetails extends AudienceListItem {
+  filters: AudienceFilters;
+}
+
+export interface AudiencePreviewUser {
+  id: string;
+  telegramId: string;
+  firstName: string | null;
+  lastName: string | null;
+  username: string | null;
+  phone: string | null;
+  bonusPoints: number;
+  totalSpent: number;
+  ordersCount: number;
+  lastOrderAt: string | null;
+  daysSinceLastOrder: number | null;
+  daysSinceLastLogin: number;
+  daysSinceRegistration: number;
+}
+
+export interface AudiencePreviewResponse {
+  filters: AudienceFilters;
+  totalUsers: number;
+  users: AudiencePreviewUser[];
+}
+
+export interface AudienceMutationResponse {
+  audience: AudienceDetails;
+  preview: AudiencePreviewUser[];
+  totalUsers: number;
+}
+
+export interface AudiencePayload {
+  name: string;
+  description?: string;
+  filters: AudienceFilters;
+}
+
 export interface BroadcastButton {
   text: string;
   type: 'url' | 'web_app' | 'callback';
@@ -319,6 +390,8 @@ export interface BroadcastMessage {
 
 export interface BroadcastTarget {
   userIds?: string[];
+  audienceId?: string;
+  filters?: AudienceFilters;
   segment?: 'all' | 'vip' | 'new' | 'inactive' | 'active';
   minSpent?: number;
   maxSpent?: number;
@@ -473,6 +546,45 @@ export const adminApi = {
 
   getRFMAnalysis: async (): Promise<RFMAnalysis> => {
     const response = await apiClient.get<RFMAnalysis>('/admin/crm/rfm-analysis');
+    return response.data;
+  },
+
+  getAudiences: async (): Promise<AudienceListItem[]> => {
+    const response = await apiClient.get<{ items: AudienceListItem[] }>('/admin/crm/audiences');
+    return response.data.items;
+  },
+
+  getAudience: async (audienceId: string): Promise<{ audience: AudienceDetails }> => {
+    const response = await apiClient.get<{ audience: AudienceDetails }>(`/admin/crm/audiences/${audienceId}`);
+    return response.data;
+  },
+
+  createAudience: async (payload: AudiencePayload): Promise<AudienceMutationResponse> => {
+    const response = await apiClient.post<AudienceMutationResponse>('/admin/crm/audiences', payload);
+    return response.data;
+  },
+
+  updateAudience: async (audienceId: string, payload: AudiencePayload): Promise<AudienceMutationResponse> => {
+    const response = await apiClient.put<AudienceMutationResponse>(`/admin/crm/audiences/${audienceId}`, payload);
+    return response.data;
+  },
+
+  deleteAudience: async (audienceId: string): Promise<void> => {
+    await apiClient.delete(`/admin/crm/audiences/${audienceId}`);
+  },
+
+  previewAudienceFilters: async (filters: AudienceFilters): Promise<AudiencePreviewResponse> => {
+    const response = await apiClient.post<AudiencePreviewResponse>('/admin/crm/audiences/preview', { filters });
+    return response.data;
+  },
+
+  previewSavedAudience: async (audienceId: string): Promise<{
+    audience: AudienceDetails;
+    preview: AudiencePreviewResponse;
+  }> => {
+    const response = await apiClient.get<{ audience: AudienceDetails; preview: AudiencePreviewResponse }>(
+      `/admin/crm/audiences/${audienceId}/preview`
+    );
     return response.data;
   },
 

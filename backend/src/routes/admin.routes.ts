@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import adminController, { requireAdmin, requireCrmAccess } from '../controllers/admin.controller';
+import audienceController from '../controllers/audience.controller';
 import { authMiddleware } from '../middleware/auth';
 
 const router = Router();
@@ -37,6 +38,15 @@ router.get('/crm/rfm-analysis', requireCrmAccess, adminController.getRFMAnalysis
 router.get('/crm/users', requireCrmAccess, adminController.getCrmUsers.bind(adminController));
 router.get('/crm/users/:id', requireCrmAccess, adminController.getCrmUserDetails.bind(adminController));
 router.patch('/crm/users/:id', requireCrmAccess, adminController.updateCrmUser.bind(adminController));
+
+// Audience management
+router.get('/crm/audiences', requireCrmAccess, audienceController.list.bind(audienceController));
+router.post('/crm/audiences/preview', requireCrmAccess, audienceController.previewFilters.bind(audienceController));
+router.get('/crm/audiences/:id/preview', requireCrmAccess, audienceController.previewAudience.bind(audienceController));
+router.post('/crm/audiences', requireCrmAccess, audienceController.create.bind(audienceController));
+router.get('/crm/audiences/:id', requireCrmAccess, audienceController.get.bind(audienceController));
+router.put('/crm/audiences/:id', requireCrmAccess, audienceController.update.bind(audienceController));
+router.delete('/crm/audiences/:id', requireCrmAccess, audienceController.remove.bind(audienceController));
 
 // Broadcast endpoints
 router.post('/crm/broadcast/stats', requireCrmAccess, adminController.getBroadcastStats.bind(adminController));

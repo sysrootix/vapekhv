@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Send,
@@ -15,26 +15,48 @@ import {
   Smartphone,
   MessageSquare,
 } from 'lucide-react';
-import { adminApi, BroadcastMessage, BroadcastTarget, BroadcastButton } from '../../api/admin';
+import toast from 'react-hot-toast';
+import {
+  adminApi,
+  BroadcastMessage,
+  BroadcastTarget,
+  BroadcastButton,
+  AudienceListItem,
+} from '../../api/admin';
 
 interface BroadcastFormProps {
   onSuccess?: (result: { total: number; sent: number; failed: number }) => void;
+  selectedAudienceId?: string | null;
+  onAudienceSelected?: (audienceId: string | null) => void;
 }
 
-export function BroadcastForm({ onSuccess }: BroadcastFormProps) {
+export function BroadcastForm({ onSuccess, selectedAudienceId, onAudienceSelected }: BroadcastFormProps) {
   const [message, setMessage] = useState<BroadcastMessage>({
     text: '',
     parseMode: 'HTML',
   });
-  const [target, setTarget] = useState<BroadcastTarget>({
+  const [segmentTarget, setSegmentTarget] = useState<BroadcastTarget>({
     segment: 'all',
   });
+  const [targetMode, setTargetMode] = useState<'segment' | 'audience'>('segment');
   const [mediaType, setMediaType] = useState<'photo' | 'video' | 'document' | null>(null);
   const [mediaUrl, setMediaUrl] = useState('');
   const [mediaCaption, setMediaCaption] = useState('');
   const [buttonRows, setButtonRows] = useState<BroadcastButton[][]>([]);
   const [currentButtonRow, setCurrentButtonRow] = useState<BroadcastButton[]>([]);
   const [showPreview, setShowPreview] = useState(false);
+
+  const { data: audiences } = useQuery({
+    queryKey: ['crm-audiences'],
+    queryFn: adminApi.getAudiences,
+  });
+  const selectedAudience = audiences?.find((item) => item.id === selectedAudienceId);
+
+  useEffect(() => {
+    if (selectedAudienceId && targetMode === 'segment') {
+      setTargetMode('audience');
+    }
+  }, [selectedAudienceId, targetMode]);
 
   const sendBroadcastMutation = useMutation({
     mutationFn: ({ message, target }: { message: BroadcastMessage; target: BroadcastTarget }) =>
@@ -43,7 +65,8 @@ export function BroadcastForm({ onSuccess }: BroadcastFormProps) {
       onSuccess?.(result);
       // Reset form
       setMessage({ text: '', parseMode: 'HTML' });
-      setTarget({ segment: 'all' });
+      setSegmentTarget({ segment: 'all' });
+      setTargetMode('segment');
       setMediaType(null);
       setMediaUrl('');
       setMediaCaption('');
@@ -99,10 +122,27 @@ export function BroadcastForm({ onSuccess }: BroadcastFormProps) {
       buttons: allButtonRows.length > 0 ? allButtonRows : undefined,
     };
 
-    sendBroadcastMutation.mutate({ message: finalMessage, target });
+    if (targetMode === 'audience' && !selectedAudienceId) {
+      toast.error('Выберите сохраненную аудиторию');
+      return;
+    }
+
+    const targetPayload: BroadcastTarget =
+      targetMode === 'audience'
+        ? { audienceId: selectedAudienceId || undefined }
+        : segmentTarget;
+
+    sendBroadcastMutation.mutate({ message: finalMessage, target: targetPayload });
   };
 
-  const canSubmit = message.text.trim().length > 0 && target.segment;
+  const hasAudienceSelected = Boolean(
+    selectedAudienceId && audiences?.some((audience) => audience.id === selectedAudienceId)
+  );
+  const canSubmit =
+    message.text.trim().length > 0 &&
+    (targetMode === 'segment'
+      ? Boolean(segmentTarget.segment)
+      : hasAudienceSelected);
 
   return (
     <div className="space-y-6">
@@ -318,17 +358,79 @@ export function BroadcastForm({ onSuccess }: BroadcastFormProps) {
       {/* Target Audience */}
       <div className="bg-tg-secondary-bg rounded-2xl p-4 sm:p-6 space-y-4">
         <label className="block text-sm font-semibold text-tg-text">Целевая аудитория *</label>
-        <select
-          value={target.segment || 'all'}
-          onChange={(e) => setTarget({ ...target, segment: e.target.value as any })}
-          className="w-full px-4 py-3 bg-tg-bg text-tg-text rounded-xl border-2 border-transparent focus:border-tg-button focus:outline-none transition-all"
-        >
-          <option value="all">Все пользователи</option>
-          <option value="vip">VIP клиенты</option>
-          <option value="new">Новые пользователи</option>
-          <option value="active">Активные (30 дней)</option>
-          <option value="inactive">Неактивные (60+ дней)</option>
-        </select>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setTargetMode('segment')}
+            className={`px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${
+              targetMode === 'segment'
+                ? 'bg-tg-button text-tg-button-text'
+                : 'bg-tg-bg text-tg-text hover:bg-tg-bg/80'
+            }`}
+          >
+            Сегменты
+          </button>
+          <button
+            type="button"
+            onClick={() => setTargetMode('audience')}
+            className={`px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${
+              targetMode === 'audience'
+                ? 'bg-tg-button text-tg-button-text'
+                : 'bg-tg-bg text-tg-text hover:bg-tg-bg/80'
+            }`}
+          >
+            Сохраненные аудитории
+          </button>
+        </div>
+
+        {targetMode === 'segment' ? (
+          <select
+            value={segmentTarget.segment || 'all'}
+            onChange={(e) => setSegmentTarget({ ...segmentTarget, segment: e.target.value as any })}
+            className="w-full px-4 py-3 bg-tg-bg text-tg-text rounded-xl border-2 border-transparent focus:border-tg-button focus:outline-none transition-all"
+          >
+            <option value="all">Все пользователи</option>
+            <option value="vip">VIP клиенты</option>
+            <option value="new">Новые пользователи</option>
+            <option value="active">Активные (30 дней)</option>
+            <option value="inactive">Неактивные (60+ дней)</option>
+          </select>
+        ) : (
+          <div className="space-y-3">
+            <select
+              value={selectedAudienceId ?? ''}
+              onChange={(e) => onAudienceSelected?.(e.target.value || null)}
+              disabled={!audiences?.length}
+              className="w-full px-4 py-3 bg-tg-bg text-tg-text rounded-xl border-2 border-transparent focus:border-tg-button focus:outline-none transition-all disabled:opacity-50"
+            >
+              <option value="">{audiences?.length ? 'Выберите аудиторию' : 'Нет сохраненных аудиторий'}</option>
+              {audiences?.map((audience) => (
+                <option key={audience.id} value={audience.id}>
+                  {audience.name} · {audience.userCount.toLocaleString('ru-RU')} чел
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-tg-hint">
+              Управляйте списком аудиторий в блоке «Аудитории» выше.
+            </p>
+            {selectedAudience && (
+              <div className="bg-tg-bg rounded-xl p-3 flex items-center justify-between gap-3 text-sm text-tg-text">
+                <div>
+                  <div className="font-semibold">{selectedAudience.name}</div>
+                  {selectedAudience.description && (
+                    <div className="text-xs text-tg-hint">{selectedAudience.description}</div>
+                  )}
+                </div>
+                <div className="text-right text-xs text-tg-hint">
+                  Пользователей
+                  <div className="text-lg font-semibold text-tg-text">
+                    {selectedAudience.userCount.toLocaleString('ru-RU')}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Submit */}
@@ -536,4 +638,3 @@ function ButtonAdder({ onAdd, disabled }: ButtonAdderProps) {
     </div>
   );
 }
-

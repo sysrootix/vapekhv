@@ -2,6 +2,8 @@ import TelegramBot from 'node-telegram-bot-api';
 import { logger } from '../config/logger';
 import { prisma } from '../config/database';
 import bot from './bot.service';
+import { audienceService } from './audience.service';
+import { AudienceFilters } from '../types/audience';
 
 export interface BroadcastButton {
   text: string;
@@ -25,6 +27,8 @@ export interface BroadcastMessage {
 
 export interface BroadcastTarget {
   userIds?: string[]; // Specific user IDs
+  audienceId?: string;
+  filters?: AudienceFilters;
   segment?: 'all' | 'vip' | 'new' | 'inactive' | 'active';
   minSpent?: number;
   maxSpent?: number;
@@ -44,6 +48,26 @@ export interface BroadcastResult {
  * Get users based on broadcast target criteria
  */
 async function getBroadcastTargetUsers(target: BroadcastTarget): Promise<Array<{ id: string; telegramId: bigint }>> {
+  let users: Array<{ id: string; telegramId: bigint }>;
+
+  if (target.audienceId || target.filters) {
+    users = await audienceService.getUsersForBroadcast({
+      audienceId: target.audienceId,
+      filters: target.filters,
+    });
+  } else {
+    users = await getUsersFromBuiltInTarget(target);
+  }
+
+  if (target.userIds?.length) {
+    const allowed = new Set(target.userIds);
+    users = users.filter((user) => allowed.has(user.id));
+  }
+
+  return users;
+}
+
+async function getUsersFromBuiltInTarget(target: BroadcastTarget): Promise<Array<{ id: string; telegramId: bigint }>> {
   const where: any = {};
 
   // Specific user IDs
@@ -298,4 +322,3 @@ export async function getBroadcastStats(target: BroadcastTarget): Promise<{
     totalUsers: users.length,
   };
 }
-
