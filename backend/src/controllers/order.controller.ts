@@ -209,7 +209,7 @@ class OrderController {
     }
   }
 
-  async applyPromo(req: AuthRequest, res: Response): Promise<void> {
+  async applyPromo(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = req.user?.id;
       const { promoCode } = req.body;
@@ -271,12 +271,12 @@ class OrderController {
         return;
       }
       logger.error('Ошибка при применении промокода:', error);
-      throw new AppError('Не удалось применить промокод', 500);
+      return next(new AppError('Не удалось применить промокод', 500));
     }
   }
 
   // Получить все заказы пользователя
-  async getOrders(req: AuthRequest, res: Response) {
+  async getOrders(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.user?.id;
 
@@ -305,9 +305,11 @@ class OrderController {
 
       res.json(orders);
     } catch (error) {
-      if (error instanceof AppError) throw error;
+      if (error instanceof AppError) {
+        return next(error);
+      }
       logger.error('Ошибка при получении заказов:', error);
-      throw new AppError('Не удалось получить заказы', 500);
+      return next(new AppError('Не удалось получить заказы', 500));
     }
   }
 
@@ -350,7 +352,7 @@ class OrderController {
   }
 
   // Создать заказ
-  async createOrder(req: AuthRequest, res: Response) {
+  async createOrder(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.user?.id;
       const {
@@ -551,14 +553,16 @@ class OrderController {
 
       res.status(201).json(order);
     } catch (error) {
-      if (error instanceof AppError) throw error;
+      if (error instanceof AppError) {
+        return next(error);
+      }
       logger.error('Ошибка при создании заказа:', error);
-      throw new AppError('Не удалось создать заказ', 500);
+      return next(new AppError('Не удалось создать заказ', 500));
     }
   }
 
   // Отменить заказ
-  async cancelOrder(req: AuthRequest, res: Response) {
+  async cancelOrder(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.user?.id;
       const { id } = req.params;
@@ -691,14 +695,16 @@ class OrderController {
 
       res.json(cancelled);
     } catch (error) {
-      if (error instanceof AppError) throw error;
+      if (error instanceof AppError) {
+        return next(error);
+      }
       logger.error('Ошибка при отмене заказа:', error);
-      throw new AppError('Не удалось отменить заказ', 500);
+      return next(new AppError('Не удалось отменить заказ', 500));
     }
   }
 
   // Загрузить чек оплаты
-  async uploadReceipt(req: AuthRequest, res: Response) {
+  async uploadReceipt(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.user?.id;
       const { id: orderId } = req.params;
@@ -779,14 +785,16 @@ class OrderController {
 
       res.json(updatedOrder);
     } catch (error) {
-      if (error instanceof AppError) throw error;
+      if (error instanceof AppError) {
+        return next(error);
+      }
       logger.error('Ошибка при загрузке чека:', error);
-      throw new AppError('Не удалось загрузить чек', 500);
+      return next(new AppError('Не удалось загрузить чек', 500));
     }
   }
 
   // Подтвердить оплату (для админов)
-  async confirmPayment(req: AuthRequest, res: Response) {
+  async confirmPayment(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const { id: orderId } = req.params;
 
@@ -891,14 +899,16 @@ class OrderController {
 
       res.json(confirmed);
     } catch (error) {
-      if (error instanceof AppError) throw error;
+      if (error instanceof AppError) {
+        return next(error);
+      }
       logger.error('Ошибка при подтверждении оплаты:', error);
-      throw new AppError('Не удалось подтвердить оплату', 500);
+      return next(new AppError('Не удалось подтвердить оплату', 500));
     }
   }
 
   // Обновить статус заказа (для админов)
-  async updateOrderStatus(req: AuthRequest, res: Response) {
+  async updateOrderStatus(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const { id: orderId } = req.params;
       const { status } = req.body;
@@ -1003,14 +1013,16 @@ class OrderController {
 
       res.json(updated);
     } catch (error) {
-      if (error instanceof AppError) throw error;
+      if (error instanceof AppError) {
+        return next(error);
+      }
       logger.error('Ошибка при обновлении статуса заказа:', error);
-      throw new AppError('Не удалось обновить статус заказа', 500);
+      return next(new AppError('Не удалось обновить статус заказа', 500));
     }
   }
 
   // Подтвердить получение заказа клиентом
-  async confirmDelivery(req: AuthRequest, res: Response) {
+  async confirmDelivery(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.user?.id;
       const { id: orderId } = req.params;
@@ -1132,14 +1144,16 @@ class OrderController {
 
       res.json(updatedOrder);
     } catch (error) {
-      if (error instanceof AppError) throw error;
+      if (error instanceof AppError) {
+        return next(error);
+      }
       logger.error('Ошибка при подтверждении доставки:', error);
-      throw new AppError('Не удалось подтвердить доставку', 500);
+      return next(new AppError('Не удалось подтвердить доставку', 500));
     }
   }
 
   // Повторить заказ (добавить все товары из заказа в корзину)
-  async repeatOrder(req: AuthRequest, res: Response) {
+  async repeatOrder(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.user?.id;
       const { id: orderId } = req.params;
@@ -1271,9 +1285,11 @@ class OrderController {
         },
       });
     } catch (error) {
-      if (error instanceof AppError) throw error;
+      if (error instanceof AppError) {
+        return next(error);
+      }
       logger.error('Ошибка при повторе заказа:', error);
-      throw new AppError('Не удалось повторить заказ', 500);
+      return next(new AppError('Не удалось повторить заказ', 500));
     }
   }
 }
