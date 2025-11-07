@@ -274,6 +274,21 @@ export interface CrmUserDetails {
 }
 
 
+const KHABAROVSK_OFFSET_HOURS = 10;
+const KHABAROVSK_OFFSET_MS = KHABAROVSK_OFFSET_HOURS * 60 * 60 * 1000;
+
+const shiftDateByOffset = (value: Date, deltaMs: number): Date => {
+  return new Date(value.getTime() + deltaMs);
+};
+
+const toKhabarovskTime = (value: Date): Date => shiftDateByOffset(value, KHABAROVSK_OFFSET_MS);
+const toDatabaseTime = (value: Date): Date => shiftDateByOffset(value, -KHABAROVSK_OFFSET_MS);
+const khabarovskIntervalSql = `${KHABAROVSK_OFFSET_HOURS} hours`;
+
+const buildDateTruncWithOffset = (columnExpression: string, intervalUnit: string): string => {
+  return `date_trunc('${intervalUnit}', ${columnExpression} + interval '${khabarovskIntervalSql}') - interval '${khabarovskIntervalSql}'`;
+};
+
 const clampNumber = (value: number, min: number, max: number): number => {
   return Math.min(max, Math.max(min, value));
 };
@@ -347,6 +362,7 @@ export async function fetchCrmOverview(params: {
   rangeDays?: number;
 }): Promise<CrmOverview> {
   const generatedAt = new Date();
+  const generatedAtLocal = toKhabarovskTime(generatedAt);
   
   // Определяем период
   let periodStart: Date;
@@ -373,9 +389,14 @@ export async function fetchCrmOverview(params: {
     periodEnd = startOfDayUtc(addDaysUtc(generatedAt, 1)); // Конец сегодняшнего дня
   }
 
+  const periodStartDb = toDatabaseTime(periodStart);
+  const periodEndDb = toDatabaseTime(periodEnd);
+
   // Определяем период для сравнения
   let comparePeriodStart: Date | undefined;
   let comparePeriodEnd: Date | undefined;
+  let comparePeriodStartDb: Date | undefined;
+  let comparePeriodEndDb: Date | undefined;
   
   if (params.compareStartDate && params.compareEndDate) {
     comparePeriodStart = typeof params.compareStartDate === 'string' ? new Date(params.compareStartDate) : params.compareStartDate;
@@ -386,6 +407,8 @@ export async function fetchCrmOverview(params: {
     if (compareEndDateStartOfDay.getTime() === comparePeriodEnd.getTime()) {
       comparePeriodEnd = addDaysUtc(comparePeriodEnd, 1);
     }
+    comparePeriodStartDb = toDatabaseTime(comparePeriodStart);
+    comparePeriodEndDb = toDatabaseTime(comparePeriodEnd);
   } else if (params.startDate && params.endDate) {
     // Автоматически вычисляем предыдущий период той же длительности
     const periodDuration = periodEnd.getTime() - periodStart.getTime();
@@ -414,9 +437,14 @@ export async function fetchCrmOverview(params: {
       comparePeriodEnd = periodStart;
       comparePeriodStart = new Date(comparePeriodEnd.getTime() - periodDuration);
     }
+    if (comparePeriodStart && comparePeriodEnd) {
+      comparePeriodStartDb = toDatabaseTime(comparePeriodStart);
+      comparePeriodEndDb = toDatabaseTime(comparePeriodEnd);
+    }
   }
 
-  const activeStart = addDaysUtc(generatedAt, -30);
+  const activeStartLocal = addDaysUtc(generatedAtLocal, -30);
+  const activeStartDb = toDatabaseTime(activeStartLocal);
 
   const [
     totalUsers,
@@ -441,8 +469,8 @@ export async function fetchCrmOverview(params: {
     prisma.user.count({
       where: {
         createdAt: {
-          gte: periodStart,
-          lt: periodEnd,
+          gte: periodStartDb,
+          lt: periodEndDb,
         },
       },
     }),
@@ -452,7 +480,7 @@ export async function fetchCrmOverview(params: {
           some: {
             status: 'DELIVERED',
             createdAt: {
-              gte: activeStart,
+              gte: activeStartDb,
             },
           },
         },
@@ -473,8 +501,8 @@ export async function fetchCrmOverview(params: {
           some: {
             status: 'DELIVERED',
             createdAt: {
-              gte: periodStart,
-              lt: periodEnd,
+              gte: periodStartDb,
+              lt: periodEndDb,
             },
           },
         },
@@ -491,8 +519,8 @@ export async function fetchCrmOverview(params: {
       where: {
         status: 'DELIVERED',
         createdAt: {
-          gte: periodStart,
-          lt: periodEnd,
+          gte: periodStartDb,
+          lt: periodEndDb,
         },
       },
       _sum: { totalAmount: true },
@@ -502,8 +530,8 @@ export async function fetchCrmOverview(params: {
       where: {
         status: 'DELIVERED',
         createdAt: {
-          gte: periodStart,
-          lt: periodEnd,
+          gte: periodStartDb,
+          lt: periodEndDb,
         },
       },
       _count: { _all: true },
@@ -513,8 +541,8 @@ export async function fetchCrmOverview(params: {
         order: {
           status: 'DELIVERED',
           createdAt: {
-            gte: periodStart,
-            lt: periodEnd,
+            gte: periodStartDb,
+            lt: periodEndDb,
           },
         },
       },
@@ -524,53 +552,53 @@ export async function fetchCrmOverview(params: {
       by: ['type'],
       where: {
         createdAt: {
-          gte: periodStart,
-          lt: periodEnd,
+          gte: periodStartDb,
+          lt: periodEndDb,
         },
       },
       _sum: { amount: true },
     }),
-    comparePeriodStart && comparePeriodEnd
+    comparePeriodStartDb && comparePeriodEndDb
       ? prisma.order.aggregate({
           where: {
             status: 'DELIVERED',
             createdAt: {
-              gte: comparePeriodStart,
-              lt: comparePeriodEnd,
+              gte: comparePeriodStartDb,
+              lt: comparePeriodEndDb,
             },
           },
           _sum: { totalAmount: true },
         })
       : Promise.resolve({ _sum: { totalAmount: null } }),
-    comparePeriodStart && comparePeriodEnd
+    comparePeriodStartDb && comparePeriodEndDb
       ? prisma.order.aggregate({
           where: {
             status: 'DELIVERED',
             createdAt: {
-              gte: comparePeriodStart,
-              lt: comparePeriodEnd,
+              gte: comparePeriodStartDb,
+              lt: comparePeriodEndDb,
             },
           },
           _count: { _all: true },
         })
       : Promise.resolve({ _count: { _all: 0 } }),
-    comparePeriodStart && comparePeriodEnd
+    comparePeriodStartDb && comparePeriodEndDb
       ? prisma.user.count({
           where: {
             createdAt: {
-              gte: comparePeriodStart,
-              lt: comparePeriodEnd,
+              gte: comparePeriodStartDb,
+              lt: comparePeriodEndDb,
             },
           },
         })
       : Promise.resolve(0),
-    comparePeriodStart && comparePeriodEnd
+    comparePeriodStartDb && comparePeriodEndDb
       ? prisma.bonusTransaction.groupBy({
           by: ['type'],
           where: {
             createdAt: {
-              gte: comparePeriodStart,
-              lt: comparePeriodEnd,
+              gte: comparePeriodStartDb,
+              lt: comparePeriodEndDb,
             },
           },
           _sum: { amount: true },
@@ -740,8 +768,8 @@ export async function fetchCrmOverview(params: {
     INNER JOIN "orders" o ON o.id = oi."orderId"
     LEFT JOIN "products" p ON p.id = oi."productId"
     WHERE o.status = 'DELIVERED'
-      AND o."createdAt" >= ${periodStart}
-      AND o."createdAt" < ${periodEnd}
+      AND o."createdAt" >= ${periodStartDb}
+      AND o."createdAt" < ${periodEndDb}
     GROUP BY oi."productId", p.name, p."imageUrl"
     ORDER BY SUM(oi.quantity * oi.price) DESC
     LIMIT 5
@@ -805,7 +833,7 @@ export async function fetchRevenueSeries(params: {
 }> {
   const interval = params.interval;
   const clampedPeriods = clampNumber(params.periods, 1, 180);
-  const now = new Date();
+  const now = toKhabarovskTime(new Date());
 
   const computeStart = (reference: Date): Date => {
     switch (interval) {
@@ -831,6 +859,7 @@ export async function fetchRevenueSeries(params: {
 
   const endPeriodStart = computeStart(now);
   const fromStart = addInterval(endPeriodStart, -1 * (clampedPeriods - 1));
+  const fromStartDb = toDatabaseTime(fromStart);
 
   const intervalUnitMap: Record<RevenueInterval, string> = {
     daily: 'day',
@@ -839,14 +868,15 @@ export async function fetchRevenueSeries(params: {
   };
 
   const intervalUnit = intervalUnitMap[interval];
+  const periodExpression = buildDateTruncWithOffset('"createdAt"', intervalUnit);
   const rawRows = (await prisma.$queryRaw(
     Prisma.sql`
       SELECT
-        ${Prisma.raw(`date_trunc('${intervalUnit}', "createdAt")`)} AS "period",
+        ${Prisma.raw(periodExpression)} AS "period",
         SUM("totalAmount") AS "totalAmount",
         COUNT(*) AS "ordersCount"
       FROM "orders"
-      WHERE status = 'DELIVERED' AND "createdAt" >= ${fromStart}
+      WHERE status = 'DELIVERED' AND "createdAt" >= ${fromStartDb}
       GROUP BY 1
       ORDER BY 1 ASC
     `
@@ -867,8 +897,10 @@ export async function fetchRevenueSeries(params: {
 
   const points: RevenueSeriesPoint[] = [];
   for (let index = 0; index < clampedPeriods; index += 1) {
-    const periodStart = addInterval(fromStart, index);
-    const periodEnd = addInterval(periodStart, 1);
+    const periodStartLocal = addInterval(fromStart, index);
+    const periodEndLocal = addInterval(periodStartLocal, 1);
+    const periodStart = toDatabaseTime(periodStartLocal);
+    const periodEnd = toDatabaseTime(periodEndLocal);
     const key = periodStart.toISOString();
     const bucket = bucketMap.get(key) ?? { totalAmount: 0, ordersCount: 0 };
     points.push({
@@ -882,8 +914,8 @@ export async function fetchRevenueSeries(params: {
   return {
     interval,
     periods: clampedPeriods,
-    from: fromStart.toISOString(),
-    to: addInterval(fromStart, clampedPeriods).toISOString(),
+    from: fromStartDb.toISOString(),
+    to: toDatabaseTime(addInterval(fromStart, clampedPeriods)).toISOString(),
     points,
   };
 }
@@ -900,7 +932,7 @@ export async function fetchNewUsersSeries(params: {
 }> {
   const interval = params.interval;
   const clampedPeriods = clampNumber(params.periods, 1, 180);
-  const now = new Date();
+  const now = toKhabarovskTime(new Date());
 
   const computeStart = (reference: Date): Date => {
     switch (interval) {
@@ -926,6 +958,7 @@ export async function fetchNewUsersSeries(params: {
 
   const endPeriodStart = computeStart(now);
   const fromStart = addInterval(endPeriodStart, -1 * (clampedPeriods - 1));
+  const fromStartDb = toDatabaseTime(fromStart);
 
   const intervalUnitMap: Record<RevenueInterval, string> = {
     daily: 'day',
@@ -934,13 +967,14 @@ export async function fetchNewUsersSeries(params: {
   };
 
   const intervalUnit = intervalUnitMap[interval];
+  const periodExpression = buildDateTruncWithOffset('"createdAt"', intervalUnit);
   const rawRows = (await prisma.$queryRaw(
     Prisma.sql`
       SELECT
-        ${Prisma.raw(`date_trunc('${intervalUnit}', "createdAt")`)} AS "period",
+        ${Prisma.raw(periodExpression)} AS "period",
         COUNT(*) AS "usersCount"
       FROM "users"
-      WHERE "createdAt" >= ${fromStart}
+      WHERE "createdAt" >= ${fromStartDb}
       GROUP BY 1
       ORDER BY 1 ASC
     `
@@ -957,8 +991,10 @@ export async function fetchNewUsersSeries(params: {
 
   const points: NewUsersSeriesPoint[] = [];
   for (let index = 0; index < clampedPeriods; index += 1) {
-    const periodStart = addInterval(fromStart, index);
-    const periodEnd = addInterval(periodStart, 1);
+    const periodStartLocal = addInterval(fromStart, index);
+    const periodEndLocal = addInterval(periodStartLocal, 1);
+    const periodStart = toDatabaseTime(periodStartLocal);
+    const periodEnd = toDatabaseTime(periodEndLocal);
     const key = periodStart.toISOString();
     const usersCount = bucketMap.get(key) ?? 0;
 
@@ -972,8 +1008,8 @@ export async function fetchNewUsersSeries(params: {
   return {
     interval,
     periods: clampedPeriods,
-    from: fromStart.toISOString(),
-    to: addInterval(fromStart, clampedPeriods).toISOString(),
+    from: fromStartDb.toISOString(),
+    to: toDatabaseTime(addInterval(fromStart, clampedPeriods)).toISOString(),
     points,
   };
 }
@@ -1008,7 +1044,7 @@ export async function fetchOrdersSeries(params: {
 }> {
   const interval = params.interval;
   const clampedPeriods = clampNumber(params.periods, 1, 180);
-  const now = new Date();
+  const now = toKhabarovskTime(new Date());
 
   const computeStart = (reference: Date): Date => {
     switch (interval) {
@@ -1034,6 +1070,7 @@ export async function fetchOrdersSeries(params: {
 
   const endPeriodStart = computeStart(now);
   const fromStart = addInterval(endPeriodStart, -1 * (clampedPeriods - 1));
+  const fromStartDb = toDatabaseTime(fromStart);
 
   const intervalUnitMap: Record<RevenueInterval, string> = {
     daily: 'day',
@@ -1042,13 +1079,14 @@ export async function fetchOrdersSeries(params: {
   };
 
   const intervalUnit = intervalUnitMap[interval];
+  const periodExpression = buildDateTruncWithOffset('"createdAt"', intervalUnit);
   const rawRows = (await prisma.$queryRaw(
     Prisma.sql`
       SELECT
-        ${Prisma.raw(`date_trunc('${intervalUnit}', "createdAt")`)} AS "period",
+        ${Prisma.raw(periodExpression)} AS "period",
         COUNT(*) AS "ordersCount"
       FROM "orders"
-      WHERE status = 'DELIVERED' AND "createdAt" >= ${fromStart}
+      WHERE status = 'DELIVERED' AND "createdAt" >= ${fromStartDb}
       GROUP BY 1
       ORDER BY 1 ASC
     `
@@ -1065,8 +1103,10 @@ export async function fetchOrdersSeries(params: {
 
   const points: OrdersSeriesPoint[] = [];
   for (let index = 0; index < clampedPeriods; index += 1) {
-    const periodStart = addInterval(fromStart, index);
-    const periodEnd = addInterval(periodStart, 1);
+    const periodStartLocal = addInterval(fromStart, index);
+    const periodEndLocal = addInterval(periodStartLocal, 1);
+    const periodStart = toDatabaseTime(periodStartLocal);
+    const periodEnd = toDatabaseTime(periodEndLocal);
     const key = periodStart.toISOString();
     const ordersCount = bucketMap.get(key) ?? 0;
 
@@ -1080,8 +1120,8 @@ export async function fetchOrdersSeries(params: {
   return {
     interval,
     periods: clampedPeriods,
-    from: fromStart.toISOString(),
-    to: addInterval(fromStart, clampedPeriods).toISOString(),
+    from: fromStartDb.toISOString(),
+    to: toDatabaseTime(addInterval(fromStart, clampedPeriods)).toISOString(),
     points,
   };
 }
@@ -1098,7 +1138,7 @@ export async function fetchProductsSeries(params: {
 }> {
   const interval = params.interval;
   const clampedPeriods = clampNumber(params.periods, 1, 180);
-  const now = new Date();
+  const now = toKhabarovskTime(new Date());
 
   const computeStart = (reference: Date): Date => {
     switch (interval) {
@@ -1124,6 +1164,7 @@ export async function fetchProductsSeries(params: {
 
   const endPeriodStart = computeStart(now);
   const fromStart = addInterval(endPeriodStart, -1 * (clampedPeriods - 1));
+  const fromStartDb = toDatabaseTime(fromStart);
 
   const intervalUnitMap: Record<RevenueInterval, string> = {
     daily: 'day',
@@ -1132,14 +1173,15 @@ export async function fetchProductsSeries(params: {
   };
 
   const intervalUnit = intervalUnitMap[interval];
+  const periodExpression = buildDateTruncWithOffset('o."createdAt"', intervalUnit);
   const rawRows = (await prisma.$queryRaw(
     Prisma.sql`
       SELECT
-        ${Prisma.raw(`date_trunc('${intervalUnit}', o."createdAt")`)} AS "period",
+        ${Prisma.raw(periodExpression)} AS "period",
         SUM(oi.quantity) AS "productsCount"
       FROM "order_items" oi
       INNER JOIN "orders" o ON o.id = oi."orderId"
-      WHERE o.status = 'DELIVERED' AND o."createdAt" >= ${fromStart}
+      WHERE o.status = 'DELIVERED' AND o."createdAt" >= ${fromStartDb}
       GROUP BY 1
       ORDER BY 1 ASC
     `
@@ -1156,8 +1198,10 @@ export async function fetchProductsSeries(params: {
 
   const points: ProductsSeriesPoint[] = [];
   for (let index = 0; index < clampedPeriods; index += 1) {
-    const periodStart = addInterval(fromStart, index);
-    const periodEnd = addInterval(periodStart, 1);
+    const periodStartLocal = addInterval(fromStart, index);
+    const periodEndLocal = addInterval(periodStartLocal, 1);
+    const periodStart = toDatabaseTime(periodStartLocal);
+    const periodEnd = toDatabaseTime(periodEndLocal);
     const key = periodStart.toISOString();
     const productsCount = bucketMap.get(key) ?? 0;
 
@@ -1171,8 +1215,8 @@ export async function fetchProductsSeries(params: {
   return {
     interval,
     periods: clampedPeriods,
-    from: fromStart.toISOString(),
-    to: addInterval(fromStart, clampedPeriods).toISOString(),
+    from: fromStartDb.toISOString(),
+    to: toDatabaseTime(addInterval(fromStart, clampedPeriods)).toISOString(),
     points,
   };
 }
@@ -1189,7 +1233,7 @@ export async function fetchBasketDepthSeries(params: {
 }> {
   const interval = params.interval;
   const clampedPeriods = clampNumber(params.periods, 1, 180);
-  const now = new Date();
+  const now = toKhabarovskTime(new Date());
 
   const computeStart = (reference: Date): Date => {
     switch (interval) {
@@ -1215,6 +1259,7 @@ export async function fetchBasketDepthSeries(params: {
 
   const endPeriodStart = computeStart(now);
   const fromStart = addInterval(endPeriodStart, -1 * (clampedPeriods - 1));
+  const fromStartDb = toDatabaseTime(fromStart);
 
   const intervalUnitMap: Record<RevenueInterval, string> = {
     daily: 'day',
@@ -1223,15 +1268,16 @@ export async function fetchBasketDepthSeries(params: {
   };
 
   const intervalUnit = intervalUnitMap[interval];
+  const periodExpression = buildDateTruncWithOffset('o."createdAt"', intervalUnit);
   const rawRows = (await prisma.$queryRaw(
     Prisma.sql`
       SELECT
-        ${Prisma.raw(`date_trunc('${intervalUnit}', o."createdAt")`)} AS "period",
+        ${Prisma.raw(periodExpression)} AS "period",
         COUNT(DISTINCT o.id) AS "ordersCount",
         SUM(oi.quantity) AS "totalProducts"
       FROM "order_items" oi
       INNER JOIN "orders" o ON o.id = oi."orderId"
-      WHERE o.status = 'DELIVERED' AND o."createdAt" >= ${fromStart}
+      WHERE o.status = 'DELIVERED' AND o."createdAt" >= ${fromStartDb}
       GROUP BY 1
       ORDER BY 1 ASC
     `
@@ -1251,8 +1297,10 @@ export async function fetchBasketDepthSeries(params: {
 
   const points: BasketDepthSeriesPoint[] = [];
   for (let index = 0; index < clampedPeriods; index += 1) {
-    const periodStart = addInterval(fromStart, index);
-    const periodEnd = addInterval(periodStart, 1);
+    const periodStartLocal = addInterval(fromStart, index);
+    const periodEndLocal = addInterval(periodStartLocal, 1);
+    const periodStart = toDatabaseTime(periodStartLocal);
+    const periodEnd = toDatabaseTime(periodEndLocal);
     const key = periodStart.toISOString();
     const bucket = bucketMap.get(key) ?? { ordersCount: 0, totalProducts: 0 };
     const averageBasketDepth = bucket.ordersCount > 0 ? bucket.totalProducts / bucket.ordersCount : 0;
@@ -1267,8 +1315,8 @@ export async function fetchBasketDepthSeries(params: {
   return {
     interval,
     periods: clampedPeriods,
-    from: fromStart.toISOString(),
-    to: addInterval(fromStart, clampedPeriods).toISOString(),
+    from: fromStartDb.toISOString(),
+    to: toDatabaseTime(addInterval(fromStart, clampedPeriods)).toISOString(),
     points,
   };
 }

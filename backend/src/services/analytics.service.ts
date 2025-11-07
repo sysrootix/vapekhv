@@ -1,5 +1,8 @@
 import { prisma } from '../config/database';
 
+const KHABAROVSK_OFFSET_MS = 10 * 60 * 60 * 1000;
+const toKhabarovskTime = (value: Date): Date => new Date(value.getTime() + KHABAROVSK_OFFSET_MS);
+
 export interface OrderTimeAnalysis {
   byHour: Array<{ hour: number; ordersCount: number; revenue: number }>;
   byDayOfWeek: Array<{ day: number; dayName: string; ordersCount: number; revenue: number }>;
@@ -46,7 +49,7 @@ export async function getOrderTimeAnalysis(): Promise<OrderTimeAnalysis> {
   const byDayMap = new Map<number, { ordersCount: number; revenue: number }>();
 
   orders.forEach((order) => {
-    const date = new Date(order.createdAt);
+    const date = toKhabarovskTime(new Date(order.createdAt));
     const hour = date.getUTCHours();
     const dayOfWeek = date.getUTCDay();
 
@@ -259,4 +262,3 @@ export async function getRFMAnalysis(): Promise<RFMAnalysis> {
 
   return { segments };
 }
-
