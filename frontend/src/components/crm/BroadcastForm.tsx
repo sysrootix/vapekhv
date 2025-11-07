@@ -89,9 +89,14 @@ export function BroadcastForm({ onSuccess }: BroadcastFormProps) {
   };
 
   const handleSubmit = () => {
+    // Добавляем незавершенный ряд кнопок, если он есть
+    const allButtonRows = currentButtonRow.length > 0
+      ? [...buttonRows, currentButtonRow]
+      : buttonRows;
+
     const finalMessage: BroadcastMessage = {
       ...message,
-      buttons: buttonRows.length > 0 ? buttonRows : undefined,
+      buttons: allButtonRows.length > 0 ? allButtonRows : undefined,
     };
 
     sendBroadcastMutation.mutate({ message: finalMessage, target });
@@ -378,7 +383,7 @@ export function BroadcastForm({ onSuccess }: BroadcastFormProps) {
                 className="text-sm text-tg-text whitespace-pre-wrap"
                 dangerouslySetInnerHTML={{ __html: message.text }}
               />
-              {buttonRows.length > 0 && (
+              {(buttonRows.length > 0 || currentButtonRow.length > 0) && (
                 <div className="space-y-2 pt-2 border-t border-tg-button/10">
                   {buttonRows.map((row, rowIndex) => (
                     <div key={rowIndex} className="flex gap-2 flex-wrap">
@@ -392,6 +397,18 @@ export function BroadcastForm({ onSuccess }: BroadcastFormProps) {
                       ))}
                     </div>
                   ))}
+                  {currentButtonRow.length > 0 && (
+                    <div className="flex gap-2 flex-wrap">
+                      {currentButtonRow.map((button, btnIndex) => (
+                        <div
+                          key={btnIndex}
+                          className="px-3 py-2 bg-tg-button text-tg-button-text rounded-lg text-sm font-medium opacity-70"
+                        >
+                          {button.text}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
