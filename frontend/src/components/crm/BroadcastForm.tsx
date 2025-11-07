@@ -21,7 +21,6 @@ import {
   BroadcastMessage,
   BroadcastTarget,
   BroadcastButton,
-  AudienceListItem,
 } from '../../api/admin';
 
 interface BroadcastFormProps {

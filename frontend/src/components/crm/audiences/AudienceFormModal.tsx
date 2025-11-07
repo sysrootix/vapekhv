@@ -8,6 +8,7 @@ import {
   AudienceFilters,
   AudiencePayload,
   AudiencePreviewResponse,
+  AudienceDetails,
 } from '../../../api/admin';
 import { AudienceFiltersEditor } from './AudienceFiltersEditor';
 
@@ -27,13 +28,11 @@ export function AudienceFormModal({ open, audienceId, onClose, onSaved }: Audien
   const [preview, setPreview] = useState<AudiencePreviewResponse | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
 
-  const { data: existingAudience, isLoading: isAudienceLoading } = useQuery(
-    ['crm-audience', audienceId],
-    () => adminApi.getAudience(audienceId!),
-    {
-      enabled: open && isEdit && Boolean(audienceId),
-    }
-  );
+  const { data: existingAudience, isLoading: isAudienceLoading } = useQuery<{ audience: AudienceDetails }>({
+    queryKey: ['crm-audience', audienceId],
+    queryFn: () => adminApi.getAudience(audienceId!),
+    enabled: open && isEdit && Boolean(audienceId),
+  });
 
   useEffect(() => {
     if (!open) {
