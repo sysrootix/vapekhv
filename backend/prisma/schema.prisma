@@ -365,10 +365,10 @@ model PromoCode {
 }
 
 enum PromoCodeType {
-  PERCENT         // Процентная скидка
-  FIXED           // Фиксированная скидка
-  FREE_DELIVERY   // Бесплатная доставка
-  BONUS           // Дополнительные бонусы
+  PERCENT       @map("PERCENT")
+  FIXED         @map("FIXED")
+  FREE_DELIVERY @map("FREE_DELIVERY")
+  BONUS         @map("BONUS")
 
   @@map("promo_code_type")
 }

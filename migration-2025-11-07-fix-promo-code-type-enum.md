@@ -10,14 +10,14 @@ column "promoCodeType" is of type promo_code_type but expression is of type "Pro
 
 ## Изменения в schema.prisma
 
-Добавлен атрибут `@@map("promo_code_type")` к enum `PromoCodeType`:
+Добавлены атрибуты `@map` для каждого значения enum и `@@map("promo_code_type")` для самого enum:
 
 ```prisma
 enum PromoCodeType {
-  PERCENT         // Процентная скидка
-  FIXED           // Фиксированная скидка
-  FREE_DELIVERY   // Бесплатная доставка
-  BONUS           // Дополнительные бонусы
+  PERCENT       @map("PERCENT")
+  FIXED         @map("FIXED")
+  FREE_DELIVERY @map("FREE_DELIVERY")
+  BONUS         @map("BONUS")
 
   @@map("promo_code_type")
 }
