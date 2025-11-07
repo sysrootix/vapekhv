@@ -23,6 +23,8 @@ import bonusRoutes from './routes/bonus.routes';
 import orderRoutes from './routes/order.routes';
 import adminRoutes from './routes/admin.routes';
 import referralRoutes from './routes/referral.routes';
+import vpnRoutes from './routes/vpn.routes';
+import reviewRoutes from './routes/review.routes';
 
 // Load environment variables
 dotenv.config();
@@ -52,8 +54,8 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || '*',
   credentials: true,
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' })); // Увеличиваем лимит для загрузки изображений/видео
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/api/', limiter);
 
 // Статические файлы (изображения товаров)
@@ -73,6 +75,8 @@ app.use('/api/bonus', bonusRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/referrals', referralRoutes);
+app.use('/api/vpn', vpnRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 // 404 handler
 app.use((_req, res) => {

@@ -50,6 +50,8 @@ export interface Product {
   };
   characteristics?: ProductCharacteristic[];
   variants?: ProductVariant[];
+  rating?: number;
+  reviewCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -105,6 +107,34 @@ export const productApi = {
 
   checkStockNotificationSubscription: async (productId: string): Promise<{ subscribed: boolean }> => {
     const response = await apiClient.get(`/products/${productId}/notify/check`);
+    return response.data;
+  },
+
+  // Запрос на товар
+  requestProduct: async (productRequest: string): Promise<{ success: boolean; message: string }> => {
+    const response = await apiClient.post('/products/request', { productRequest });
+    return response.data;
+  },
+
+  // Отследить просмотр товара
+  trackProductView: async (productId: string): Promise<{ success: boolean }> => {
+    const response = await apiClient.post(`/products/${productId}/view`);
+    return response.data;
+  },
+
+  // Получить похожие товары
+  getSimilarProducts: async (productId: string, limit?: number): Promise<{ products: Product[] }> => {
+    const response = await apiClient.get(`/products/${productId}/similar`, {
+      params: { limit },
+    });
+    return response.data;
+  },
+
+  // Получить недавно просмотренные товары
+  getRecentProducts: async (limit?: number): Promise<{ products: Product[] }> => {
+    const response = await apiClient.get('/products/recent', {
+      params: { limit },
+    });
     return response.data;
   },
 };

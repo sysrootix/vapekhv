@@ -1,15 +1,22 @@
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ShoppingCart, Plus, Minus, Bell, BellOff } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, Plus, Minus, Bell, BellOff, Share2 } from 'lucide-react';
 import { productApi, ProductVariant } from '../api/product';
 import { cartApi } from '../api/cart';
+import { reviewApi } from '../api/review';
 import LoadingScreen from '../components/LoadingScreen';
 import ProductPlaceholder from '../components/ProductPlaceholder';
+import OptimizedImage from '../components/OptimizedImage';
+import ProductRating from '../components/ProductRating';
+import ReviewsModal from '../components/ReviewsModal';
+import SimilarProducts from '../components/SimilarProducts';
 import { useTelegramBackButton } from '../hooks/useTelegramApp';
 import { getCategoryPathString } from '../utils/categoryPath';
+import { authApi } from '../api/auth';
 import toast from 'react-hot-toast';
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useAuthStore } from '../store/authStore';
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -18,16 +25,45 @@ export default function ProductDetailPage() {
   const [quantity, setQuantity] = useState(1);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
+  const [showReviewsModal, setShowReviewsModal] = useState(false);
 
-  // Telegram BackButton
-  const handleBack = useCallback(() => navigate(-1), [navigate]);
+  // Telegram BackButton - проверяем историю, если нет - идем в каталог
+  const handleBack = useCallback(() => {
+    // Проверяем, открыли ли через deep link (есть start_param в initData)
+    const startParam = (window.Telegram?.WebApp?.initDataUnsafe as { start_param?: string } | undefined)?.start_param;
+    const openedViaDeepLink = startParam && startParam.startsWith('product_');
+    
+    // Если открыли через deep link или нет referrer - идем в каталог
+    if (openedViaDeepLink || !document.referrer || !document.referrer.includes(window.location.hostname)) {
+      navigate('/catalog', { replace: true });
+    } else {
+      // Если есть история - используем стандартный переход назад
+      navigate(-1);
+    }
+  }, [navigate]);
   useTelegramBackButton(handleBack);
 
+  const { isAuthenticated } = useAuthStore();
   const { data: product, isLoading } = useQuery({
     queryKey: ['product', id],
     queryFn: () => productApi.getProductById(id!),
     enabled: !!id,
   });
+
+  // Отслеживаем просмотр товара
+  const trackViewMutation = useMutation({
+    mutationFn: (productId: string) => productApi.trackProductView(productId),
+  });
+
+  useEffect(() => {
+    if (id && isAuthenticated && product) {
+      // Отслеживаем просмотр с небольшой задержкой, чтобы не мешать загрузке
+      const timer = setTimeout(() => {
+        trackViewMutation.mutate(id);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [id, isAuthenticated, product]);
 
   const { data: cartData } = useQuery({
     queryKey: ['cart'],
@@ -38,6 +74,13 @@ export default function ProductDetailPage() {
   const { data: notificationData } = useQuery({
     queryKey: ['stockNotification', id],
     queryFn: () => productApi.checkStockNotificationSubscription(id!),
+    enabled: !!id,
+  });
+
+  // Получение рейтинга товара
+  const { data: ratingData } = useQuery({
+    queryKey: ['productRating', id],
+    queryFn: () => reviewApi.getProductRating(id!),
     enabled: !!id,
   });
 
@@ -222,22 +265,83 @@ export default function ProductDetailPage() {
       <div className="sticky top-0 z-10 bg-tg-bg border-b border-tg-secondary-bg">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <button
-            onClick={() => navigate(-1)}
+            onClick={handleBack}
             className="p-2 hover:bg-tg-secondary-bg rounded-full transition-colors"
           >
             <ArrowLeft className="w-6 h-6 text-tg-text" />
           </button>
-          <button
-            onClick={() => navigate('/cart')}
-            className="p-2 hover:bg-tg-secondary-bg rounded-full transition-colors relative"
-          >
-            <ShoppingCart className="w-6 h-6 text-tg-text" />
-            {cartData?.count && cartData.count > 0 && (
-              <span className="absolute -top-1 -right-1 bg-tg-button text-tg-button-text text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                {cartData.count}
-              </span>
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={async () => {
+                if (!product) return;
+                
+                try {
+                  // Получаем bot username из API
+                  const botConfig = await authApi.getBotConfig();
+                  const botUsername = botConfig.botUsername;
+                  
+                  if (botUsername) {
+                    // Создаем deep link для открытия WebApp с товаром через startapp
+                    const deepLink = `https://t.me/${botUsername}?startapp=product_${product.id}`;
+                    
+                    // Используем Telegram Share API для отправки ссылки
+                    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(deepLink)}&text=${encodeURIComponent(`Посмотри на этот товар: ${product.name}`)}`;
+                    
+                    if (window.Telegram?.WebApp?.openTelegramLink) {
+                      // Открываем Telegram Share через WebApp API
+                      window.Telegram.WebApp.openTelegramLink(shareUrl);
+                    } else if (navigator.share) {
+                      // Используем Web Share API
+                      await navigator.share({
+                        title: product.name,
+                        text: `Посмотри на этот товар: ${product.name}`,
+                        url: deepLink,
+                      });
+                    } else {
+                      // Fallback: копируем в буфер обмена
+                      await navigator.clipboard.writeText(deepLink);
+                      toast.success('Ссылка скопирована');
+                    }
+                  } else {
+                    // Если bot username недоступен, используем обычную ссылку
+                    const productUrl = `${window.location.origin}/product/${product.id}`;
+                    if (navigator.share) {
+                      await navigator.share({
+                        title: product.name,
+                        text: `Посмотри на этот товар: ${product.name}`,
+                        url: productUrl,
+                      });
+                    } else {
+                      await navigator.clipboard.writeText(productUrl);
+                      toast.success('Ссылка скопирована');
+                    }
+                  }
+                } catch (error: any) {
+                  // Если пользователь отменил share или произошла ошибка
+                  if (error.name !== 'AbortError') {
+                    const productUrl = `${window.location.origin}/product/${product.id}`;
+                    await navigator.clipboard.writeText(productUrl);
+                    toast.success('Ссылка скопирована');
+                  }
+                }
+              }}
+              disabled={!product}
+              className="p-2 hover:bg-tg-secondary-bg rounded-full transition-colors disabled:opacity-50"
+            >
+              <Share2 className="w-6 h-6 text-tg-text" />
+            </button>
+            <button
+              onClick={() => navigate('/cart')}
+              className="p-2 hover:bg-tg-secondary-bg rounded-full transition-colors relative"
+            >
+              <ShoppingCart className="w-6 h-6 text-tg-text" />
+              {cartData?.count && cartData.count > 0 && (
+                <span className="absolute -top-1 -right-1 bg-tg-button text-tg-button-text text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                  {cartData.count}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -249,10 +353,11 @@ export default function ProductDetailPage() {
           className="relative aspect-square bg-tg-secondary-bg"
         >
           {product.imageUrl ? (
-            <img
+            <OptimizedImage
               src={product.imageUrl}
               alt={product.name}
               className="w-full h-full object-cover"
+              priority={true} // Главное изображение товара - загружаем сразу
             />
           ) : (
             <ProductPlaceholder />
@@ -297,6 +402,24 @@ export default function ProductDetailPage() {
                 </span>
               )}
             </div>
+
+            {/* Rating */}
+            {ratingData && ratingData.reviewCount > 0 && (
+              <div className="flex items-center gap-3 mb-2">
+                <ProductRating
+                  rating={ratingData.rating}
+                  reviewCount={ratingData.reviewCount}
+                  onClick={() => setShowReviewsModal(true)}
+                  size="md"
+                />
+                <button
+                  onClick={() => setShowReviewsModal(true)}
+                  className="text-sm text-tg-button hover:underline"
+                >
+                  Посмотреть отзывы
+                </button>
+              </div>
+            )}
 
             {/* Убрали индикатор "В корзине" чтобы не мешать добавлять другие варианты */}
           </motion.div>
@@ -422,6 +545,9 @@ export default function ProductDetailPage() {
             </motion.div>
           )}
         </div>
+
+        {/* Similar Products */}
+        {product && <SimilarProducts productId={product.id} />}
       </div>
 
       {/* Bottom Bar - Add to Cart or Stock Notification */}
@@ -474,6 +600,16 @@ export default function ProductDetailPage() {
           )}
         </div>
       </motion.div>
+
+      {/* Reviews Modal */}
+      {product && (
+        <ReviewsModal
+          isOpen={showReviewsModal}
+          onClose={() => setShowReviewsModal(false)}
+          productId={product.id}
+          productName={product.name}
+        />
+      )}
     </div>
   );
 }

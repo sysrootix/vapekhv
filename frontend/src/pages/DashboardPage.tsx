@@ -1,11 +1,14 @@
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingBag, TrendingUp, Star, ArrowRight, Droplets, Wind, Package, Sparkles, Flame, Zap, BoxSelect, Gift } from 'lucide-react';
+import { ShoppingBag, TrendingUp, Star, ArrowRight, Droplets, Wind, Package, Sparkles, Flame, Zap, BoxSelect, Gift, MessageSquare } from 'lucide-react';
 import { productApi } from '../api/product';
 import { userApi } from '../api/user';
+import { reviewApi } from '../api/review';
 import LoadingScreen from '../components/LoadingScreen';
 import ProductPlaceholder from '../components/ProductPlaceholder';
+import ProductRating from '../components/ProductRating';
+import OptimizedImage from '../components/OptimizedImage';
 
 // Функция для получения иконки категории
 const getCategoryIcon = (categoryName: string) => {
@@ -58,12 +61,18 @@ export default function DashboardPage() {
     queryFn: () => productApi.getProducts({ limit: 6 }),
   });
 
+  const { data: randomReviewsData } = useQuery({
+    queryKey: ['randomReviews'],
+    queryFn: () => reviewApi.getRandomReviews(3),
+  });
+
   if (loadingCategories || loadingFeatured) {
     return <LoadingScreen />;
   }
 
   const categories = categoriesData || [];
   const featuredProducts = featuredData?.products || [];
+  const randomReviews = randomReviewsData?.reviews || [];
   const user = userData?.user;
 
   return (
@@ -88,17 +97,117 @@ export default function DashboardPage() {
           transition={{ delay: 0.1 }}
           className="grid grid-cols-2 gap-3"
         >
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-4 text-white">
+          <button
+            onClick={() => navigate('/catalog')}
+            className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-4 text-white hover:opacity-90 transition-opacity cursor-pointer text-left"
+          >
             <ShoppingBag className="w-8 h-8 mb-2 opacity-80" />
             <p className="text-2xl font-bold">{categories.length}</p>
             <p className="text-sm opacity-90">Категорий</p>
-          </div>
-          <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-4 text-white">
+          </button>
+          <button
+            onClick={() => navigate('/catalog')}
+            className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-4 text-white hover:opacity-90 transition-opacity cursor-pointer text-left"
+          >
             <TrendingUp className="w-8 h-8 mb-2 opacity-80" />
             <p className="text-2xl font-bold">{featuredProducts.length}+</p>
             <p className="text-sm opacity-90">Новинок</p>
-          </div>
+          </button>
         </motion.div>
+
+        {/* Reviews Section - Перемещено выше для доверия */}
+        {randomReviews.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="space-y-3"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-purple-500" />
+                <h2 className="text-xl font-bold text-tg-text">Отзывы покупателей</h2>
+              </div>
+              <button
+                onClick={() => navigate('/reviews')}
+                className="text-tg-button text-sm font-medium flex items-center gap-1"
+              >
+                Все отзывы
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {randomReviews.map((review: any, index: number) => (
+                <motion.div
+                  key={review.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 + index * 0.05 }}
+                  onClick={() => navigate(`/product/${review.productId}`)}
+                  className="bg-tg-secondary-bg rounded-2xl p-4 cursor-pointer hover:opacity-90 transition-opacity"
+                >
+                  <div className="flex items-start gap-3 mb-3">
+                    {review.user.photoUrl ? (
+                      <OptimizedImage
+                        src={review.user.photoUrl}
+                        alt={review.user.firstName || review.user.username || 'Пользователь'}
+                        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-tg-bg flex items-center justify-center flex-shrink-0">
+                        <span className="text-tg-text font-semibold text-sm">
+                          {(review.user.firstName || review.user.username || 'П').charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="font-medium text-tg-text text-sm">
+                          {review.user.firstName || review.user.username || 'Пользователь'}
+                        </p>
+                        <ProductRating
+                          rating={review.rating}
+                          reviewCount={1}
+                          size="sm"
+                        />
+                      </div>
+                      {review.text && (
+                        <p className="text-tg-hint text-sm line-clamp-2">{review.text}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/product/${review.productId}`);
+                    }}
+                    className="flex items-center gap-2 bg-tg-bg rounded-xl p-2 mt-2"
+                  >
+                    {review.product.imageUrl ? (
+                      <OptimizedImage
+                        src={review.product.imageUrl}
+                        alt={review.product.name}
+                        className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-lg bg-tg-secondary-bg flex items-center justify-center flex-shrink-0">
+                        <Package className="w-6 h-6 text-tg-hint" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-tg-text line-clamp-1">{review.product.name}</p>
+                      {review.product.price && (
+                        <p className="text-xs text-tg-hint">{review.product.price.toLocaleString()}₽</p>
+                      )}
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-tg-hint flex-shrink-0" />
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        )}
 
         {/* Categories */}
         <div className="space-y-3">

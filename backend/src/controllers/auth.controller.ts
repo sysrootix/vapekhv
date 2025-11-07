@@ -6,7 +6,7 @@ import { generateToken } from '../middleware/auth';
 import { logger } from '../config/logger';
 import { AppError } from '../middleware/errorHandler';
 import { referralService } from '../services/referral.service';
-import { sendReferralInviteNotification, sendWebAppWelcomeMessage } from '../services/bot.service';
+import { sendReferralInviteNotification, sendWebAppWelcomeMessage, getBotUsername } from '../services/bot.service';
 
 const extractReferralCode = (initData: string, explicitCode?: string): string | null => {
   if (explicitCode && typeof explicitCode === 'string') {
@@ -195,6 +195,16 @@ class AuthController {
     } catch (error) {
       logger.error('Token verification error:', error);
       return res.status(401).json({ valid: false });
+    }
+  }
+
+  async getBotConfig(_req: Request, res: Response) {
+    try {
+      const botUsername = getBotUsername();
+      return res.json({ botUsername });
+    } catch (error) {
+      logger.error('Error getting bot config:', error);
+      return res.status(500).json({ error: 'Ошибка получения конфигурации бота' });
     }
   }
 }

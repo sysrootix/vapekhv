@@ -29,6 +29,10 @@ cd frontend
 npm run build
 cd ..
 
+cd backend
+npm run build
+cd ..
+
 echo -e "${BLUE}💾 Шаг 3: Создание резервной копии...${NC}"
 if [ -d "$WEB_DIR" ]; then
     sudo cp -r $WEB_DIR $BACKUP_DIR

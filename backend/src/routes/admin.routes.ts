@@ -24,11 +24,22 @@ router.get('/stats', requireCrmAccess, adminController.getStats.bind(adminContro
 router.get('/crm/overview', requireCrmAccess, adminController.getCrmOverview.bind(adminController));
 router.get('/crm/revenue', requireCrmAccess, adminController.getRevenueSeries.bind(adminController));
 router.get('/crm/new-users', requireCrmAccess, adminController.getNewUsersSeries.bind(adminController));
+router.get('/crm/orders', requireCrmAccess, adminController.getOrdersSeries.bind(adminController));
+router.get('/crm/products', requireCrmAccess, adminController.getProductsSeries.bind(adminController));
+router.get('/crm/basket-depth', requireCrmAccess, adminController.getBasketDepthSeries.bind(adminController));
 router.get('/crm/cohorts', requireCrmAccess, adminController.getCohorts.bind(adminController));
 router.get('/crm/ltv', requireCrmAccess, adminController.getLTV.bind(adminController));
 router.get('/crm/top-products', requireCrmAccess, adminController.getTopProducts.bind(adminController));
+router.get('/crm/order-time-analysis', requireCrmAccess, adminController.getOrderTimeAnalysis.bind(adminController));
+router.get('/crm/bonus-analysis', requireCrmAccess, adminController.getBonusAnalysis.bind(adminController));
+router.get('/crm/repeat-purchase-analysis', requireCrmAccess, adminController.getRepeatPurchaseAnalysis.bind(adminController));
+router.get('/crm/rfm-analysis', requireCrmAccess, adminController.getRFMAnalysis.bind(adminController));
 router.get('/crm/users', requireCrmAccess, adminController.getCrmUsers.bind(adminController));
 router.get('/crm/users/:id', requireCrmAccess, adminController.getCrmUserDetails.bind(adminController));
 router.patch('/crm/users/:id', requireCrmAccess, adminController.updateCrmUser.bind(adminController));
+
+// Broadcast endpoints
+router.post('/crm/broadcast/stats', requireCrmAccess, adminController.getBroadcastStats.bind(adminController));
+router.post('/crm/broadcast/send', requireCrmAccess, adminController.sendBroadcast.bind(adminController));
 
 export default router;

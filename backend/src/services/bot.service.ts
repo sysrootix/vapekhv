@@ -43,19 +43,27 @@ export const initBot = () => {
   logger.info('🤖 Инициализация Telegram бота...');
 
   // Обработчик команды /start
-  bot.onText(/\/start/, async (msg) => {
+  bot.onText(/\/start(?:\s+(.+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
     const firstName = msg.from?.first_name || 'друг';
     const isUserAdmin = isAdmin(chatId);
     const isUserCrm = isCrmMember(chatId);
+    const startParam = match?.[1]; // Параметр после /start
 
     try {
+      // Если есть параметр product_*, открываем WebApp с этим товаром
+      let webAppUrl = WEBAPP_URL;
+      if (startParam && startParam.startsWith('product_')) {
+        const productId = startParam.replace('product_', '');
+        webAppUrl = `${WEBAPP_URL}/product/${productId}`;
+      }
+
       // Формируем кнопки в зависимости от прав пользователя
       const keyboard: any[][] = [
         [
           {
             text: '🛍️ Открыть магазин',
-            web_app: { url: WEBAPP_URL },
+            web_app: { url: webAppUrl },
           },
         ],
       ];
@@ -372,6 +380,10 @@ export const getBotStartUrl = (startParam = 'start'): string | null => {
   return `https://t.me/${BOT_USERNAME}?start=${startParam}`;
 };
 
+export const getBotUsername = (): string | null => {
+  return BOT_USERNAME || null;
+};
+
 export const sendWebAppWelcomeMessage = async (
   telegramId: bigint,
   payload: {
@@ -472,6 +484,51 @@ export const sendStockNotification = async (
     logger.info(`🔔 Уведомление о товаре "${productName}" отправлено пользователю ${telegramId}`);
   } catch (error) {
     logger.error(`Ошибка отправки уведомления пользователю ${telegramId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Отправить запрос на товар в чат заявок
+ */
+export const sendProductRequest = async (
+  telegramId: bigint,
+  userName: string,
+  productRequest: string
+): Promise<void> => {
+  try {
+    const REQUEST_CHAT_ID = -1003245299561; // ID чата для заявок на товары
+    
+    const message = `
+🛍️ <b>Новый запрос на товар</b>
+
+👤 <b>Пользователь:</b> ${userName}
+🆔 <b>Telegram ID:</b> <code>${telegramId}</code>
+
+📝 <b>Запрос:</b>
+${productRequest}
+
+━━━━━━━━━━━━━━━━━━━
+⏰ <i>${new Date().toLocaleString('ru-RU', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit'
+})}</i>
+    `.trim();
+
+    await bot.sendMessage(
+      REQUEST_CHAT_ID,
+      message,
+      {
+        parse_mode: 'HTML',
+      }
+    );
+
+    logger.info(`📝 Запрос на товар от пользователя ${telegramId} отправлен в чат ${REQUEST_CHAT_ID}`);
+  } catch (error) {
+    logger.error(`Ошибка отправки запроса на товар от пользователя ${telegramId}:`, error);
     throw error;
   }
 };

@@ -5,7 +5,10 @@ import { upload } from '../config/upload';
 
 const router = Router();
 
-// Все маршруты требуют авторизации
+// Публичный маршрут для статуса погоды
+router.get('/weather-status', orderController.getWeatherStatus);
+
+// Все остальные маршруты требуют авторизации
 router.use(authMiddleware);
 
 router.get('/', orderController.getOrders);

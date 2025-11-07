@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Phone, MapPin, Building, MessageSquare, Calendar, Clock, Truck, ArrowLeft, RotateCcw, Gift, Tag } from 'lucide-react';
+import { Phone, MapPin, Building, MessageSquare, Calendar, Clock, Truck, ArrowLeft, RotateCcw, Gift, Tag, CloudRain } from 'lucide-react';
 import { useTelegramBackButton } from '../hooks/useTelegramApp';
 import { userApi } from '../api/user';
 import { cartApi } from '../api/cart';
@@ -200,9 +200,17 @@ export default function CheckoutPage() {
     toast.success('Данные из последнего заказа заполнены');
   }, [previousOrders]);
 
+  // Загрузка статуса погоды
+  const { data: weatherStatus } = useQuery({
+    queryKey: ['weatherStatus'],
+    queryFn: orderApi.getWeatherStatus,
+    staleTime: 5 * 60 * 1000, // Кеш на 5 минут
+  });
+
   // Расчет стоимости с учетом бонусов
   const subtotal = cartData?.total || 0;
-  const baseDeliveryCost = useMemo(() => calculateDeliveryCost(subtotal), [subtotal]);
+  const badWeather = weatherStatus?.badWeather ?? false;
+  const baseDeliveryCost = useMemo(() => calculateDeliveryCost(subtotal, badWeather), [subtotal, badWeather]);
   const deliveryProgress = useMemo(() => getDeliveryProgress(subtotal), [subtotal]);
   const deliveryCost = promoSummary ? promoSummary.pricing.deliveryCost : baseDeliveryCost;
   const promoDiscount = promoSummary?.promo.discount ?? 0;
@@ -402,6 +410,24 @@ export default function CheckoutPage() {
               >
                 Заполнить данные
               </button>
+            </motion.div>
+          )}
+
+          {/* Предупреждение о плохих погодных условиях */}
+          {badWeather && weatherStatus?.message && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-orange-500/20 border border-orange-500/40 rounded-2xl p-4 flex items-start gap-3"
+            >
+              <div className="p-2 bg-orange-500 rounded-xl flex-shrink-0">
+                <CloudRain className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-orange-200">
+                  {weatherStatus.message}
+                </p>
+              </div>
             </motion.div>
           )}
 

@@ -1,5 +1,5 @@
 import { Prisma, PromoCode, PromoCodeType } from '@prisma/client';
-import { Response } from 'express';
+import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { prisma } from '../config/database';
 import { logger } from '../config/logger';
@@ -9,24 +9,54 @@ import { syncOrderWithMoySklad } from '../services/moysklad-sync.service';
 import { referralService } from '../services/referral.service';
 import { orderDeliveryService } from '../services/order-delivery.service';
 import { sendReferralRewardNotification } from '../services/bot.service';
+import { weatherService } from '../services/weather.service';
 
 
 // Константы для доставки
 const MIN_ORDER_AMOUNT = 1000;
 const DELIVERY_TIERS = [
-  { threshold: 5000, cost: 0 },
-  { threshold: 4000, cost: 200 },
-  { threshold: 3000, cost: 300 },
-  { threshold: 1000, cost: 500 },
+  { threshold: 6000, cost: 0 },
+  { threshold: 4500, cost: 300 },
+  { threshold: 3000, cost: 500 },
+  { threshold: 1000, cost: 700 },
 ];
 
-const calculateDeliveryCost = (subtotal: number): number => {
+// Проверка плохих погодных условий
+// Используем погодный API, но также поддерживаем ручной режим через BAD_WEATHER
+const isBadWeather = async (): Promise<boolean> => {
+  // Если установлена переменная BAD_WEATHER, используем её (приоритет)
+  if (process.env.BAD_WEATHER === 'true' || process.env.BAD_WEATHER === '1') {
+    return true;
+  }
+
+  // Иначе проверяем через погодный API
+  try {
+    const weatherStatus = await weatherService.checkBadWeather();
+    return weatherStatus.isBadWeather;
+  } catch (error) {
+    logger.error('Ошибка при проверке погоды:', error);
+    return false; // В случае ошибки считаем погоду хорошей
+  }
+};
+
+const calculateDeliveryCost = async (subtotal: number, applyWeatherMultiplier = true): Promise<number> => {
+  let baseCost = 0;
   for (const tier of DELIVERY_TIERS) {
     if (subtotal >= tier.threshold) {
-      return tier.cost;
+      baseCost = tier.cost;
+      break;
     }
   }
-  return DELIVERY_TIERS[DELIVERY_TIERS.length - 1].cost;
+  if (baseCost === 0) {
+    baseCost = DELIVERY_TIERS[DELIVERY_TIERS.length - 1].cost;
+  }
+
+  // Применяем множитель при плохих погодных условиях
+  if (applyWeatherMultiplier && await isBadWeather() && baseCost > 0) {
+    return Math.ceil(baseCost * 1.2);
+  }
+
+  return baseCost;
 };
 
 const PROMO_EXCLUDED_STATUSES = ['CANCELLED', 'PAYMENT_EXPIRED'] as const;
@@ -130,6 +160,55 @@ const evaluatePromoCode = async ({
 };
 
 class OrderController {
+  // Получить статус погодных условий (публичный endpoint)
+  async getWeatherStatus(_req: any, res: Response): Promise<void> {
+    try {
+      // Используем функцию isBadWeather, которая проверяет BAD_WEATHER и погодный API
+      const badWeather = await isBadWeather();
+      
+      let message: string | null = null;
+      let reasons: string[] = [];
+      let temperature: number | undefined;
+
+      if (badWeather) {
+        // Если BAD_WEATHER установлен, формируем сообщение
+        if (process.env.BAD_WEATHER === 'true' || process.env.BAD_WEATHER === '1') {
+          message = 'В связи с плохими погодными условиями стоимость доставки увеличена на 20%';
+          reasons = ['Плохие погодные условия (ручной режим)'];
+        } else {
+          // Иначе получаем детали от погодного API
+          try {
+            const weatherStatus = await weatherService.checkBadWeather();
+            if (weatherStatus.reasons.length > 0) {
+              message = `В связи с плохими погодными условиями (${weatherStatus.reasons.join(', ')}) стоимость доставки увеличена на 20%`;
+              reasons = weatherStatus.reasons;
+              temperature = weatherStatus.data?.temperature;
+            } else {
+              message = 'В связи с плохими погодными условиями стоимость доставки увеличена на 20%';
+            }
+          } catch (error) {
+            logger.error('Ошибка при получении деталей погоды:', error);
+            message = 'В связи с плохими погодными условиями стоимость доставки увеличена на 20%';
+          }
+        }
+      }
+
+      res.json({
+        badWeather,
+        message,
+        reasons,
+        temperature,
+      });
+    } catch (error) {
+      logger.error('Ошибка при получении статуса погоды:', error);
+      res.json({
+        badWeather: false,
+        message: null,
+        reasons: [],
+      });
+    }
+  }
+
   async applyPromo(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.user?.id;
@@ -155,7 +234,7 @@ class OrderController {
         0
       );
 
-      const baseDeliveryCost = calculateDeliveryCost(subtotal);
+      const baseDeliveryCost = await calculateDeliveryCost(subtotal);
 
       const promoResult = await evaluatePromoCode({
         code: promoCode,
@@ -233,13 +312,13 @@ class OrderController {
   }
 
   // Получить конкретный заказ
-  async getOrder(req: AuthRequest, res: Response) {
+  async getOrder(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.user?.id;
       const { id } = req.params;
 
       if (!userId) {
-        throw new AppError('Пользователь не авторизован', 401);
+        return next(new AppError('Пользователь не авторизован', 401));
       }
 
       const order = await prisma.order.findFirst({
@@ -257,14 +336,16 @@ class OrderController {
       });
 
       if (!order) {
-        throw new AppError('Заказ не найден', 404);
+        return next(new AppError('Заказ не найден', 404));
       }
 
       res.json(order);
     } catch (error) {
-      if (error instanceof AppError) throw error;
+      if (error instanceof AppError) {
+        return next(error);
+      }
       logger.error('Ошибка при получении заказа:', error);
-      throw new AppError('Не удалось получить заказ', 500);
+      return next(new AppError('Не удалось получить заказ', 500));
     }
   }
 
@@ -353,7 +434,7 @@ class OrderController {
       }
 
       // Рассчитать стоимость доставки
-      const deliveryCost = calculateDeliveryCost(subtotal);
+      const deliveryCost = await calculateDeliveryCost(subtotal);
       let promoResult: PromoEvaluationResult | null = null;
       let appliedDeliveryCost = deliveryCost;
 
@@ -1198,3 +1279,4 @@ class OrderController {
 }
 
 export default new OrderController();
+

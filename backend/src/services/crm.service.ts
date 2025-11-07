@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 
 type RevenueInterval = 'daily' | 'weekly' | 'monthly';
@@ -77,10 +78,13 @@ interface CrmOverviewTopProduct {
 
 export interface CrmOverview {
   generatedAt: string;
-  rangeDays: number;
+  periodStart: string;
+  periodEnd: string;
+  comparePeriodStart?: string;
+  comparePeriodEnd?: string;
   metrics: {
     totalUsers: number;
-    newUsers7d: number;
+    newUsersInPeriod: number;
     activeUsers30d: number;
     payingUsers: number;
     totalOrders: number;
@@ -88,11 +92,28 @@ export interface CrmOverview {
     processingOrders: number;
     deliveredOrders: number;
     totalRevenue: number;
-    revenueRange: number;
+    revenueInPeriod: number;
     averageOrderValue: number;
     ordersPerPayingUser: number;
+    averageBasketDepth: number;
+    productsInPeriod: number;
     totalBonusEarned: number;
     totalBonusSpent: number;
+    // Сравнение с предыдущим периодом
+    compare?: {
+      revenueChange: number;
+      revenueChangePercent: number;
+      ordersChange: number;
+      ordersChangePercent: number;
+      newUsersChange: number;
+      newUsersChangePercent: number;
+      averageOrderValueChange: number;
+      averageOrderValueChangePercent: number;
+      bonusEarnedChange: number;
+      bonusEarnedChangePercent: number;
+      bonusSpentChange: number;
+      bonusSpentChangePercent: number;
+    };
   };
   topCustomers: CrmOverviewTopCustomer[];
   topProducts: CrmOverviewTopProduct[];
@@ -318,31 +339,110 @@ const buildUserDisplayName = (user: {
   return user.username ?? null;
 };
 
-export async function fetchCrmOverview(rangeDays = 30): Promise<CrmOverview> {
-  const clampedRange = clampNumber(rangeDays, 1, 365);
+export async function fetchCrmOverview(params: {
+  startDate?: Date | string;
+  endDate?: Date | string;
+  compareStartDate?: Date | string;
+  compareEndDate?: Date | string;
+  rangeDays?: number;
+}): Promise<CrmOverview> {
   const generatedAt = new Date();
-  const rangeStart = startOfDayUtc(addDaysUtc(generatedAt, -1 * (clampedRange - 1)));
+  
+  // Определяем период
+  let periodStart: Date;
+  let periodEnd: Date;
+  
+  if (params.startDate && params.endDate) {
+    periodStart = typeof params.startDate === 'string' ? new Date(params.startDate) : params.startDate;
+    periodEnd = typeof params.endDate === 'string' ? new Date(params.endDate) : params.endDate;
+    periodStart = startOfDayUtc(periodStart);
+    // endDate приходит как строка формата YYYY-MM-DD, которая парсится как начало дня
+    // Нам нужно, чтобы это был конец дня (начало следующего дня)
+    // Если endDate = "2025-11-08", это означает конец 07.11 (начало 08.11)
+    periodEnd = startOfDayUtc(periodEnd);
+    // endDate уже должен быть началом следующего дня, но если это не так, добавляем день
+    // Проверяем: если endDate равен startOfDay(endDate), значит это начало дня, добавляем день
+    const endDateNormalized = startOfDayUtc(periodEnd);
+    if (endDateNormalized.getTime() === periodEnd.getTime()) {
+      // Это начало дня, нужно добавить день чтобы получить конец предыдущего дня
+      periodEnd = addDaysUtc(periodEnd, 1);
+    }
+  } else {
+    const rangeDays = clampNumber(params.rangeDays ?? 30, 1, 365);
+    periodStart = startOfDayUtc(addDaysUtc(generatedAt, -1 * (rangeDays - 1)));
+    periodEnd = startOfDayUtc(addDaysUtc(generatedAt, 1)); // Конец сегодняшнего дня
+  }
+
+  // Определяем период для сравнения
+  let comparePeriodStart: Date | undefined;
+  let comparePeriodEnd: Date | undefined;
+  
+  if (params.compareStartDate && params.compareEndDate) {
+    comparePeriodStart = typeof params.compareStartDate === 'string' ? new Date(params.compareStartDate) : params.compareStartDate;
+    comparePeriodEnd = typeof params.compareEndDate === 'string' ? new Date(params.compareEndDate) : params.compareEndDate;
+    comparePeriodStart = startOfDayUtc(comparePeriodStart);
+    comparePeriodEnd = startOfDayUtc(comparePeriodEnd);
+    const compareEndDateStartOfDay = startOfDayUtc(comparePeriodEnd);
+    if (compareEndDateStartOfDay.getTime() === comparePeriodEnd.getTime()) {
+      comparePeriodEnd = addDaysUtc(comparePeriodEnd, 1);
+    }
+  } else if (params.startDate && params.endDate) {
+    // Автоматически вычисляем предыдущий период той же длительности
+    const periodDuration = periodEnd.getTime() - periodStart.getTime();
+    
+    // Проверяем, является ли период месяцем (примерно 28-31 день)
+    const daysDiff = Math.round(periodDuration / (24 * 60 * 60 * 1000));
+    const isMonthPeriod = daysDiff >= 28 && daysDiff <= 31;
+    
+    if (isMonthPeriod) {
+      // Для месячных периодов сравниваем с предыдущим месяцем
+      const periodStartMonth = periodStart.getUTCMonth();
+      const periodStartYear = periodStart.getUTCFullYear();
+      
+      // Вычисляем предыдущий месяц
+      let prevMonth = periodStartMonth - 1;
+      let prevYear = periodStartYear;
+      if (prevMonth < 0) {
+        prevMonth = 11;
+        prevYear -= 1;
+      }
+      
+      comparePeriodStart = new Date(Date.UTC(prevYear, prevMonth, 1));
+      comparePeriodEnd = new Date(Date.UTC(prevYear, prevMonth + 1, 1));
+    } else {
+      // Для остальных периодов используем предыдущий период той же длительности
+      comparePeriodEnd = periodStart;
+      comparePeriodStart = new Date(comparePeriodEnd.getTime() - periodDuration);
+    }
+  }
+
   const activeStart = addDaysUtc(generatedAt, -30);
-  const newUsersStart = addDaysUtc(generatedAt, -6);
 
   const [
     totalUsers,
-    newUsers7d,
+    newUsersInPeriod,
     activeUsers30d,
     payingUsers,
+    periodPayingUsers,
     totalOrders,
     pendingOrders,
     processingOrders,
-    deliveredOrders,
     totalRevenueAgg,
-    rangeRevenueAgg,
-    bonusSummaryRaw,
+    periodRevenueAgg,
+    periodOrdersAgg,
+    periodProductsAgg,
+    periodBonusSummaryRaw,
+    compareRevenueAgg,
+    compareOrdersAgg,
+    compareNewUsersAgg,
+    compareBonusSummaryRaw,
   ] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({
       where: {
         createdAt: {
-          gte: startOfDayUtc(newUsersStart),
+          gte: periodStart,
+          lt: periodEnd,
         },
       },
     }),
@@ -367,10 +467,22 @@ export async function fetchCrmOverview(rangeDays = 30): Promise<CrmOverview> {
         },
       },
     }),
+    prisma.user.count({
+      where: {
+        orders: {
+          some: {
+            status: 'DELIVERED',
+            createdAt: {
+              gte: periodStart,
+              lt: periodEnd,
+            },
+          },
+        },
+      },
+    }),
     prisma.order.count(),
     prisma.order.count({ where: { status: 'PENDING' } }),
     prisma.order.count({ where: { status: 'PROCESSING' } }),
-    prisma.order.count({ where: { status: 'DELIVERED' } }),
     prisma.order.aggregate({
       where: { status: 'DELIVERED' },
       _sum: { totalAmount: true },
@@ -379,21 +491,100 @@ export async function fetchCrmOverview(rangeDays = 30): Promise<CrmOverview> {
       where: {
         status: 'DELIVERED',
         createdAt: {
-          gte: rangeStart,
+          gte: periodStart,
+          lt: periodEnd,
         },
       },
       _sum: { totalAmount: true },
+      _count: { _all: true },
+    }),
+    prisma.order.aggregate({
+      where: {
+        status: 'DELIVERED',
+        createdAt: {
+          gte: periodStart,
+          lt: periodEnd,
+        },
+      },
+      _count: { _all: true },
+    }),
+    prisma.orderItem.aggregate({
+      where: {
+        order: {
+          status: 'DELIVERED',
+          createdAt: {
+            gte: periodStart,
+            lt: periodEnd,
+          },
+        },
+      },
+      _sum: { quantity: true },
     }),
     prisma.bonusTransaction.groupBy({
       by: ['type'],
+      where: {
+        createdAt: {
+          gte: periodStart,
+          lt: periodEnd,
+        },
+      },
       _sum: { amount: true },
     }),
+    comparePeriodStart && comparePeriodEnd
+      ? prisma.order.aggregate({
+          where: {
+            status: 'DELIVERED',
+            createdAt: {
+              gte: comparePeriodStart,
+              lt: comparePeriodEnd,
+            },
+          },
+          _sum: { totalAmount: true },
+        })
+      : Promise.resolve({ _sum: { totalAmount: null } }),
+    comparePeriodStart && comparePeriodEnd
+      ? prisma.order.aggregate({
+          where: {
+            status: 'DELIVERED',
+            createdAt: {
+              gte: comparePeriodStart,
+              lt: comparePeriodEnd,
+            },
+          },
+          _count: { _all: true },
+        })
+      : Promise.resolve({ _count: { _all: 0 } }),
+    comparePeriodStart && comparePeriodEnd
+      ? prisma.user.count({
+          where: {
+            createdAt: {
+              gte: comparePeriodStart,
+              lt: comparePeriodEnd,
+            },
+          },
+        })
+      : Promise.resolve(0),
+    comparePeriodStart && comparePeriodEnd
+      ? prisma.bonusTransaction.groupBy({
+          by: ['type'],
+          where: {
+            createdAt: {
+              gte: comparePeriodStart,
+              lt: comparePeriodEnd,
+            },
+          },
+          _sum: { amount: true },
+        })
+      : Promise.resolve([]),
   ]);
 
   const totalRevenue = toNumber(totalRevenueAgg._sum.totalAmount);
-  const rangeRevenue = toNumber(rangeRevenueAgg._sum.totalAmount);
-  const averageOrderValue = deliveredOrders > 0 ? totalRevenue / deliveredOrders : 0;
-  const ordersPerPayingUser = payingUsers > 0 ? deliveredOrders / payingUsers : 0;
+  const periodRevenue = toNumber(periodRevenueAgg._sum.totalAmount);
+  const periodOrdersCount = toNumber(periodOrdersAgg._count._all);
+  const periodProductsCount = toNumber(periodProductsAgg._sum.quantity);
+  const averageOrderValue = periodOrdersCount > 0 ? periodRevenue / periodOrdersCount : 0;
+  const ordersPerPayingUser = periodPayingUsers > 0 ? periodOrdersCount / periodPayingUsers : 0;
+  const averageBasketDepth = periodOrdersCount > 0 ? periodProductsCount / periodOrdersCount : 0;
 
   const bonusSummary = {
     EARNED: 0,
@@ -403,11 +594,66 @@ export async function fetchCrmOverview(rangeDays = 30): Promise<CrmOverview> {
     REFUND: 0,
   } as Record<string, number>;
 
-  const bonusGroups = bonusSummaryRaw as Array<{ type: string; _sum: { amount: unknown } }>;
+  const bonusGroups = periodBonusSummaryRaw as Array<{ type: string; _sum: { amount: unknown } }>;
 
   bonusGroups.forEach(item => {
     bonusSummary[item.type] = toNumber(item._sum.amount);
   });
+
+  // Расчет сравнения с предыдущим периодом
+  let compare: CrmOverview['metrics']['compare'] | undefined;
+  if (comparePeriodStart && comparePeriodEnd) {
+    const compareRevenue = toNumber(compareRevenueAgg._sum.totalAmount);
+    const compareOrdersCount = toNumber(compareOrdersAgg._count._all);
+    const compareNewUsers = toNumber(compareNewUsersAgg);
+    const compareAverageOrderValue = compareOrdersCount > 0 ? compareRevenue / compareOrdersCount : 0;
+
+    const compareBonusSummary = {
+      EARNED: 0,
+      SPENT: 0,
+      GIFT: 0,
+      EXPIRED: 0,
+      REFUND: 0,
+    } as Record<string, number>;
+
+    const compareBonusGroups = compareBonusSummaryRaw as Array<{ type: string; _sum: { amount: unknown } }>;
+    compareBonusGroups.forEach(item => {
+      compareBonusSummary[item.type] = toNumber(item._sum.amount);
+    });
+
+    const revenueChange = periodRevenue - compareRevenue;
+    const revenueChangePercent = compareRevenue > 0 ? (revenueChange / compareRevenue) * 100 : 0;
+
+    const ordersChange = periodOrdersCount - compareOrdersCount;
+    const ordersChangePercent = compareOrdersCount > 0 ? (ordersChange / compareOrdersCount) * 100 : 0;
+
+    const newUsersChange = newUsersInPeriod - compareNewUsers;
+    const newUsersChangePercent = compareNewUsers > 0 ? (newUsersChange / compareNewUsers) * 100 : 0;
+
+    const averageOrderValueChange = averageOrderValue - compareAverageOrderValue;
+    const averageOrderValueChangePercent = compareAverageOrderValue > 0 ? (averageOrderValueChange / compareAverageOrderValue) * 100 : 0;
+
+    const bonusEarnedChange = bonusSummary.EARNED - compareBonusSummary.EARNED;
+    const bonusEarnedChangePercent = compareBonusSummary.EARNED > 0 ? (bonusEarnedChange / compareBonusSummary.EARNED) * 100 : 0;
+
+    const bonusSpentChange = bonusSummary.SPENT - compareBonusSummary.SPENT;
+    const bonusSpentChangePercent = compareBonusSummary.SPENT > 0 ? (bonusSpentChange / compareBonusSummary.SPENT) * 100 : 0;
+
+    compare = {
+      revenueChange,
+      revenueChangePercent,
+      ordersChange,
+      ordersChangePercent,
+      newUsersChange,
+      newUsersChangePercent,
+      averageOrderValueChange,
+      averageOrderValueChangePercent,
+      bonusEarnedChange,
+      bonusEarnedChangePercent,
+      bonusSpentChange,
+      bonusSpentChangePercent,
+    };
+  }
 
   type TopCustomerGroup = { userId: string; _sum: { totalAmount: unknown }; _count: { _all: number } };
 
@@ -494,6 +740,8 @@ export async function fetchCrmOverview(rangeDays = 30): Promise<CrmOverview> {
     INNER JOIN "orders" o ON o.id = oi."orderId"
     LEFT JOIN "products" p ON p.id = oi."productId"
     WHERE o.status = 'DELIVERED'
+      AND o."createdAt" >= ${periodStart}
+      AND o."createdAt" < ${periodEnd}
     GROUP BY oi."productId", p.name, p."imageUrl"
     ORDER BY SUM(oi.quantity * oi.price) DESC
     LIMIT 5
@@ -517,22 +765,28 @@ export async function fetchCrmOverview(rangeDays = 30): Promise<CrmOverview> {
 
   return {
     generatedAt: generatedAt.toISOString(),
-    rangeDays: clampedRange,
+    periodStart: periodStart.toISOString(),
+    periodEnd: periodEnd.toISOString(),
+    comparePeriodStart: comparePeriodStart?.toISOString(),
+    comparePeriodEnd: comparePeriodEnd?.toISOString(),
     metrics: {
       totalUsers,
-      newUsers7d,
+      newUsersInPeriod,
       activeUsers30d,
       payingUsers,
       totalOrders,
       pendingOrders,
       processingOrders,
-      deliveredOrders,
+      deliveredOrders: periodOrdersCount,
       totalRevenue,
-      revenueRange: rangeRevenue,
+      revenueInPeriod: periodRevenue,
       averageOrderValue,
       ordersPerPayingUser,
+      averageBasketDepth,
+      productsInPeriod: periodProductsCount,
       totalBonusEarned: bonusSummary.EARNED,
       totalBonusSpent: bonusSummary.SPENT,
+      compare,
     },
     topCustomers,
     topProducts,
@@ -584,16 +838,19 @@ export async function fetchRevenueSeries(params: {
     monthly: 'month',
   };
 
-  const rawRows = (await prisma.$queryRaw`
-    SELECT
-      date_trunc('${intervalUnitMap[interval]}', "createdAt") AS "period",
-      SUM("totalAmount") AS "totalAmount",
-      COUNT(*) AS "ordersCount"
-    FROM "orders"
-    WHERE status = 'DELIVERED' AND "createdAt" >= ${fromStart}
-    GROUP BY 1
-    ORDER BY 1 ASC
-  `) as Array<{
+  const intervalUnit = intervalUnitMap[interval];
+  const rawRows = (await prisma.$queryRaw(
+    Prisma.sql`
+      SELECT
+        ${Prisma.raw(`date_trunc('${intervalUnit}', "createdAt")`)} AS "period",
+        SUM("totalAmount") AS "totalAmount",
+        COUNT(*) AS "ordersCount"
+      FROM "orders"
+      WHERE status = 'DELIVERED' AND "createdAt" >= ${fromStart}
+      GROUP BY 1
+      ORDER BY 1 ASC
+    `
+  )) as Array<{
     period: Date;
     totalAmount: unknown;
     ordersCount: unknown;
@@ -676,15 +933,18 @@ export async function fetchNewUsersSeries(params: {
     monthly: 'month',
   };
 
-  const rawRows = (await prisma.$queryRaw`
-    SELECT
-      date_trunc('${intervalUnitMap[interval]}', "createdAt") AS "period",
-      COUNT(*) AS "usersCount"
-    FROM "users"
-    WHERE "createdAt" >= ${fromStart}
-    GROUP BY 1
-    ORDER BY 1 ASC
-  `) as Array<{
+  const intervalUnit = intervalUnitMap[interval];
+  const rawRows = (await prisma.$queryRaw(
+    Prisma.sql`
+      SELECT
+        ${Prisma.raw(`date_trunc('${intervalUnit}', "createdAt")`)} AS "period",
+        COUNT(*) AS "usersCount"
+      FROM "users"
+      WHERE "createdAt" >= ${fromStart}
+      GROUP BY 1
+      ORDER BY 1 ASC
+    `
+  )) as Array<{
     period: Date;
     usersCount: unknown;
   }>;
@@ -706,6 +966,301 @@ export async function fetchNewUsersSeries(params: {
       periodStart: periodStart.toISOString(),
       periodEnd: periodEnd.toISOString(),
       usersCount,
+    });
+  }
+
+  return {
+    interval,
+    periods: clampedPeriods,
+    from: fromStart.toISOString(),
+    to: addInterval(fromStart, clampedPeriods).toISOString(),
+    points,
+  };
+}
+
+interface OrdersSeriesPoint {
+  periodStart: string;
+  periodEnd: string;
+  ordersCount: number;
+}
+
+interface ProductsSeriesPoint {
+  periodStart: string;
+  periodEnd: string;
+  productsCount: number;
+}
+
+interface BasketDepthSeriesPoint {
+  periodStart: string;
+  periodEnd: string;
+  averageBasketDepth: number;
+}
+
+export async function fetchOrdersSeries(params: {
+  interval: RevenueInterval;
+  periods: number;
+}): Promise<{
+  interval: RevenueInterval;
+  periods: number;
+  from: string;
+  to: string;
+  points: OrdersSeriesPoint[];
+}> {
+  const interval = params.interval;
+  const clampedPeriods = clampNumber(params.periods, 1, 180);
+  const now = new Date();
+
+  const computeStart = (reference: Date): Date => {
+    switch (interval) {
+      case 'weekly':
+        return startOfWeekUtc(reference);
+      case 'monthly':
+        return startOfMonthUtc(reference);
+      default:
+        return startOfDayUtc(reference);
+    }
+  };
+
+  const addInterval = (value: Date, count: number): Date => {
+    switch (interval) {
+      case 'weekly':
+        return addWeeksUtc(value, count);
+      case 'monthly':
+        return addMonthsUtc(value, count);
+      default:
+        return addDaysUtc(value, count);
+    }
+  };
+
+  const endPeriodStart = computeStart(now);
+  const fromStart = addInterval(endPeriodStart, -1 * (clampedPeriods - 1));
+
+  const intervalUnitMap: Record<RevenueInterval, string> = {
+    daily: 'day',
+    weekly: 'week',
+    monthly: 'month',
+  };
+
+  const intervalUnit = intervalUnitMap[interval];
+  const rawRows = (await prisma.$queryRaw(
+    Prisma.sql`
+      SELECT
+        ${Prisma.raw(`date_trunc('${intervalUnit}', "createdAt")`)} AS "period",
+        COUNT(*) AS "ordersCount"
+      FROM "orders"
+      WHERE status = 'DELIVERED' AND "createdAt" >= ${fromStart}
+      GROUP BY 1
+      ORDER BY 1 ASC
+    `
+  )) as Array<{
+    period: Date;
+    ordersCount: unknown;
+  }>;
+
+  const bucketMap = new Map<string, number>();
+  rawRows.forEach((row) => {
+    const bucketKey = new Date(row.period).toISOString();
+    bucketMap.set(bucketKey, toNumber(row.ordersCount));
+  });
+
+  const points: OrdersSeriesPoint[] = [];
+  for (let index = 0; index < clampedPeriods; index += 1) {
+    const periodStart = addInterval(fromStart, index);
+    const periodEnd = addInterval(periodStart, 1);
+    const key = periodStart.toISOString();
+    const ordersCount = bucketMap.get(key) ?? 0;
+
+    points.push({
+      periodStart: periodStart.toISOString(),
+      periodEnd: periodEnd.toISOString(),
+      ordersCount,
+    });
+  }
+
+  return {
+    interval,
+    periods: clampedPeriods,
+    from: fromStart.toISOString(),
+    to: addInterval(fromStart, clampedPeriods).toISOString(),
+    points,
+  };
+}
+
+export async function fetchProductsSeries(params: {
+  interval: RevenueInterval;
+  periods: number;
+}): Promise<{
+  interval: RevenueInterval;
+  periods: number;
+  from: string;
+  to: string;
+  points: ProductsSeriesPoint[];
+}> {
+  const interval = params.interval;
+  const clampedPeriods = clampNumber(params.periods, 1, 180);
+  const now = new Date();
+
+  const computeStart = (reference: Date): Date => {
+    switch (interval) {
+      case 'weekly':
+        return startOfWeekUtc(reference);
+      case 'monthly':
+        return startOfMonthUtc(reference);
+      default:
+        return startOfDayUtc(reference);
+    }
+  };
+
+  const addInterval = (value: Date, count: number): Date => {
+    switch (interval) {
+      case 'weekly':
+        return addWeeksUtc(value, count);
+      case 'monthly':
+        return addMonthsUtc(value, count);
+      default:
+        return addDaysUtc(value, count);
+    }
+  };
+
+  const endPeriodStart = computeStart(now);
+  const fromStart = addInterval(endPeriodStart, -1 * (clampedPeriods - 1));
+
+  const intervalUnitMap: Record<RevenueInterval, string> = {
+    daily: 'day',
+    weekly: 'week',
+    monthly: 'month',
+  };
+
+  const intervalUnit = intervalUnitMap[interval];
+  const rawRows = (await prisma.$queryRaw(
+    Prisma.sql`
+      SELECT
+        ${Prisma.raw(`date_trunc('${intervalUnit}', o."createdAt")`)} AS "period",
+        SUM(oi.quantity) AS "productsCount"
+      FROM "order_items" oi
+      INNER JOIN "orders" o ON o.id = oi."orderId"
+      WHERE o.status = 'DELIVERED' AND o."createdAt" >= ${fromStart}
+      GROUP BY 1
+      ORDER BY 1 ASC
+    `
+  )) as Array<{
+    period: Date;
+    productsCount: unknown;
+  }>;
+
+  const bucketMap = new Map<string, number>();
+  rawRows.forEach((row) => {
+    const bucketKey = new Date(row.period).toISOString();
+    bucketMap.set(bucketKey, toNumber(row.productsCount));
+  });
+
+  const points: ProductsSeriesPoint[] = [];
+  for (let index = 0; index < clampedPeriods; index += 1) {
+    const periodStart = addInterval(fromStart, index);
+    const periodEnd = addInterval(periodStart, 1);
+    const key = periodStart.toISOString();
+    const productsCount = bucketMap.get(key) ?? 0;
+
+    points.push({
+      periodStart: periodStart.toISOString(),
+      periodEnd: periodEnd.toISOString(),
+      productsCount,
+    });
+  }
+
+  return {
+    interval,
+    periods: clampedPeriods,
+    from: fromStart.toISOString(),
+    to: addInterval(fromStart, clampedPeriods).toISOString(),
+    points,
+  };
+}
+
+export async function fetchBasketDepthSeries(params: {
+  interval: RevenueInterval;
+  periods: number;
+}): Promise<{
+  interval: RevenueInterval;
+  periods: number;
+  from: string;
+  to: string;
+  points: BasketDepthSeriesPoint[];
+}> {
+  const interval = params.interval;
+  const clampedPeriods = clampNumber(params.periods, 1, 180);
+  const now = new Date();
+
+  const computeStart = (reference: Date): Date => {
+    switch (interval) {
+      case 'weekly':
+        return startOfWeekUtc(reference);
+      case 'monthly':
+        return startOfMonthUtc(reference);
+      default:
+        return startOfDayUtc(reference);
+    }
+  };
+
+  const addInterval = (value: Date, count: number): Date => {
+    switch (interval) {
+      case 'weekly':
+        return addWeeksUtc(value, count);
+      case 'monthly':
+        return addMonthsUtc(value, count);
+      default:
+        return addDaysUtc(value, count);
+    }
+  };
+
+  const endPeriodStart = computeStart(now);
+  const fromStart = addInterval(endPeriodStart, -1 * (clampedPeriods - 1));
+
+  const intervalUnitMap: Record<RevenueInterval, string> = {
+    daily: 'day',
+    weekly: 'week',
+    monthly: 'month',
+  };
+
+  const intervalUnit = intervalUnitMap[interval];
+  const rawRows = (await prisma.$queryRaw(
+    Prisma.sql`
+      SELECT
+        ${Prisma.raw(`date_trunc('${intervalUnit}', o."createdAt")`)} AS "period",
+        COUNT(DISTINCT o.id) AS "ordersCount",
+        SUM(oi.quantity) AS "totalProducts"
+      FROM "order_items" oi
+      INNER JOIN "orders" o ON o.id = oi."orderId"
+      WHERE o.status = 'DELIVERED' AND o."createdAt" >= ${fromStart}
+      GROUP BY 1
+      ORDER BY 1 ASC
+    `
+  )) as Array<{
+    period: Date;
+    ordersCount: unknown;
+    totalProducts: unknown;
+  }>;
+
+  const bucketMap = new Map<string, { ordersCount: number; totalProducts: number }>();
+  rawRows.forEach((row) => {
+    const bucketKey = new Date(row.period).toISOString();
+    const ordersCount = toNumber(row.ordersCount);
+    const totalProducts = toNumber(row.totalProducts);
+    bucketMap.set(bucketKey, { ordersCount, totalProducts });
+  });
+
+  const points: BasketDepthSeriesPoint[] = [];
+  for (let index = 0; index < clampedPeriods; index += 1) {
+    const periodStart = addInterval(fromStart, index);
+    const periodEnd = addInterval(periodStart, 1);
+    const key = periodStart.toISOString();
+    const bucket = bucketMap.get(key) ?? { ordersCount: 0, totalProducts: 0 };
+    const averageBasketDepth = bucket.ordersCount > 0 ? bucket.totalProducts / bucket.ordersCount : 0;
+
+    points.push({
+      periodStart: periodStart.toISOString(),
+      periodEnd: periodEnd.toISOString(),
+      averageBasketDepth,
     });
   }
 

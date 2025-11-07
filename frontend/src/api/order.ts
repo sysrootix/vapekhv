@@ -88,7 +88,18 @@ export interface ApplyPromoFailure {
 
 export type ApplyPromoResponse = ApplyPromoSuccess | ApplyPromoFailure;
 
+export interface WeatherStatus {
+  badWeather: boolean;
+  message: string | null;
+  reasons?: string[];
+  temperature?: number;
+}
+
 export const orderApi = {
+  getWeatherStatus: async (): Promise<WeatherStatus> => {
+    const response = await apiClient.get<WeatherStatus>('/orders/weather-status');
+    return response.data;
+  },
   getOrders: async (): Promise<Order[]> => {
     const response = await apiClient.get<Order[]>('/orders');
     return response.data;

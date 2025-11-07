@@ -15,7 +15,22 @@ import {
   fetchCrmUserDetails,
   fetchRevenueSeries,
   fetchNewUsersSeries,
+  fetchOrdersSeries,
+  fetchProductsSeries,
+  fetchBasketDepthSeries,
 } from '../services/crm.service';
+import {
+  getOrderTimeAnalysis,
+  getBonusAnalysis,
+  getRepeatPurchaseAnalysis,
+  getRFMAnalysis,
+} from '../services/analytics.service';
+import {
+  sendBroadcast,
+  getBroadcastStats,
+  BroadcastMessage,
+  BroadcastTarget,
+} from '../services/broadcast.service';
 
 const parseChatIds = (value?: string | null): number[] => {
   if (!value) {
@@ -389,7 +404,18 @@ class AdminController {
   async getCrmOverview(req: AuthRequest, res: Response) {
     try {
       const rangeParam = typeof req.query.rangeDays === 'string' ? parseInt(req.query.rangeDays, 10) : undefined;
-      const overview = await fetchCrmOverview(rangeParam);
+      const startDateParam = typeof req.query.startDate === 'string' ? req.query.startDate : undefined;
+      const endDateParam = typeof req.query.endDate === 'string' ? req.query.endDate : undefined;
+      const compareStartDateParam = typeof req.query.compareStartDate === 'string' ? req.query.compareStartDate : undefined;
+      const compareEndDateParam = typeof req.query.compareEndDate === 'string' ? req.query.compareEndDate : undefined;
+
+      const overview = await fetchCrmOverview({
+        rangeDays: rangeParam,
+        startDate: startDateParam,
+        endDate: endDateParam,
+        compareStartDate: compareStartDateParam,
+        compareEndDate: compareEndDateParam,
+      });
       res.json(overview);
     } catch (error) {
       logger.error('Ошибка при получении CRM-обзора:', error);
@@ -428,6 +454,57 @@ class AdminController {
     } catch (error) {
       logger.error('Ошибка при получении динамики новых пользователей:', error);
       throw new AppError('Не удалось получить динамику новых пользователей', 500);
+    }
+  }
+
+  async getOrdersSeries(req: AuthRequest, res: Response) {
+    try {
+      const intervalRaw = typeof req.query.interval === 'string' ? req.query.interval : 'daily';
+      const allowedIntervals = new Set(['daily', 'weekly', 'monthly']);
+      const interval = allowedIntervals.has(intervalRaw) ? (intervalRaw as 'daily' | 'weekly' | 'monthly') : 'daily';
+
+      const periodsParam = typeof req.query.periods === 'string' ? parseInt(req.query.periods, 10) : undefined;
+      const periods = periodsParam && !Number.isNaN(periodsParam) ? periodsParam : interval === 'monthly' ? 12 : 14;
+
+      const series = await fetchOrdersSeries({ interval, periods });
+      res.json(series);
+    } catch (error) {
+      logger.error('Ошибка при получении динамики заказов:', error);
+      throw new AppError('Не удалось получить динамику заказов', 500);
+    }
+  }
+
+  async getProductsSeries(req: AuthRequest, res: Response) {
+    try {
+      const intervalRaw = typeof req.query.interval === 'string' ? req.query.interval : 'daily';
+      const allowedIntervals = new Set(['daily', 'weekly', 'monthly']);
+      const interval = allowedIntervals.has(intervalRaw) ? (intervalRaw as 'daily' | 'weekly' | 'monthly') : 'daily';
+
+      const periodsParam = typeof req.query.periods === 'string' ? parseInt(req.query.periods, 10) : undefined;
+      const periods = periodsParam && !Number.isNaN(periodsParam) ? periodsParam : interval === 'monthly' ? 12 : 14;
+
+      const series = await fetchProductsSeries({ interval, periods });
+      res.json(series);
+    } catch (error) {
+      logger.error('Ошибка при получении динамики товаров:', error);
+      throw new AppError('Не удалось получить динамику товаров', 500);
+    }
+  }
+
+  async getBasketDepthSeries(req: AuthRequest, res: Response) {
+    try {
+      const intervalRaw = typeof req.query.interval === 'string' ? req.query.interval : 'daily';
+      const allowedIntervals = new Set(['daily', 'weekly', 'monthly']);
+      const interval = allowedIntervals.has(intervalRaw) ? (intervalRaw as 'daily' | 'weekly' | 'monthly') : 'daily';
+
+      const periodsParam = typeof req.query.periods === 'string' ? parseInt(req.query.periods, 10) : undefined;
+      const periods = periodsParam && !Number.isNaN(periodsParam) ? periodsParam : interval === 'monthly' ? 12 : 14;
+
+      const series = await fetchBasketDepthSeries({ interval, periods });
+      res.json(series);
+    } catch (error) {
+      logger.error('Ошибка при получении динамики глубины чека:', error);
+      throw new AppError('Не удалось получить динамику глубины чека', 500);
     }
   }
 
@@ -623,24 +700,32 @@ class AdminController {
             cohort: cohortMonth,
             usersCount: 0,
             totalRevenue: 0,
+            ordersCount: 0,
             activeUsers: 0,
             avgRevenue: 0,
+            averageOrderValue: 0,
           });
         }
 
         const cohort = cohortMap.get(cohortMonth);
         cohort.usersCount++;
-        cohort.totalRevenue += Number(user.totalSpent);
+        
+        // Считаем выручку и заказы только из доставленных заказов
+        const deliveredOrders = user.orders.filter((o) => o.status === 'DELIVERED');
+        const cohortRevenue = deliveredOrders.reduce((sum, order) => sum + Number(order.totalAmount), 0);
+        cohort.totalRevenue += cohortRevenue;
+        cohort.ordersCount += deliveredOrders.length;
 
-        if (user.orders.some((o) => o.status === 'DELIVERED')) {
+        if (deliveredOrders.length > 0) {
           cohort.activeUsers++;
         }
       });
 
-      // Рассчитываем средний доход на пользователя
+      // Рассчитываем средний доход на пользователя и средний чек
       const cohorts = Array.from(cohortMap.values()).map((cohort) => ({
         ...cohort,
         avgRevenue: cohort.usersCount > 0 ? cohort.totalRevenue / cohort.usersCount : 0,
+        averageOrderValue: cohort.ordersCount > 0 ? cohort.totalRevenue / cohort.ordersCount : 0,
         retentionRate: cohort.usersCount > 0 ? (cohort.activeUsers / cohort.usersCount) * 100 : 0,
       })).sort((a, b) => b.cohort.localeCompare(a.cohort));
 
@@ -679,24 +764,28 @@ class AdminController {
       };
 
       users.forEach((user) => {
-        const ltv = Number(user.totalSpent);
+        // LTV = сумма всех доставленных заказов (включая доставку)
+        const ltv = user.orders.reduce((sum, order) => sum + Number(order.totalAmount), 0);
         const daysSinceRegistration = Math.floor(
           (now.getTime() - user.createdAt.getTime()) / (1000 * 60 * 60 * 24)
         );
         const ordersCount = user.orders.length;
 
-        totalLTV += ltv;
-        totalCustomers++;
+        // Считаем LTV только для пользователей с доставленными заказами
+        if (ltv > 0) {
+          totalLTV += ltv;
+          totalCustomers++;
 
-        if (daysSinceRegistration < 30) {
-          segments.new.count++;
-          segments.new.ltv += ltv;
-        } else if (ordersCount >= 5) {
-          segments.loyal.count++;
-          segments.loyal.ltv += ltv;
-        } else {
-          segments.active.count++;
-          segments.active.ltv += ltv;
+          if (daysSinceRegistration < 30) {
+            segments.new.count++;
+            segments.new.ltv += ltv;
+          } else if (ordersCount >= 5) {
+            segments.loyal.count++;
+            segments.loyal.ltv += ltv;
+          } else {
+            segments.active.count++;
+            segments.active.ltv += ltv;
+          }
         }
       });
 
@@ -786,6 +875,87 @@ class AdminController {
     } catch (error) {
       logger.error('Ошибка при получении топ продуктов:', error);
       throw new AppError('Не удалось получить топ продуктов', 500);
+    }
+  }
+
+  async getOrderTimeAnalysis(_req: AuthRequest, res: Response) {
+    try {
+      const analysis = await getOrderTimeAnalysis();
+      res.json(analysis);
+    } catch (error) {
+      logger.error('Ошибка при получении анализа времени заказов:', error);
+      throw new AppError('Не удалось получить анализ времени заказов', 500);
+    }
+  }
+
+  async getBonusAnalysis(_req: AuthRequest, res: Response) {
+    try {
+      const analysis = await getBonusAnalysis();
+      res.json(analysis);
+    } catch (error) {
+      logger.error('Ошибка при получении анализа бонусов:', error);
+      throw new AppError('Не удалось получить анализ бонусов', 500);
+    }
+  }
+
+  async getRepeatPurchaseAnalysis(_req: AuthRequest, res: Response) {
+    try {
+      const analysis = await getRepeatPurchaseAnalysis();
+      res.json(analysis);
+    } catch (error) {
+      logger.error('Ошибка при получении анализа повторных покупок:', error);
+      throw new AppError('Не удалось получить анализ повторных покупок', 500);
+    }
+  }
+
+  async getRFMAnalysis(_req: AuthRequest, res: Response) {
+    try {
+      const analysis = await getRFMAnalysis();
+      res.json(analysis);
+    } catch (error) {
+      logger.error('Ошибка при получении RFM анализа:', error);
+      throw new AppError('Не удалось получить RFM анализ', 500);
+    }
+  }
+
+  // Получить статистику для рассылки
+  async getBroadcastStats(req: AuthRequest, res: Response) {
+    try {
+      const target: BroadcastTarget = req.body;
+      const stats = await getBroadcastStats(target);
+      res.json(stats);
+    } catch (error) {
+      logger.error('Ошибка при получении статистики рассылки:', error);
+      throw new AppError('Не удалось получить статистику рассылки', 500);
+    }
+  }
+
+  // Отправить рассылку
+  async sendBroadcast(req: AuthRequest, res: Response) {
+    try {
+      const { message, target }: { message: BroadcastMessage; target: BroadcastTarget } = req.body;
+
+      if (!message || !message.text) {
+        throw new AppError('Текст сообщения обязателен', 400);
+      }
+
+      if (!target || (!target.userIds && !target.segment && target.segment !== 'all')) {
+        throw new AppError('Необходимо указать целевую аудиторию', 400);
+      }
+
+      // Handle 'all' segment
+      if (target.segment === 'all') {
+        target.segment = undefined;
+      }
+
+      const result = await sendBroadcast(message, target);
+      res.json(result);
+    } catch (error) {
+      logger.error('Ошибка при отправке рассылки:', error);
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw new AppError('Не удалось отправить рассылку', 500);
     }
   }
 }

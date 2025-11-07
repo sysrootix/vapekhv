@@ -16,5 +16,8 @@ router.post(
 // Проверка токена
 router.get('/verify', authController.verifyToken);
 
+// Получить конфигурацию бота (публичный endpoint)
+router.get('/bot-config', authController.getBotConfig);
+
 export default router;
 

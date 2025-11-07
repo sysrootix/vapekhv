@@ -1,21 +1,32 @@
 export const MIN_ORDER_AMOUNT = 1000;
 
 export const DELIVERY_STEPS = [
-  { threshold: MIN_ORDER_AMOUNT, cost: 500, label: 'Доставка за 500₽' },
-  { threshold: 3000, cost: 300, label: 'Доставка за 300₽' },
-  { threshold: 4000, cost: 200, label: 'Доставка за 200₽' },
-  { threshold: 5000, cost: 0, label: 'Бесплатная доставка' },
+  { threshold: MIN_ORDER_AMOUNT, cost: 700, label: 'Доставка за 700₽' },
+  { threshold: 3000, cost: 500, label: 'Доставка за 500₽' },
+  { threshold: 4500, cost: 300, label: 'Доставка за 300₽' },
+  { threshold: 6000, cost: 0, label: 'Бесплатная доставка' },
 ] as const;
 
 export type DeliveryStep = (typeof DELIVERY_STEPS)[number];
 
-export const calculateDeliveryCost = (subtotal: number): number => {
+export const calculateDeliveryCost = (subtotal: number, badWeather = false): number => {
+  let baseCost = 0;
   for (let i = DELIVERY_STEPS.length - 1; i >= 0; i -= 1) {
     if (subtotal >= DELIVERY_STEPS[i].threshold) {
-      return DELIVERY_STEPS[i].cost;
+      baseCost = DELIVERY_STEPS[i].cost;
+      break;
     }
   }
-  return DELIVERY_STEPS[0].cost;
+  if (baseCost === 0) {
+    baseCost = DELIVERY_STEPS[0].cost;
+  }
+
+  // Применяем множитель при плохих погодных условиях
+  if (badWeather && baseCost > 0) {
+    return Math.ceil(baseCost * 1.2);
+  }
+
+  return baseCost;
 };
 
 export const getDeliveryProgress = (subtotal: number) => {
@@ -43,3 +54,4 @@ export const getDeliveryProgress = (subtotal: number) => {
     amountToNext: nextStep ? Math.max(0, nextStep.threshold - subtotal) : 0,
   };
 };
+

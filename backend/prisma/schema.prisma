@@ -46,6 +46,7 @@ model User {
   savedAddresses    SavedAddress[]
   userAchievements  UserAchievement[]
   stockNotifications StockNotification[]
+  reviews           Review[]
 
   @@map("users")
   @@index([telegramId])
@@ -178,6 +179,7 @@ model Product {
   characteristics ProductCharacteristic[]
   productViews    ProductView[]
   stockNotifications StockNotification[]
+  reviews         Review[]
 
   @@map("products")
   @@index([categoryId])
@@ -281,6 +283,7 @@ model Order {
   updatedAt        DateTime    @updatedAt
 
   items            OrderItem[]
+  reviews          Review[]
 
   @@map("orders")
   @@index([userId])
@@ -427,6 +430,7 @@ model ProductView {
   viewedAt  DateTime @default(now())
 
   @@map("product_views")
+  @@unique([userId, productId])
   @@index([userId, viewedAt])
   @@index([productId])
 }
@@ -466,4 +470,35 @@ model StockNotification {
   @@index([userId])
   @@index([productId])
   @@index([notified])
+}
+
+// Отзывы на товары
+model Review {
+  id          String   @id @default(cuid())
+  rating      Int      // Оценка от 1 до 5
+  text        String?  // Текст отзыва
+  images      String[] @default([]) // Массив URL изображений
+  videos      String[] @default([]) // Массив URL видео
+  
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  orderId     String?
+  order       Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  
+  bonusAwarded Int     @default(0) // Бонусы, начисленные за отзыв
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("reviews")
+  @@unique([userId, productId]) // Один отзыв на товар от пользователя
+  @@index([userId])
+  @@index([productId])
+  @@index([orderId])
+  @@index([rating])
+  @@index([createdAt])
 }

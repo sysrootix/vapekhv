@@ -1,24 +1,30 @@
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search, ShoppingBag, Plus, Minus, ArrowUpDown, SlidersHorizontal, X } from 'lucide-react';
+import { Search, ShoppingBag, Plus, Minus, ArrowUpDown, SlidersHorizontal, X, HelpCircle } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { productApi } from '../api/product';
 import { cartApi } from '../api/cart';
 import LoadingScreen from '../components/LoadingScreen';
 import ProductOptionsModal, { Product } from '../components/ProductOptionsModal';
+import ProductRequestModal from '../components/ProductRequestModal';
+import RecentProducts from '../components/RecentProducts';
 import OptimizedImage from '../components/OptimizedImage';
 import ProductPlaceholder from '../components/ProductPlaceholder';
+import ProductRating from '../components/ProductRating';
 import { getCategoryPathString } from '../utils/categoryPath';
+import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
 import { useState, useEffect } from 'react';
 
 export default function CatalogPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isAuthenticated } = useAuthStore();
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showProductRequestModal, setShowProductRequestModal] = useState(false);
   const [sortBy, setSortBy] = useState<'createdAt' | 'price' | 'name'>('createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [minPrice, setMinPrice] = useState<string>('');
@@ -94,6 +100,18 @@ export default function CatalogPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
       toast.success('Товар удален из корзины');
+    },
+  });
+
+  const requestProductMutation = useMutation({
+    mutationFn: (productRequest: string) => productApi.requestProduct(productRequest),
+    onSuccess: () => {
+      toast.success('Запрос отправлен! Мы обязательно рассмотрим ваш запрос ✨');
+      setShowProductRequestModal(false);
+    },
+    onError: (error: any) => {
+      const message = error?.response?.data?.error || 'Ошибка при отправке запроса';
+      toast.error(message);
     },
   });
 
@@ -327,6 +345,9 @@ export default function CatalogPage() {
           ))}
         </motion.div>
 
+        {/* Recent Products - показываем только если авторизован */}
+        {isAuthenticated && <RecentProducts />}
+
         {/* Products Grid */}
         {loadingProducts ? (
           <div className="flex justify-center py-12">
@@ -339,122 +360,159 @@ export default function CatalogPage() {
             className="text-center py-12"
           >
             <ShoppingBag className="w-16 h-16 text-tg-hint mx-auto mb-4 opacity-50" />
-            <p className="text-tg-hint">Товары не найдены</p>
+            <p className="text-tg-hint mb-4">Товары не найдены</p>
+            <button
+              onClick={() => setShowProductRequestModal(true)}
+              className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-3 rounded-xl font-medium hover:opacity-90 transition-opacity flex items-center gap-2 mx-auto"
+            >
+              <HelpCircle className="w-5 h-5" />
+              Не нашли нужный товар?
+            </button>
           </motion.div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
-            {products.map((product, index) => (
-              <motion.div
-                key={product.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                onClick={() => navigate(`/product/${product.id}`)}
-                className="bg-tg-secondary-bg rounded-2xl overflow-hidden cursor-pointer hover:opacity-90 transition-opacity flex flex-col"
-              >
-                {/* Product Image */}
-                <div className="relative aspect-square bg-tg-bg">
-                  {product.imageUrl ? (
-                    <OptimizedImage
-                      src={product.imageUrl}
-                      alt={product.name}
-                      className="w-full h-full object-cover"
-                      priority={index < 4} // Первые 4 изображения загружаем сразу
-                    />
-                  ) : (
-                    <ProductPlaceholder />
-                  )}
-                  {product.oldPrice && (
-                    <div className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-lg">
-                      -{Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100)}%
-                    </div>
-                  )}
-                  {!product.inStock && (
-                    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                      <span className="text-white font-semibold">Нет в наличии</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Product Info */}
-                <div className="p-3 flex flex-col flex-grow">
-                  <h3 className="text-tg-text font-medium text-sm line-clamp-2 mb-1">
-                    {product.name}
-                  </h3>
-
-                  {product.category && (
-                    <p className="text-xs text-tg-hint mb-2">{getCategoryPathString(product.category)}</p>
-                  )}
-                  <div className="mt-auto">
-                    {/* Цена */}
-                    <div className="flex items-baseline gap-1.5 mb-3">
-                      <span className="text-lg font-bold text-tg-text">
-                        {product.price.toLocaleString()}₽
-                      </span>
-                      {product.oldPrice && (
-                        <span className="text-xs text-tg-hint line-through">
-                          {product.oldPrice.toLocaleString()}₽
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Кнопки - всегда на одном месте */}
-                    {product.inStock ? (
-                      (() => {
-                        const hasCharacteristics = !!(product.characteristics && product.characteristics.length > 0);
-                        const cartItem = getCartItemForProduct(product.id, hasCharacteristics);
-                        return cartItem ? (
-                          // Товар в корзине - показываем счетчик
-                          <div className="flex items-center justify-between bg-tg-bg rounded-xl p-1.5">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleQuantityChange(cartItem.id, cartItem.quantity, -1, product.id);
-                              }}
-                              className="p-2.5 hover:bg-tg-hint hover:bg-opacity-10 rounded-lg transition-colors active:scale-95"
-                            >
-                              <Minus className="w-5 h-5 text-tg-text" />
-                            </button>
-                            <span className="px-4 text-base font-semibold text-tg-text min-w-[32px] text-center">
-                              {cartItem.quantity}
-                            </span>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleQuantityChange(cartItem.id, cartItem.quantity, 1, product.id);
-                              }}
-                              className="p-2.5 hover:bg-tg-hint hover:bg-opacity-10 rounded-lg transition-colors active:scale-95"
-                            >
-                              <Plus className="w-5 h-5 text-tg-text" />
-                            </button>
-                          </div>
-                        ) : (
-                          // Товар не в корзине - показываем кнопку "Добавить"
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleAddToCart(product);
-                            }}
-                            disabled={addToCartMutation.isPending}
-                            className="w-full bg-tg-button text-tg-button-text py-2.5 rounded-xl text-sm font-medium hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
-                          >
-                            Добавить
-                          </button>
-                        );
-                      })()
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              {products.map((product, index) => (
+                <motion.div
+                  key={product.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  onClick={() => navigate(`/product/${product.id}`)}
+                  className="bg-tg-secondary-bg rounded-2xl overflow-hidden cursor-pointer hover:opacity-90 transition-opacity flex flex-col"
+                >
+                  {/* Product Image */}
+                  <div className="relative aspect-square bg-tg-bg">
+                    {product.imageUrl ? (
+                      <OptimizedImage
+                        src={product.imageUrl}
+                        alt={product.name}
+                        className="w-full h-full object-cover"
+                        priority={index < 4} // Первые 4 изображения загружаем сразу
+                      />
                     ) : (
-                      <button
-                        disabled
-                        className="w-full bg-tg-secondary-bg text-tg-hint py-2.5 rounded-xl text-sm font-medium cursor-not-allowed"
-                      >
-                        Нет в наличии
-                      </button>
+                      <ProductPlaceholder />
+                    )}
+                    {product.oldPrice && (
+                      <div className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-lg">
+                        -{Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100)}%
+                      </div>
+                    )}
+                    {!product.inStock && (
+                      <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                        <span className="text-white font-semibold">Нет в наличии</span>
+                      </div>
                     )}
                   </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+
+                  {/* Product Info */}
+                  <div className="p-3 flex flex-col flex-grow">
+                    <h3 className="text-tg-text font-medium text-sm line-clamp-2 mb-1">
+                      {product.name}
+                    </h3>
+
+                    {product.category && (
+                      <p className="text-xs text-tg-hint mb-2">{getCategoryPathString(product.category)}</p>
+                    )}
+
+                    {/* Rating */}
+                    {product.rating !== undefined && product.reviewCount !== undefined && product.reviewCount > 0 && (
+                      <div className="mb-2">
+                        <ProductRating
+                          rating={product.rating}
+                          reviewCount={product.reviewCount}
+                          size="sm"
+                        />
+                      </div>
+                    )}
+
+                    <div className="mt-auto">
+                      {/* Цена */}
+                      <div className="flex items-baseline gap-1.5 mb-3">
+                        <span className="text-lg font-bold text-tg-text">
+                          {product.price.toLocaleString()}₽
+                        </span>
+                        {product.oldPrice && (
+                          <span className="text-xs text-tg-hint line-through">
+                            {product.oldPrice.toLocaleString()}₽
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Кнопки - всегда на одном месте */}
+                      {product.inStock ? (
+                        (() => {
+                          const hasCharacteristics = !!(product.characteristics && product.characteristics.length > 0);
+                          const cartItem = getCartItemForProduct(product.id, hasCharacteristics);
+                          return cartItem ? (
+                            // Товар в корзине - показываем счетчик
+                            <div className="flex items-center justify-between bg-tg-bg rounded-xl p-1.5">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleQuantityChange(cartItem.id, cartItem.quantity, -1, product.id);
+                                }}
+                                className="p-2.5 hover:bg-tg-hint hover:bg-opacity-10 rounded-lg transition-colors active:scale-95"
+                              >
+                                <Minus className="w-5 h-5 text-tg-text" />
+                              </button>
+                              <span className="px-4 text-base font-semibold text-tg-text min-w-[32px] text-center">
+                                {cartItem.quantity}
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleQuantityChange(cartItem.id, cartItem.quantity, 1, product.id);
+                                }}
+                                className="p-2.5 hover:bg-tg-hint hover:bg-opacity-10 rounded-lg transition-colors active:scale-95"
+                              >
+                                <Plus className="w-5 h-5 text-tg-text" />
+                              </button>
+                            </div>
+                          ) : (
+                            // Товар не в корзине - показываем кнопку "Добавить"
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAddToCart(product);
+                              }}
+                              disabled={addToCartMutation.isPending}
+                              className="w-full bg-tg-button text-tg-button-text py-2.5 rounded-xl text-sm font-medium hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
+                            >
+                              Добавить
+                            </button>
+                          );
+                        })()
+                      ) : (
+                        <button
+                          disabled
+                          className="w-full bg-tg-secondary-bg text-tg-hint py-2.5 rounded-xl text-sm font-medium cursor-not-allowed"
+                        >
+                          Нет в наличии
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Кнопка "Не нашли нужный товар?" */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="mt-6"
+            >
+              <button
+                onClick={() => setShowProductRequestModal(true)}
+                className="w-full bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20 text-purple-500 px-6 py-4 rounded-2xl font-medium hover:from-purple-500/20 hover:to-pink-500/20 transition-all flex items-center justify-center gap-2"
+              >
+                <HelpCircle className="w-5 h-5" />
+                <span>Не нашли нужный товар?</span>
+              </button>
+            </motion.div>
+          </>
         )}
 
         {/* Product Options Modal */}
@@ -466,6 +524,16 @@ export default function CatalogPage() {
             setSelectedProduct(null);
           }}
           onAdd={handleModalAdd}
+        />
+
+        {/* Product Request Modal */}
+        <ProductRequestModal
+          isOpen={showProductRequestModal}
+          onClose={() => setShowProductRequestModal(false)}
+          onSubmit={async (request) => {
+            await requestProductMutation.mutateAsync(request);
+          }}
+          isLoading={requestProductMutation.isPending}
         />
       </div>
     </div>

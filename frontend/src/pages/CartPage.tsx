@@ -1,11 +1,14 @@
 import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ShoppingCart, Trash2, Plus, Minus, Package, Truck } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus, Package, Truck, CloudRain } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cartApi } from '../api/cart';
 import { productApi } from '../api/product';
+import { orderApi } from '../api/order';
 import LoadingScreen from '../components/LoadingScreen';
 import ConfirmModal from '../components/ConfirmModal';
+import DeliveryInfoModal from '../components/DeliveryInfoModal';
+import OptimizedImage from '../components/OptimizedImage';
 import toast from 'react-hot-toast';
 import { useState, useMemo } from 'react';
 import {
@@ -18,10 +21,18 @@ export default function CartPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showDeliveryInfo, setShowDeliveryInfo] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['cart'],
     queryFn: cartApi.getCart,
+  });
+
+  // Загрузка статуса погоды
+  const { data: weatherStatus } = useQuery({
+    queryKey: ['weatherStatus'],
+    queryFn: orderApi.getWeatherStatus,
+    staleTime: 5 * 60 * 1000, // Кеш на 5 минут
   });
 
   const updateQuantityMutation = useMutation({
@@ -74,24 +85,43 @@ export default function CartPage() {
     }
   };
 
-  if (isLoading) {
-    return <LoadingScreen />;
-  }
-
+  // Данные корзины (могут быть undefined во время загрузки)
   const cartItems = data?.items || [];
   const subtotal = data?.total || 0;
 
-  // Расчет доставки
-  const deliveryCost = useMemo(() => calculateDeliveryCost(subtotal), [subtotal]);
+  // Расчет доставки - хуки должны быть вызваны до условного возврата
+  const badWeather = weatherStatus?.badWeather ?? false;
+  const deliveryCost = useMemo(() => calculateDeliveryCost(subtotal, badWeather), [subtotal, badWeather]);
   const deliveryProgress = useMemo(() => getDeliveryProgress(subtotal), [subtotal]);
   const checkoutDisabled = subtotal < MIN_ORDER_AMOUNT;
+  
+  // Функция для получения стоимости доставки с учетом плохой погоды
+  const getDeliveryCostWithWeather = (baseCost: number) => {
+    if (badWeather && baseCost > 0) {
+      return Math.ceil(baseCost * 1.2);
+    }
+    return baseCost;
+  };
+  
+  // Функция для получения лейбла доставки с учетом плохой погоды
+  const getDeliveryLabel = (step: typeof deliveryProgress.currentStep) => {
+    if (!step) return null;
+    if (step.cost === 0) return 'Бесплатная доставка';
+    const cost = getDeliveryCostWithWeather(step.cost);
+    return step.label.replace(/\d+₽/, `${cost.toLocaleString('ru-RU')}₽`);
+  };
+  
   const nextStepLabel = deliveryProgress.nextStep
     ? deliveryProgress.nextStep.cost === 0
       ? 'бесплатной доставки'
-      : `доставки за ${deliveryProgress.nextStep.cost}₽`
+      : `доставки за ${getDeliveryCostWithWeather(deliveryProgress.nextStep.cost).toLocaleString('ru-RU')}₽`
     : null;
 
   const total = subtotal + deliveryCost;
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
 
   if (cartItems.length === 0) {
     return (
@@ -117,7 +147,7 @@ export default function CartPage() {
   }
 
   return (
-    <div className="min-h-screen bg-tg-bg pb-80">
+    <div className="min-h-screen bg-tg-bg pb-52">
       <div className="max-w-4xl mx-auto p-4 space-y-4">
         {/* Header */}
         <motion.div
@@ -142,6 +172,51 @@ export default function CartPage() {
           )}
         </motion.div>
 
+        {/* Предупреждение о плохих погодных условиях */}
+        {badWeather && weatherStatus?.message && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-orange-500/20 border border-orange-500/40 rounded-xl p-3 flex items-start gap-3"
+          >
+            <div className="p-1.5 bg-orange-500 rounded-lg flex-shrink-0">
+              <CloudRain className="w-4 h-4 text-white" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-orange-200">
+                {weatherStatus.message}
+              </p>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Кнопка тарифов доставки */}
+        <motion.button
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          onClick={() => setShowDeliveryInfo(true)}
+          className="w-full bg-tg-secondary-bg hover:bg-tg-bg rounded-xl p-3 transition-colors flex items-center justify-between group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg group-hover:scale-105 transition-transform">
+              <Truck className="w-4 h-4 text-white" />
+            </div>
+            <div className="text-left">
+              <div className="text-sm font-semibold text-tg-text">
+                Тарифы доставки
+              </div>
+              {deliveryProgress.nextStep && (
+                <div className="text-xs text-tg-hint">
+                  Добавьте товаров на {deliveryProgress.amountToNext.toLocaleString('ru-RU')}₽ до {nextStepLabel}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="text-sm font-medium text-tg-hint group-hover:text-tg-text transition-colors">
+            →
+          </div>
+        </motion.button>
+
         {/* Cart Items */}
         <div className="space-y-3">
           {cartItems.map((item, index) => (
@@ -154,12 +229,13 @@ export default function CartPage() {
             >
               <div className="flex gap-4">
                 {/* Product Image */}
-                <div className="w-20 h-20 bg-tg-bg rounded-xl overflow-hidden flex-shrink-0">
+                <div className="w-20 h-20 bg-tg-bg rounded-xl overflow-hidden flex-shrink-0 relative">
                   {item.product.imageUrl ? (
-                    <img
+                    <OptimizedImage
                       src={item.product.imageUrl}
                       alt={item.product.name}
                       className="w-full h-full object-cover"
+                      priority={index < 3} // Первые 3 изображения загружаем сразу
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
@@ -261,69 +337,75 @@ export default function CartPage() {
       <motion.div
         initial={{ opacity: 0, y: 50 }}
         animate={{ opacity: 1, y: 0 }}
-        className="fixed bottom-16 left-0 right-0 bg-tg-secondary-bg rounded-t-3xl shadow-lg p-3"
+        className="fixed left-0 right-0 bg-tg-secondary-bg rounded-t-2xl shadow-lg"
+        style={{ 
+          bottom: 'calc(72px + env(safe-area-inset-bottom, 0px))', // Выше BottomNav (72px высота + safe-area)
+          paddingBottom: `max(env(safe-area-inset-bottom, 0px), 8px)`
+        }}
       >
-        <div className="max-w-4xl mx-auto space-y-2">
-          {/* Подитог */}
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-tg-hint">Подитог:</span>
-            <span className="text-tg-text font-medium">
-              {subtotal.toLocaleString()}₽
-            </span>
-          </div>
+        <div className="max-w-4xl mx-auto px-3 pt-2">
+          {/* Компактная информация о доставке и итогах */}
+          <div className="flex items-center justify-between gap-3 mb-1.5">
+            {/* Левая часть: Подитог и Доставка */}
+            <div className="flex-1 min-w-0 space-y-0.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-tg-hint">Подитог:</span>
+                <span className="text-tg-text font-medium">
+                  {subtotal.toLocaleString()}₽
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5">
+                  <Truck className="w-3 h-3 text-tg-hint flex-shrink-0" />
+                  <span className="text-tg-hint">Доставка:</span>
+                </div>
+                <span className={`font-medium ${deliveryCost === 0 ? 'text-green-500' : 'text-tg-text'}`}>
+                  {deliveryCost === 0 ? 'Бесплатно' : `${deliveryCost.toLocaleString()}₽`}
+                </span>
+              </div>
+            </div>
 
-          {/* Доставка */}
-          <div className="flex items-center justify-between text-sm">
-            <div className="flex items-center gap-2">
-              <Truck className="w-4 h-4 text-tg-hint" />
-              <span className="text-tg-hint">Доставка:</span>
-            </div>
-            <span className={`font-medium ${deliveryCost === 0 ? 'text-green-500' : 'text-tg-text'}`}>
-              {deliveryCost === 0 ? 'Бесплатно' : `${deliveryCost.toLocaleString()}₽`}
-            </span>
-          </div>
-
-          {/* Прогресс по доставке */}
-          <div className="bg-tg-bg rounded-xl p-2.5 space-y-1.5">
-            <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-tg-hint font-semibold">
-              <span>
-                {deliveryProgress.minOrderReached
-                  ? deliveryProgress.currentStep?.label ?? 'Минимальный заказ'
-                  : 'Минимальный заказ 1000₽'}
-              </span>
-              <span>
-                {deliveryProgress.nextStep?.label ?? 'Лучшие условия'}
-              </span>
-            </div>
-            <div className="h-1.5 bg-tg-secondary-bg rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-emerald-400 via-sky-400 to-cyan-500"
-                style={{ width: `${deliveryProgress.progressPercent * 100}%` }}
-              />
-            </div>
-            <div className="text-[11px] text-tg-hint">
-              {!deliveryProgress.minOrderReached && (
-                <>Добавьте товаров на {deliveryProgress.amountToNext.toLocaleString()}₽, чтобы оформить заказ.</>
-              )}
-              {deliveryProgress.minOrderReached && nextStepLabel && (
-                <>Добавьте товаров на {deliveryProgress.amountToNext.toLocaleString()}₽ до {nextStepLabel}.</>
-              )}
-              {deliveryProgress.minOrderReached && !nextStepLabel && (
-                <span className="text-green-500 font-medium">У вас уже {deliveryCost === 0 ? 'бесплатная доставка 🎉' : 'лучшие условия по доставке'}.</span>
-              )}
-            </div>
-          </div>
-
-          {/* Разделитель */}
-          <div className="border-t border-tg-bg pt-2">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-tg-text font-semibold">Итого:</span>
-              <span className="text-2xl font-bold text-tg-text">
+            {/* Правая часть: Итого */}
+            <div className="flex flex-col items-end justify-center border-l border-tg-bg pl-3">
+              <span className="text-[10px] text-tg-hint uppercase tracking-wide mb-0.5">Итого</span>
+              <span className="text-xl font-bold text-tg-text leading-tight">
                 {total.toLocaleString()}₽
               </span>
             </div>
           </div>
 
+          {/* Компактный прогресс по доставке */}
+          {deliveryProgress.nextStep && (
+            <div className="bg-tg-bg rounded-lg px-2 py-1 mb-1.5">
+              <div className="flex items-center justify-between text-[9px] uppercase tracking-wide text-tg-hint font-semibold mb-0.5">
+                <span className="truncate flex-1 min-w-0 pr-1">
+                  {getDeliveryLabel(deliveryProgress.currentStep) ?? 'Минимальный заказ'}
+                </span>
+                <span className="truncate flex-1 min-w-0 pl-1 text-right">
+                  {getDeliveryLabel(deliveryProgress.nextStep) ?? deliveryProgress.nextStep.label}
+                </span>
+              </div>
+              <div className="h-0.5 bg-tg-secondary-bg rounded-full overflow-hidden mb-0.5">
+                <div
+                  className="h-full bg-gradient-to-r from-emerald-400 via-sky-400 to-cyan-500 transition-all duration-300"
+                  style={{ width: `${deliveryProgress.progressPercent * 100}%` }}
+                />
+              </div>
+              <p className="text-[9px] text-tg-hint text-center leading-tight">
+                {!deliveryProgress.minOrderReached 
+                  ? `Добавьте товаров на ${deliveryProgress.amountToNext.toLocaleString()}₽`
+                  : `Добавьте товаров на ${deliveryProgress.amountToNext.toLocaleString()}₽ до ${nextStepLabel}`
+                }
+              </p>
+            </div>
+          )}
+          {!deliveryProgress.nextStep && deliveryCost === 0 && (
+            <div className="bg-green-500/10 rounded-lg px-2 py-1 mb-1.5">
+              <p className="text-[10px] text-green-500 text-center font-medium">🎉 Бесплатная доставка!</p>
+            </div>
+          )}
+
+          {/* Кнопка оформления */}
           <button
             onClick={() => {
               if (!checkoutDisabled) {
@@ -331,7 +413,7 @@ export default function CartPage() {
               }
             }}
             disabled={checkoutDisabled}
-            className="w-full bg-tg-button text-tg-button-text py-3 rounded-2xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-tg-button text-tg-button-text py-2.5 rounded-xl font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {checkoutDisabled ? 'Минимальный заказ 1000₽' : 'Оформить заказ'}
           </button>
@@ -351,6 +433,16 @@ export default function CartPage() {
         }}
         onCancel={() => setShowClearConfirm(false)}
         danger={true}
+      />
+
+      {/* Delivery Info Modal */}
+      <DeliveryInfoModal
+        isOpen={showDeliveryInfo}
+        onClose={() => setShowDeliveryInfo(false)}
+        subtotal={subtotal}
+        currentDeliveryCost={deliveryCost}
+        badWeather={badWeather}
+        weatherMessage={weatherStatus?.message ?? null}
       />
     </div>
   );

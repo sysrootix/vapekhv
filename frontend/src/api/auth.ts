@@ -33,4 +33,9 @@ export const authApi = {
     const response = await apiClient.get<{ valid: boolean }>('/auth/verify');
     return response.data;
   },
+
+  getBotConfig: async (): Promise<{ botUsername: string | null }> => {
+    const response = await apiClient.get<{ botUsername: string | null }>('/auth/bot-config');
+    return response.data;
+  },
 };
