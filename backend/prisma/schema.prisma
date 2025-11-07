@@ -369,6 +369,8 @@ enum PromoCodeType {
   FIXED           // Фиксированная скидка
   FREE_DELIVERY   // Бесплатная доставка
   BONUS           // Дополнительные бонусы
+
+  @@map("promo_code_type")
 }
 
 // Достижения
