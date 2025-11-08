@@ -951,6 +951,7 @@ class OrderController {
               },
             },
             user: true,
+            promoCode: true,
           },
         });
 
@@ -1067,6 +1068,7 @@ class OrderController {
               },
             },
             user: true,
+            promoCode: true,
           },
         });
 

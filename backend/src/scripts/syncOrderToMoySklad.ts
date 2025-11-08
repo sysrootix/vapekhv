@@ -20,6 +20,7 @@ async function main() {
         },
       },
       user: true,
+      promoCode: true,
     },
   });
 

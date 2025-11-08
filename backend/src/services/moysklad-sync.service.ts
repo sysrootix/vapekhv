@@ -38,6 +38,10 @@ type OrderWithRelations = {
   comment: string | null;
   bonusUsed: number;
   bonusEarned: number;
+  promoDiscount: number;
+  promoBonus: number;
+  promoFreeDelivery: boolean;
+  promoCodeType: string | null;
   status: string;
   createdAt: Date;
   userId: string;
@@ -52,8 +56,14 @@ type OrderWithRelations = {
     lastName: string | null;
     username: string | null;
     phone: string | null;
-  telegramId: bigint | number | null;
+    telegramId: bigint | number | null;
+    referredById: string | null;
   };
+  promoCode?: {
+    code: string;
+    description: string | null;
+    type: string;
+  } | null;
   items: OrderItemWithProduct[];
 };
 
@@ -303,11 +313,41 @@ export async function syncOrderWithMoySklad(order: OrderWithRelations): Promise<
     order.user.username ||
     'Не указано';
 
+  // Получить информацию о реферале
+  const referralInfo = order.user.referredById
+    ? await prisma.user.findUnique({
+        where: { id: order.user.referredById },
+        select: {
+          firstName: true,
+          lastName: true,
+          username: true,
+          telegramId: true,
+        },
+      })
+    : null;
+
+  const referralName = referralInfo
+    ? [referralInfo.firstName, referralInfo.lastName].filter(Boolean).join(' ') ||
+      referralInfo.username ||
+      `ID: ${referralInfo.telegramId || 'неизвестен'}`
+    : null;
+
+  // Форматирование типа промокода
+  const promoTypeMap: Record<string, string> = {
+    PERCENT: 'Процентная скидка',
+    FIXED: 'Фиксированная скидка',
+    FREE_DELIVERY: 'Бесплатная доставка',
+    BONUS: 'Дополнительные бонусы',
+  };
+
   const descriptionLines = [
-    'Заказ из Telegram WebApp.',
+    '═══════════════════════════════════',
+    '📦 ИНФОРМАЦИЯ О ЗАКАЗЕ',
+    '═══════════════════════════════════',
+    'Источник: Telegram WebApp',
     `Адрес: ${order.deliveryAddress || '—'}`,
     `Время доставки: ${order.deliveryDate || '—'} ${order.deliveryTime || ''}`.trim(),
-    `Комментарий: ${order.comment || '—'}`,
+    order.comment ? `Комментарий клиента: ${order.comment}` : null,
     `Админская стоимость доставки: ${
       order.adminDeliveryCost !== null && order.adminDeliveryCost !== undefined
         ? formatCurrency(order.adminDeliveryCost)
@@ -315,14 +355,35 @@ export async function syncOrderWithMoySklad(order: OrderWithRelations): Promise<
     }`,
     `Оплата доставки в заказе: ${deliveryTotal > 0 ? formatCurrency(deliveryTotal) : 'не оплачена'}`,
     '',
-    'Информация о клиенте:',
+    order.promoCode || order.promoDiscount > 0 || order.promoBonus > 0 || order.promoFreeDelivery
+      ? '🎁 ПРОМОКОД И АКЦИИ'
+      : null,
+    order.promoCode || order.promoDiscount > 0 || order.promoBonus > 0 || order.promoFreeDelivery
+      ? '─────────────────────────────────────'
+      : null,
+    order.promoCode ? `Промокод: ${order.promoCode.code}` : null,
+    order.promoCode?.description ? `Описание: ${order.promoCode.description}` : null,
+    order.promoCodeType ? `Тип: ${promoTypeMap[order.promoCodeType] || order.promoCodeType}` : null,
+    order.promoDiscount > 0 ? `💰 Скидка по промокоду: ${formatCurrency(order.promoDiscount)}` : null,
+    order.promoBonus > 0 ? `🎁 Доп. бонусы по промокоду: ${order.promoBonus}` : null,
+    order.promoFreeDelivery ? '🚚 Бесплатная доставка по промокоду' : null,
+    order.promoCode || order.promoDiscount > 0 || order.promoBonus > 0 || order.promoFreeDelivery
+      ? ''
+      : null,
+    '═══════════════════════════════════',
+    '👤 ИНФОРМАЦИЯ О КЛИЕНТЕ',
+    '═══════════════════════════════════',
     `Имя: ${userFullName}`,
     `Телефон: ${preferredPhone || '—'}`,
     `Telegram: ${order.user.username ? `@${order.user.username}` : '—'} (ID: ${
       order.user.telegramId ? order.user.telegramId.toString() : order.userId
     })`,
+    referralName ? `🤝 Пришел по реферальной ссылке от: ${referralName}` : null,
     `Зарегистрирован: ${formatHumanDateTime(order.user.createdAt)}`,
     `Последний вход: ${formatHumanDateTime(order.user.lastLoginAt)}`,
+    '',
+    '📊 СТАТИСТИКА КЛИЕНТА',
+    '─────────────────────────────────────',
     `Всего заказов: ${totalOrders}`,
     `Доставленных заказов: ${deliveredOrdersCount}`,
     `Первый заказ: ${
@@ -330,12 +391,19 @@ export async function syncOrderWithMoySklad(order: OrderWithRelations): Promise<
         ? `${formatHumanDateTime(firstOrderInfo.createdAt)} (${firstOrderInfo.orderNumber})`
         : '—'
     }`,
+    totalOrders === 1 ? '🎉 ПЕРВЫЙ ЗАКАЗ КЛИЕНТА!' : null,
     `Всего потрачено: ${formatCurrency(order.user.totalSpent)}`,
-    `Текущие бонусы: ${order.user.bonusPoints}`,
-    `Бонусы списаны в заказе: ${order.bonusUsed}`,
-    `Бонусы будут начислены: ${order.bonusEarned}`,
-    `Бонусы списаны за всё время: ${totalBonusSpent}`,
-  ].join('\n');
+    '',
+    '🎁 БОНУСНАЯ ПРОГРАММА',
+    '─────────────────────────────────────',
+    `Текущий баланс: ${order.user.bonusPoints} бонусов`,
+    `Списано в этом заказе: ${order.bonusUsed} бонусов`,
+    `Будет начислено: ${order.bonusEarned} бонусов`,
+    `Списано за всё время: ${totalBonusSpent} бонусов`,
+    '═══════════════════════════════════',
+  ]
+    .filter((line): line is string => line !== null)
+    .join('\n');
 
   const moyskladOrderPayload: MoySkladCustomerOrder = {
     name: order.orderNumber,

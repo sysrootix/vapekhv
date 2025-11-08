@@ -248,6 +248,7 @@ class AdminController {
               },
             },
             user: true,
+            promoCode: true,
           },
         });
 
