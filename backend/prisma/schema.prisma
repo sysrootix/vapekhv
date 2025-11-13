@@ -38,6 +38,7 @@ model User {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   lastLoginAt       DateTime @default(now())
+  lastPromoBroadcastSentAt DateTime? // Дата последней промо-рассылки
 
   cartItems         CartItem[]
   orders            Order[]

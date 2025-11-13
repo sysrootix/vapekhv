@@ -533,6 +533,46 @@ ${productRequest}
   }
 };
 
+/**
+ * Отправить промо-рассылку клиенту
+ */
+export const sendPromoBroadcast = async (
+  telegramId: bigint
+): Promise<void> => {
+  try {
+    const message = `⚡️ ХВАТИТ ОТКЛАДЫВАТЬ!
+
+Пора заказать ништяки и получить результат УЖЕ СЕГОДНЯ.
+
+ЖМИ 👇 и меняй жизнь к лучшему:
+
+Только для тех, кто готов действовать! 🔥`;
+
+    await bot.sendMessage(
+      Number(telegramId),
+      message,
+      {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: '🚀 ЗАКАЗАТЬ',
+                web_app: { url: WEBAPP_URL },
+              },
+            ],
+          ],
+        },
+      }
+    );
+
+    logger.info(`📢 Промо-рассылка отправлена пользователю ${telegramId}`);
+  } catch (error) {
+    logger.error(`Ошибка отправки промо-рассылки пользователю ${telegramId}:`, error);
+    throw error;
+  }
+};
+
 // Функция для остановки бота
 export const stopBot = async () => {
   try {

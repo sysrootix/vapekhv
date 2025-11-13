@@ -43,7 +43,7 @@ app.set('trust proxy', 1);
 // Rate limiter
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 минут
-  max: 100, // максимум 100 запросов с одного IP
+  max: 10000, // максимум 100 запросов с одного IP
   message: 'Слишком много запросов с этого IP, попробуйте позже',
 });
 
@@ -112,6 +112,9 @@ const startServer = async () => {
 
     // Start stock notification checker (always enabled)
     schedulerService.startStockNotificationCheck();
+
+    // Start promo broadcast scheduler (always enabled)
+    schedulerService.startPromoBroadcast();
 
     // Start sync scheduler and initial sync if MoySklad is enabled
     if (moySkladEnabled) {

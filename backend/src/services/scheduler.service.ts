@@ -3,7 +3,7 @@ import { logger } from '../config/logger';
 import { moySkladConfig } from '../config/moysklad';
 import { syncService } from './sync.service';
 import { prisma } from '../config/database';
-import { sendStockNotification } from './bot.service';
+import { sendStockNotification, sendPromoBroadcast } from './bot.service';
 import { referralService } from './referral.service';
 
 
@@ -14,6 +14,7 @@ export class SchedulerService {
   private syncTask: cron.ScheduledTask | null = null;
   private paymentCheckTask: cron.ScheduledTask | null = null;
   private stockNotificationTask: cron.ScheduledTask | null = null;
+  private promoBroadcastTask: cron.ScheduledTask | null = null;
 
   /**
    * Запустить планировщик синхронизации
@@ -77,6 +78,26 @@ export class SchedulerService {
       logger.info('🔔 Планировщик уведомлений о наличии запущен (каждые 10 минут)');
     } catch (error) {
       logger.error('Ошибка запуска планировщика уведомлений:', error);
+    }
+  }
+
+  /**
+   * Запустить планировщик промо-рассылки
+   */
+  startPromoBroadcast(): void {
+    try {
+      // Запуск каждый день в 10:00 для проверки, кому нужно отправить рассылку
+      this.promoBroadcastTask = cron.schedule('0 10 * * *', async () => {
+        try {
+          await this.sendPromoBroadcasts();
+        } catch (error) {
+          logger.error('Ошибка отправки промо-рассылки:', error);
+        }
+      });
+
+      logger.info('📢 Планировщик промо-рассылки запущен (каждый день в 10:00)');
+    } catch (error) {
+      logger.error('Ошибка запуска планировщика промо-рассылки:', error);
     }
   }
 
@@ -190,6 +211,72 @@ export class SchedulerService {
   }
 
   /**
+   * Отправить промо-рассылку всем клиентам, которым не отправляли более 3 дней
+   */
+  private async sendPromoBroadcasts(): Promise<void> {
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+    // Найти всех пользователей, которым не отправляли рассылку более 3 дней
+    const users = await prisma.user.findMany({
+      where: {
+        OR: [
+          { lastPromoBroadcastSentAt: null }, // Никогда не отправляли
+          { lastPromoBroadcastSentAt: { lt: threeDaysAgo } }, // Отправляли более 3 дней назад
+        ],
+      },
+      select: {
+        id: true,
+        telegramId: true,
+      },
+    });
+
+    if (users.length === 0) {
+      logger.info('📢 Нет пользователей для промо-рассылки');
+      return;
+    }
+
+    logger.info(`📢 Найдено ${users.length} пользователей для промо-рассылки`);
+
+    let sent = 0;
+    let failed = 0;
+
+    // Отправляем рассылку с ограничением скорости (20 сообщений в секунду)
+    const batchSize = 20;
+    const delayBetweenBatches = 1000;
+
+    for (let i = 0; i < users.length; i += batchSize) {
+      const batch = users.slice(i, i + batchSize);
+
+      await Promise.all(
+        batch.map(async (user) => {
+          try {
+            await sendPromoBroadcast(user.telegramId);
+            
+            // Обновляем дату последней рассылки
+            await prisma.user.update({
+              where: { id: user.id },
+              data: { lastPromoBroadcastSentAt: new Date() },
+            });
+
+            sent++;
+          } catch (error) {
+            failed++;
+            logger.error(`Ошибка отправки промо-рассылки пользователю ${user.telegramId}:`, error);
+          }
+        })
+      );
+
+      // Задержка между батчами (кроме последнего)
+      if (i + batchSize < users.length) {
+        await new Promise((resolve) => setTimeout(resolve, delayBetweenBatches));
+      }
+    }
+
+    logger.info(`📢 Промо-рассылка завершена: ${sent} отправлено, ${failed} ошибок`);
+  }
+
+  /**
    * Остановить планировщик
    */
   stop(): void {
@@ -206,6 +293,11 @@ export class SchedulerService {
     if (this.stockNotificationTask) {
       this.stockNotificationTask.stop();
       logger.info('🔔 Планировщик уведомлений остановлен');
+    }
+
+    if (this.promoBroadcastTask) {
+      this.promoBroadcastTask.stop();
+      logger.info('📢 Планировщик промо-рассылки остановлен');
     }
   }
 
