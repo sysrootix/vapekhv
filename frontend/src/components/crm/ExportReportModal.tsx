@@ -47,18 +47,11 @@ export function ExportReportModal({ isOpen, onClose }: ExportReportModalProps) {
       setIsExporting(true);
       setError(null);
 
-      // Call API to get the Excel file
-      const blob = await adminApi.exportOrdersReport(formState.month, formState.year);
+      // Call API to send the Excel file to Telegram
+      const result = await adminApi.exportOrdersReport(formState.month, formState.year);
 
-      // Create download link
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `orders_report_${formState.year}_${formState.month.toString().padStart(2, '0')}.xlsx`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      // Show success message
+      alert(`✅ ${result.message}\n\n📦 Заказов в отчете: ${result.ordersCount}\n\nПроверьте Telegram, файл отправлен в личные сообщения.`);
 
       // Close modal on success
       onClose();

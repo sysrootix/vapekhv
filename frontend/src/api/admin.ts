@@ -603,10 +603,9 @@ export const adminApi = {
     return response.data;
   },
 
-  exportOrdersReport: async (month: number, year: number): Promise<Blob> => {
-    const response = await apiClient.get('/admin/crm/orders/export', {
+  exportOrdersReport: async (month: number, year: number): Promise<{ success: boolean; message: string; ordersCount: number }> => {
+    const response = await apiClient.get<{ success: boolean; message: string; ordersCount: number }>('/admin/crm/orders/export', {
       params: { month, year },
-      responseType: 'blob',
     });
     return response.data;
   },

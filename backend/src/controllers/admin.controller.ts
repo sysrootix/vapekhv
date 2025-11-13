@@ -986,6 +986,10 @@ class AdminController {
         throw new AppError('Некорректный год. Должен быть от 2020 до 2030', 400);
       }
 
+      if (!req.user?.telegramId) {
+        throw new AppError('Не удалось определить Telegram ID пользователя', 400);
+      }
+
       // Calculate date range for the month
       const startDate = new Date(yearParam, monthParam - 1, 1);
       const endDate = new Date(yearParam, monthParam, 1);
@@ -1022,16 +1026,30 @@ class AdminController {
         yearParam
       );
 
-      // Set response headers for file download
+      // Send file to Telegram
       const filename = `orders_report_${yearParam}_${monthParam.toString().padStart(2, '0')}.xlsx`;
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      res.setHeader('Content-Length', buffer.length);
+      const monthNames = [
+        'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+        'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
+      ];
+      const caption = `📊 <b>Отчет по заказам</b>\n\n📅 Период: ${monthNames[monthParam - 1]} ${yearParam}\n📦 Заказов: ${orders.length}`;
 
-      // Send file
-      res.send(buffer);
+      const { sendExcelReport } = await import('../services/bot.service');
+      await sendExcelReport(
+        BigInt(req.user.telegramId),
+        buffer,
+        filename,
+        caption
+      );
 
-      logger.info(`Orders report exported for ${monthParam}/${yearParam} by user ${req.user?.id}`);
+      // Return success response
+      res.json({
+        success: true,
+        message: 'Отчет отправлен в Telegram',
+        ordersCount: orders.length,
+      });
+
+      logger.info(`Orders report exported for ${monthParam}/${yearParam} by user ${req.user?.id} and sent to Telegram`);
     } catch (error) {
       if (error instanceof AppError) {
         throw error;

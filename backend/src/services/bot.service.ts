@@ -573,6 +573,36 @@ export const sendPromoBroadcast = async (
   }
 };
 
+/**
+ * Отправить Excel отчет пользователю
+ */
+export const sendExcelReport = async (
+  telegramId: bigint,
+  buffer: Buffer,
+  filename: string,
+  caption?: string
+): Promise<void> => {
+  try {
+    await bot.sendDocument(
+      Number(telegramId),
+      buffer,
+      {
+        caption: caption || '📊 Отчет по заказам',
+        parse_mode: 'HTML',
+      },
+      {
+        filename,
+        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      }
+    );
+
+    logger.info(`📊 Excel отчет "${filename}" отправлен пользователю ${telegramId}`);
+  } catch (error) {
+    logger.error(`Ошибка отправки Excel отчета пользователю ${telegramId}:`, error);
+    throw error;
+  }
+};
+
 // Функция для остановки бота
 export const stopBot = async () => {
   try {
