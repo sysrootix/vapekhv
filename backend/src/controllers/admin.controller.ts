@@ -1008,20 +1008,73 @@ class AdminController {
           totalAmount: true,
           deliveryCost: true,
           adminDeliveryCost: true,
+          bonusEarned: true,
+          bonusUsed: true,
+          promoDiscount: true,
+          promoFreeDelivery: true,
+          items: {
+            select: {
+              quantity: true,
+              price: true,
+              product: {
+                select: {
+                  name: true,
+                  buyPrice: true,
+                },
+              },
+              selectedOptions: true,
+            },
+          },
         },
         orderBy: {
           createdAt: 'asc',
         },
       });
 
+      // Prepare order items data
+      const orderItems: any[] = [];
+      orders.forEach((order: any) => {
+        order.items.forEach((item: any) => {
+          // Формируем название товара с опциями
+          let productName = item.product.name;
+          if (item.selectedOptions && typeof item.selectedOptions === 'object') {
+            const options = Object.entries(item.selectedOptions as Record<string, string>)
+              .map(([key, value]) => `${key}: ${value}`)
+              .join(', ');
+            if (options) {
+              productName += ` (${options})`;
+            }
+          }
+
+          const price = Number(item.price);
+          const quantity = item.quantity;
+          const buyPrice = item.product.buyPrice ? Number(item.product.buyPrice) : null;
+
+          orderItems.push({
+            orderNumber: order.orderNumber,
+            productName,
+            price,
+            quantity,
+            totalPrice: price * quantity,
+            buyPrice,
+            totalBuyPrice: buyPrice ? buyPrice * quantity : null,
+          });
+        });
+      });
+
       // Generate Excel file
       const buffer = await excelExportService.generateOrdersReport(
-        orders.map(order => ({
+        orders.map((order: any) => ({
           orderNumber: order.orderNumber,
           totalAmount: Number(order.totalAmount),
           deliveryCost: Number(order.deliveryCost),
           adminDeliveryCost: order.adminDeliveryCost ? Number(order.adminDeliveryCost) : null,
+          bonusEarned: order.bonusEarned,
+          bonusUsed: order.bonusUsed,
+          promoDiscount: Number(order.promoDiscount),
+          promoFreeDelivery: order.promoFreeDelivery,
         })),
+        orderItems,
         monthParam,
         yearParam
       );

@@ -216,6 +216,11 @@ export class SyncService {
         ? msProduct.salePrices[0].value / 100 // МойСклад хранит цены в копейках
         : 0;
 
+      // Получить себестоимость товара
+      const buyPrice = msProduct.buyPrice?.value
+        ? msProduct.buyPrice.value / 100 // МойСклад хранит цены в копейках
+        : null;
+
       // Скачать изображения товара (с обработкой таймаутов)
       let imageUrl: string | null = null;
       let images: string[] = [];
@@ -252,6 +257,7 @@ export class SyncService {
           slug,
           description: msProduct.description || null,
           price,
+          buyPrice,
           imageUrl,
           images,
           inStock: stock.quantity > 0,
@@ -267,6 +273,7 @@ export class SyncService {
           name: msProduct.name,
           description: msProduct.description || null,
           price,
+          buyPrice,
           imageUrl: imageUrl || undefined,
           images,
           inStock: stock.quantity > 0,
@@ -357,6 +364,11 @@ export class SyncService {
         ? msVariant.salePrices[0].value / 100
         : null;
 
+      // Получить себестоимость варианта
+      const buyPrice = msVariant.buyPrice?.value
+        ? msVariant.buyPrice.value / 100
+        : null;
+
       // Преобразовать характеристики варианта в JSON
       const characteristics: Record<string, string> = {};
       if (msVariant.characteristics) {
@@ -372,6 +384,7 @@ export class SyncService {
           moySkladId: msVariant.id,
           sku: msVariant.code || null,
           price,
+          buyPrice,
           stockCount,
           inStock: stockCount > 0,
           characteristics,
@@ -381,6 +394,7 @@ export class SyncService {
         update: {
           sku: msVariant.code || null,
           price,
+          buyPrice,
           stockCount,
           inStock: stockCount > 0,
           characteristics,

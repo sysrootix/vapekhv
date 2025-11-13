@@ -155,6 +155,7 @@ model Product {
   description String?
   price       Float
   oldPrice    Float?
+  buyPrice    Float?    // Себестоимость (закупочная цена)
   imageUrl    String?
   images      String[]  @default([])
   inStock     Boolean   @default(true)
@@ -212,6 +213,7 @@ model ProductVariant {
   sku               String?  @unique
   price             Float?   // Если null, используется цена продукта
   oldPrice          Float?
+  buyPrice          Float?   // Себестоимость (закупочная цена)
   stockCount        Int      @default(0)
   inStock           Boolean  @default(true)
   characteristics   Json     // {"Вкус": "Шоколад", "Размер": "M"}
