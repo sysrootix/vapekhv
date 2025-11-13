@@ -28,6 +28,7 @@ import { ImprovedPagination } from '../components/crm/ImprovedPagination';
 import { UserDetailsModal } from '../components/crm/UserDetailsModal';
 import { BroadcastForm } from '../components/crm/BroadcastForm';
 import { AudienceManager } from '../components/crm/audiences/AudienceManager';
+import { ExportReportButton } from '../components/crm/ExportReportButton';
 import {
   adminApi,
   AdminAccess,
@@ -475,16 +476,19 @@ export default function CrmPage() {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2 text-xs sm:text-sm text-tg-hint">
-                    <BarChart3 className="w-4 h-4" />
-                    <div className="flex flex-col">
-                      <span>Обновлено: {crmOverview ? new Date(crmOverview.generatedAt).toLocaleString('ru-RU') : '—'}</span>
-                      {crmOverview && (
-                        <span className="text-xs">
-                          Период: {formatDateDisplay(crmOverview.periodStart)} - {formatDateDisplay(crmOverview.periodEnd)}
-                        </span>
-                      )}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                    <div className="flex items-center gap-2 text-xs sm:text-sm text-tg-hint">
+                      <BarChart3 className="w-4 h-4" />
+                      <div className="flex flex-col">
+                        <span>Обновлено: {crmOverview ? new Date(crmOverview.generatedAt).toLocaleString('ru-RU') : '—'}</span>
+                        {crmOverview && (
+                          <span className="text-xs">
+                            Период: {formatDateDisplay(crmOverview.periodStart)} - {formatDateDisplay(crmOverview.periodEnd)}
+                          </span>
+                        )}
+                      </div>
                     </div>
+                    <ExportReportButton />
                   </div>
                 </div>
 

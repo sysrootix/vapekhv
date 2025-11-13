@@ -52,4 +52,7 @@ router.delete('/crm/audiences/:id', requireCrmAccess, audienceController.remove.
 router.post('/crm/broadcast/stats', requireCrmAccess, adminController.getBroadcastStats.bind(adminController));
 router.post('/crm/broadcast/send', requireCrmAccess, adminController.sendBroadcast.bind(adminController));
 
+// Export endpoints
+router.get('/crm/orders/export', requireCrmAccess, adminController.exportOrdersReport.bind(adminController));
+
 export default router;

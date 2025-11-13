@@ -31,6 +31,7 @@ import {
   BroadcastMessage,
   BroadcastTarget,
 } from '../services/broadcast.service';
+import { excelExportService } from '../services/excel-export.service';
 
 const parseChatIds = (value?: string | null): number[] => {
   if (!value) {
@@ -963,6 +964,80 @@ class AdminController {
         throw error;
       }
       throw new AppError('Не удалось отправить рассылку', 500);
+    }
+  }
+
+  // Экспорт отчета по заказам
+  async exportOrdersReport(req: AuthRequest, res: Response) {
+    try {
+      const monthParam = typeof req.query.month === 'string' ? parseInt(req.query.month, 10) : undefined;
+      const yearParam = typeof req.query.year === 'string' ? parseInt(req.query.year, 10) : undefined;
+
+      // Validate parameters
+      if (!monthParam || !yearParam) {
+        throw new AppError('Необходимо указать месяц и год', 400);
+      }
+
+      if (monthParam < 1 || monthParam > 12) {
+        throw new AppError('Некорректный месяц. Должен быть от 1 до 12', 400);
+      }
+
+      if (yearParam < 2020 || yearParam > 2030) {
+        throw new AppError('Некорректный год. Должен быть от 2020 до 2030', 400);
+      }
+
+      // Calculate date range for the month
+      const startDate = new Date(yearParam, monthParam - 1, 1);
+      const endDate = new Date(yearParam, monthParam, 1);
+
+      // Query delivered orders for the period
+      const orders = await prisma.order.findMany({
+        where: {
+          status: 'DELIVERED',
+          createdAt: {
+            gte: startDate,
+            lt: endDate,
+          },
+        },
+        select: {
+          orderNumber: true,
+          totalAmount: true,
+          deliveryCost: true,
+          adminDeliveryCost: true,
+        },
+        orderBy: {
+          createdAt: 'asc',
+        },
+      });
+
+      // Generate Excel file
+      const buffer = await excelExportService.generateOrdersReport(
+        orders.map(order => ({
+          orderNumber: order.orderNumber,
+          totalAmount: Number(order.totalAmount),
+          deliveryCost: Number(order.deliveryCost),
+          adminDeliveryCost: order.adminDeliveryCost ? Number(order.adminDeliveryCost) : null,
+        })),
+        monthParam,
+        yearParam
+      );
+
+      // Set response headers for file download
+      const filename = `orders_report_${yearParam}_${monthParam.toString().padStart(2, '0')}.xlsx`;
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', buffer.length);
+
+      // Send file
+      res.send(buffer);
+
+      logger.info(`Orders report exported for ${monthParam}/${yearParam} by user ${req.user?.id}`);
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+      logger.error('Ошибка при экспорте отчета по заказам:', error);
+      throw new AppError('Не удалось создать отчет', 500);
     }
   }
 }

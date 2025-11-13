@@ -602,4 +602,12 @@ export const adminApi = {
     const response = await apiClient.post<BroadcastResult>('/admin/crm/broadcast/send', { message, target });
     return response.data;
   },
+
+  exportOrdersReport: async (month: number, year: number): Promise<Blob> => {
+    const response = await apiClient.get('/admin/crm/orders/export', {
+      params: { month, year },
+      responseType: 'blob',
+    });
+    return response.data;
+  },
 };
