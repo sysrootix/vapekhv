@@ -254,6 +254,78 @@ class ExcelExportService {
       ordersSheet.getColumn(4).width = 30;
       ordersSheet.getColumn(5).width = 20;
 
+      // ===== БЛОК АНАЛИТИКА =====
+      const analyticsStartRow = summaryStartRow + 10;
+      
+      // Рассчитываем аналитические показатели
+      const ordersCount = orders.length;
+      const totalItemsCount = orderItems.reduce((sum, item) => sum + item.quantity, 0);
+      const averageCheck = ordersCount > 0 ? totalRevenue / ordersCount : 0;
+      const averageBasketDepth = ordersCount > 0 ? totalItemsCount / ordersCount : 0;
+      const averageItemPrice = totalItemsCount > 0 ? totalItemsSum / totalItemsCount : 0;
+      const averageDelivery = ordersCount > 0 ? totalDeliveryPaid / ordersCount : 0;
+      const deliveryCompensationRate = totalDeliveryPaid > 0 ? (totalDeliveryCompensated / totalDeliveryPaid) * 100 : 0;
+      
+      // Заголовок секции АНАЛИТИКА
+      ordersSheet.addRow([]);
+      const analyticsTitleRow = ordersSheet.getRow(analyticsStartRow);
+      analyticsTitleRow.getCell(1).value = 'АНАЛИТИКА';
+      analyticsTitleRow.getCell(1).font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+      analyticsTitleRow.getCell(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF70AD47' },
+      };
+      
+      // Добавляем аналитические метрики
+      let analyticsRow = analyticsStartRow + 1;
+      
+      ordersSheet.getRow(analyticsRow).getCell(1).value = 'Количество заказов:';
+      ordersSheet.getRow(analyticsRow).getCell(2).value = ordersCount;
+      ordersSheet.getRow(analyticsRow).getCell(2).numFmt = '#,##0';
+      
+      analyticsRow++;
+      ordersSheet.getRow(analyticsRow).getCell(1).value = 'Средний чек:';
+      ordersSheet.getRow(analyticsRow).getCell(2).value = averageCheck;
+      ordersSheet.getRow(analyticsRow).getCell(2).numFmt = '#,##0.00₽';
+      
+      analyticsRow++;
+      ordersSheet.getRow(analyticsRow).getCell(1).value = 'Глубина чека (товаров в заказе):';
+      ordersSheet.getRow(analyticsRow).getCell(2).value = averageBasketDepth;
+      ordersSheet.getRow(analyticsRow).getCell(2).numFmt = '0.00';
+      
+      analyticsRow++;
+      ordersSheet.getRow(analyticsRow).getCell(1).value = 'Средняя цена товара:';
+      ordersSheet.getRow(analyticsRow).getCell(2).value = averageItemPrice;
+      ordersSheet.getRow(analyticsRow).getCell(2).numFmt = '#,##0.00₽';
+      
+      analyticsRow++;
+      ordersSheet.getRow(analyticsRow).getCell(1).value = 'Всего товаров продано:';
+      ordersSheet.getRow(analyticsRow).getCell(2).value = totalItemsCount;
+      ordersSheet.getRow(analyticsRow).getCell(2).numFmt = '#,##0';
+      
+      analyticsRow++;
+      ordersSheet.getRow(analyticsRow).getCell(1).value = 'Средняя стоимость доставки:';
+      ordersSheet.getRow(analyticsRow).getCell(2).value = averageDelivery;
+      ordersSheet.getRow(analyticsRow).getCell(2).numFmt = '#,##0.00₽';
+      
+      analyticsRow++;
+      ordersSheet.getRow(analyticsRow).getCell(1).value = 'Компенсация доставки клиентами (%):';
+      ordersSheet.getRow(analyticsRow).getCell(2).value = deliveryCompensationRate / 100;
+      ordersSheet.getRow(analyticsRow).getCell(2).numFmt = '0.00%';
+      
+      // Стилизация аналитики
+      for (let i = analyticsStartRow + 1; i <= analyticsStartRow + 7; i++) {
+        const row = ordersSheet.getRow(i);
+        row.getCell(1).font = { bold: true };
+        row.getCell(1).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFE2EFDA' },
+        };
+        row.getCell(2).alignment = { horizontal: 'right' };
+      }
+
       // ===== ВТОРОЙ ЛИСТ: Детализация по товарам =====
       const itemsSheet = workbook.addWorksheet('Товары');
 
