@@ -107,28 +107,131 @@ class ExcelExportService {
       // Добавляем пустую строку
       ordersSheet.addRow([]);
       
-      // Заголовок секции
-      const summaryTitleRow = ordersSheet.addRow(['ИТОГОВЫЕ ПОКАЗАТЕЛИ']);
-      summaryTitleRow.font = { bold: true, size: 14 };
+      // Заголовок секции ИТОГОВЫЕ ПОКАЗАТЕЛИ
+      const summaryTitleRow = ordersSheet.getRow(summaryStartRow);
+      summaryTitleRow.getCell(1).value = 'ИТОГОВЫЕ ПОКАЗАТЕЛИ';
+      summaryTitleRow.getCell(1).font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
       summaryTitleRow.getCell(1).fill = {
         type: 'pattern',
         pattern: 'solid',
         fgColor: { argb: 'FF4472C4' },
       };
-      summaryTitleRow.getCell(1).font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
       
-      // Добавляем метрики
-      ordersSheet.addRow(['Выручка:', totalRevenue]).getCell(2).numFmt = '#,##0.00₽';
-      ordersSheet.addRow(['Себестоимость:', totalCostSum]).getCell(2).numFmt = '#,##0.00₽';
-      ordersSheet.addRow(['Маржа:', margin]).getCell(2).numFmt = '#,##0.00₽';
-      ordersSheet.addRow(['Наценка (%):', markup]).getCell(2).numFmt = '0.00"%"';
-      ordersSheet.addRow(['Маржинальность (%):', marginality]).getCell(2).numFmt = '0.00"%"';
-      ordersSheet.addRow(['Заплатили за доставку:', totalDeliveryPaid]).getCell(2).numFmt = '#,##0.00₽';
-      ordersSheet.addRow(['Компенсировано клиентами (доставка):', totalDeliveryCompensated]).getCell(2).numFmt = '#,##0.00₽';
+      // Заголовок секции ЗАТРАТЫ (справа)
+      summaryTitleRow.getCell(4).value = 'ЗАТРАТЫ';
+      summaryTitleRow.getCell(4).font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+      summaryTitleRow.getCell(4).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFED7D31' },
+      };
       
-      // Стилизация метрик
-      for (let i = summaryStartRow + 2; i <= summaryStartRow + 8; i++) {
+      // Рассчитываем затраты
+      const deliveryCost = totalDeliveryPaid - totalDeliveryCompensated;
+      const salesPercent = totalRevenue * 0.05; // 5% продавцам
+      const danaPercent = totalRevenue * 0.10; // 10% Дане
+      const fod = salesPercent + danaPercent;
+      const moySkladServer = 3000; // По умолчанию 3000₽
+      
+      // Добавляем метрики ИТОГОВЫЕ ПОКАЗАТЕЛИ (колонки A-B)
+      let currentRow = summaryStartRow + 1;
+      ordersSheet.getRow(currentRow).getCell(1).value = 'Выручка:';
+      ordersSheet.getRow(currentRow).getCell(2).value = totalRevenue;
+      ordersSheet.getRow(currentRow).getCell(2).numFmt = '#,##0.00₽';
+      
+      currentRow++;
+      ordersSheet.getRow(currentRow).getCell(1).value = 'Себестоимость:';
+      ordersSheet.getRow(currentRow).getCell(2).value = totalCostSum;
+      ordersSheet.getRow(currentRow).getCell(2).numFmt = '#,##0.00₽';
+      
+      currentRow++;
+      ordersSheet.getRow(currentRow).getCell(1).value = 'Маржа:';
+      ordersSheet.getRow(currentRow).getCell(2).value = margin;
+      ordersSheet.getRow(currentRow).getCell(2).numFmt = '#,##0.00₽';
+      ordersSheet.getRow(currentRow).getCell(2).font = { bold: true, color: { argb: 'FF00B050' } };
+      
+      currentRow++;
+      ordersSheet.getRow(currentRow).getCell(1).value = 'Наценка (%):';
+      ordersSheet.getRow(currentRow).getCell(2).value = markup / 100;
+      ordersSheet.getRow(currentRow).getCell(2).numFmt = '0.00%';
+      
+      currentRow++;
+      ordersSheet.getRow(currentRow).getCell(1).value = 'Маржинальность (%):';
+      ordersSheet.getRow(currentRow).getCell(2).value = marginality / 100;
+      ordersSheet.getRow(currentRow).getCell(2).numFmt = '0.00%';
+      
+      currentRow++;
+      ordersSheet.getRow(currentRow).getCell(1).value = 'Заплатили за доставку:';
+      ordersSheet.getRow(currentRow).getCell(2).value = totalDeliveryPaid;
+      ordersSheet.getRow(currentRow).getCell(2).numFmt = '#,##0.00₽';
+      
+      currentRow++;
+      ordersSheet.getRow(currentRow).getCell(1).value = 'Компенсировано клиентами (доставка):';
+      ordersSheet.getRow(currentRow).getCell(2).value = totalDeliveryCompensated;
+      ordersSheet.getRow(currentRow).getCell(2).numFmt = '#,##0.00₽';
+      
+      // Добавляем метрики ЗАТРАТЫ (колонки D-E)
+      currentRow = summaryStartRow + 1;
+      ordersSheet.getRow(currentRow).getCell(4).value = 'Потратили на доставку:';
+      ordersSheet.getRow(currentRow).getCell(5).value = deliveryCost;
+      ordersSheet.getRow(currentRow).getCell(5).numFmt = '#,##0.00₽';
+      
+      currentRow++;
+      ordersSheet.getRow(currentRow).getCell(4).value = 'Мой склад, сервер:';
+      ordersSheet.getRow(currentRow).getCell(5).value = moySkladServer;
+      ordersSheet.getRow(currentRow).getCell(5).numFmt = '#,##0.00₽';
+      
+      currentRow++;
+      ordersSheet.getRow(currentRow).getCell(4).value = '5% Продавцам от выручки:';
+      ordersSheet.getRow(currentRow).getCell(5).value = salesPercent;
+      ordersSheet.getRow(currentRow).getCell(5).numFmt = '#,##0.00₽';
+      
+      currentRow++;
+      ordersSheet.getRow(currentRow).getCell(4).value = '10% Дане от выручки:';
+      ordersSheet.getRow(currentRow).getCell(5).value = danaPercent;
+      ordersSheet.getRow(currentRow).getCell(5).numFmt = '#,##0.00₽';
+      
+      currentRow++;
+      ordersSheet.getRow(currentRow).getCell(4).value = 'ФОД:';
+      ordersSheet.getRow(currentRow).getCell(5).value = fod;
+      ordersSheet.getRow(currentRow).getCell(5).numFmt = '#,##0.00₽';
+      
+      currentRow++;
+      ordersSheet.getRow(currentRow).getCell(4).value = 'Ревизия:';
+      ordersSheet.getRow(currentRow).getCell(5).value = '';
+      ordersSheet.getRow(currentRow).getCell(5).numFmt = '#,##0.00₽';
+      ordersSheet.getRow(currentRow).getCell(5).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFFFFF00' },
+      };
+      
+      currentRow++;
+      ordersSheet.getRow(currentRow).getCell(4).value = 'Итого затраты:';
+      ordersSheet.getRow(currentRow).getCell(5).value = '';
+      ordersSheet.getRow(currentRow).getCell(5).numFmt = '#,##0.00₽';
+      ordersSheet.getRow(currentRow).getCell(5).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFFFFF00' },
+      };
+      
+      currentRow++;
+      ordersSheet.getRow(currentRow).getCell(4).value = 'Чистая прибыль:';
+      ordersSheet.getRow(currentRow).getCell(5).value = '';
+      ordersSheet.getRow(currentRow).getCell(5).numFmt = '#,##0.00₽';
+      ordersSheet.getRow(currentRow).getCell(5).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFFFFF00' },
+      };
+      ordersSheet.getRow(currentRow).getCell(5).font = { bold: true, color: { argb: 'FF00B050' } };
+      
+      // Стилизация всех метрик
+      for (let i = summaryStartRow + 1; i <= summaryStartRow + 8; i++) {
         const row = ordersSheet.getRow(i);
+        
+        // Стилизация ИТОГОВЫЕ ПОКАЗАТЕЛИ
         row.getCell(1).font = { bold: true };
         row.getCell(1).fill = {
           type: 'pattern',
@@ -137,11 +240,19 @@ class ExcelExportService {
         };
         row.getCell(2).alignment = { horizontal: 'right' };
         
-        // Выделяем маржу зеленым
-        if (i === summaryStartRow + 4) {
-          row.getCell(2).font = { bold: true, color: { argb: 'FF00B050' } };
-        }
+        // Стилизация ЗАТРАТЫ
+        row.getCell(4).font = { bold: true };
+        row.getCell(4).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFBE5D6' },
+        };
+        row.getCell(5).alignment = { horizontal: 'right' };
       }
+      
+      // Расширяем колонки D и E
+      ordersSheet.getColumn(4).width = 30;
+      ordersSheet.getColumn(5).width = 20;
 
       // ===== ВТОРОЙ ЛИСТ: Детализация по товарам =====
       const itemsSheet = workbook.addWorksheet('Товары');
