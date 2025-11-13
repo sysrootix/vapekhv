@@ -32,6 +32,17 @@ class ExcelExportService {
     try {
       const workbook = new ExcelJS.Workbook();
       
+      // Рассчитываем итоговые метрики
+      const totalRevenue = orders.reduce((sum, order) => sum + order.totalAmount, 0);
+      const totalItemsSum = orderItems.reduce((sum, item) => sum + item.totalPrice, 0);
+      const totalCostSum = orderItems.reduce((sum, item) => sum + (item.totalBuyPrice || 0), 0);
+      const totalDeliveryPaid = orders.reduce((sum, order) => sum + (order.adminDeliveryCost || 0), 0);
+      const totalDeliveryCompensated = orders.reduce((sum, order) => sum + order.deliveryCost, 0);
+      
+      const margin = totalItemsSum - totalCostSum;
+      const markup = totalCostSum > 0 ? ((totalItemsSum - totalCostSum) / totalCostSum) * 100 : 0;
+      const marginality = totalItemsSum > 0 ? (margin / totalItemsSum) * 100 : 0;
+      
       // ===== ПЕРВЫЙ ЛИСТ: Сводка по заказам =====
       const ordersSheet = workbook.addWorksheet('Заказы');
 
@@ -89,6 +100,48 @@ class ExcelExportService {
       ordersSheet.getColumn('bonusUsed').alignment = { horizontal: 'right' };
       ordersSheet.getColumn('promoDiscount').alignment = { horizontal: 'right' };
       ordersSheet.getColumn('promoFreeDelivery').alignment = { horizontal: 'center' };
+
+      // ===== ИТОГОВЫЕ МЕТРИКИ =====
+      const summaryStartRow = orders.length + 3;
+      
+      // Добавляем пустую строку
+      ordersSheet.addRow([]);
+      
+      // Заголовок секции
+      const summaryTitleRow = ordersSheet.addRow(['ИТОГОВЫЕ ПОКАЗАТЕЛИ']);
+      summaryTitleRow.font = { bold: true, size: 14 };
+      summaryTitleRow.getCell(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF4472C4' },
+      };
+      summaryTitleRow.getCell(1).font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+      
+      // Добавляем метрики
+      ordersSheet.addRow(['Выручка:', totalRevenue]).getCell(2).numFmt = '#,##0.00₽';
+      ordersSheet.addRow(['Себестоимость:', totalCostSum]).getCell(2).numFmt = '#,##0.00₽';
+      ordersSheet.addRow(['Маржа:', margin]).getCell(2).numFmt = '#,##0.00₽';
+      ordersSheet.addRow(['Наценка (%):', markup]).getCell(2).numFmt = '0.00"%"';
+      ordersSheet.addRow(['Маржинальность (%):', marginality]).getCell(2).numFmt = '0.00"%"';
+      ordersSheet.addRow(['Заплатили за доставку:', totalDeliveryPaid]).getCell(2).numFmt = '#,##0.00₽';
+      ordersSheet.addRow(['Компенсировано клиентами (доставка):', totalDeliveryCompensated]).getCell(2).numFmt = '#,##0.00₽';
+      
+      // Стилизация метрик
+      for (let i = summaryStartRow + 2; i <= summaryStartRow + 8; i++) {
+        const row = ordersSheet.getRow(i);
+        row.getCell(1).font = { bold: true };
+        row.getCell(1).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFF2F2F2' },
+        };
+        row.getCell(2).alignment = { horizontal: 'right' };
+        
+        // Выделяем маржу зеленым
+        if (i === summaryStartRow + 4) {
+          row.getCell(2).font = { bold: true, color: { argb: 'FF00B050' } };
+        }
+      }
 
       // ===== ВТОРОЙ ЛИСТ: Детализация по товарам =====
       const itemsSheet = workbook.addWorksheet('Товары');
