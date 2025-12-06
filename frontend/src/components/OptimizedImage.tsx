@@ -108,10 +108,9 @@ export default function OptimizedImage({
     setHasError(false);
 
     const img = new Image();
-    let timeoutId: NodeJS.Timeout;
 
     // Таймаут для загрузки
-    timeoutId = setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       img.onload = null;
       img.onerror = null;
       

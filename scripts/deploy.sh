@@ -66,8 +66,8 @@ ls -dt /var/www/vapekhv_backup_* 2>/dev/null | tail -n +6 | xargs sudo rm -rf 2>
 
 echo ""
 echo -e "${GREEN}✅ Деплой завершен успешно!${NC}"
-echo -e "${BLUE}🌐 Сайт доступен по адресу: https://vapekhv.live${NC}"
-echo -e "${BLUE}📊 Backend API: https://vapekhv.live/api${NC}"
+echo -e "${BLUE}🌐 Сайт доступен по адресу: https://vapekhv.ru${NC}"
+echo -e "${BLUE}📊 Backend API: https://vapekhv.ru/api${NC}"
 echo ""
 echo "Полезные команды:"
 echo "  - Логи nginx: sudo tail -f /var/log/nginx/vapekhv_error.log"

@@ -17,7 +17,7 @@ sudo nano /etc/nginx/sites-available/vapekhv
 ```nginx
 server {
     listen 443 ssl http2;
-    server_name vapekhv.live;
+    server_name vapekhv.ru;
     
     # Увеличиваем лимит размера тела запроса до 50 МБ
     client_max_body_size 50M;

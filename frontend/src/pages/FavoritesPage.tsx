@@ -1,5 +1,4 @@
 import { motion } from 'framer-motion';
-// @ts-ignore
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Heart, Plus, Minus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';

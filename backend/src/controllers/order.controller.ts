@@ -13,7 +13,7 @@ import { weatherService } from '../services/weather.service';
 
 
 // Константы для доставки
-const MIN_ORDER_AMOUNT = 1000;
+const MIN_ORDER_AMOUNT = 100;
 const DELIVERY_TIERS = [
   { threshold: 6000, cost: 0 },
   { threshold: 4500, cost: 300 },

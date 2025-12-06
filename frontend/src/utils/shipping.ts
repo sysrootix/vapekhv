@@ -1,4 +1,4 @@
-export const MIN_ORDER_AMOUNT = 1000;
+export const MIN_ORDER_AMOUNT = 100;
 
 export const DELIVERY_STEPS = [
   { threshold: MIN_ORDER_AMOUNT, cost: 700, label: 'Доставка за 700₽' },

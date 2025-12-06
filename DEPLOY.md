@@ -159,13 +159,13 @@ pm2 logs vapekhv-backend
 #### Проверьте API:
 ```bash
 # Healthcheck
-curl https://vapekhv.live/health
+curl https://vapekhv.ru/health
 
 # Должен вернуть: {"status":"ok","timestamp":"..."}
 ```
 
 #### Проверьте frontend:
-1. Откройте https://vapekhv.live в браузере
+1. Откройте https://vapekhv.ru в браузере
 2. Создайте тестовый заказ
 3. Должна открыться страница оплаты с таймером
 4. Загрузите любое изображение как чек

@@ -91,6 +91,7 @@ export function BroadcastForm({ onSuccess, selectedAudienceId, onAudienceSelecte
   };
 
   const handleRemoveMedia = () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { media, ...rest } = message;
     setMessage(rest);
   };

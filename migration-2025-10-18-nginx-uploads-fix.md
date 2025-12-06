@@ -1,7 +1,7 @@
 # Миграция: Добавление раздачи файлов из /uploads через Nginx
 
 ## Проблема
-Файлы чеков сохраняются в `backend/uploads/receipts/`, но Nginx не настроен для их раздачи. При обращении к `https://vapekhv.live/uploads/receipts/file.png` возвращается 404.
+Файлы чеков сохраняются в `backend/uploads/receipts/`, но Nginx не настроен для их раздачи. При обращении к `https://vapekhv.ru/uploads/receipts/file.png` возвращается 404.
 
 ## Команды для выполнения на сервере:
 
@@ -61,11 +61,11 @@ sudo chown -R www-data:www-data /root/shop/backend/uploads/
 sudo chmod -R 755 /root/shop/backend/uploads/
 
 # Проверить в браузере
-curl -I https://vapekhv.live/uploads/receipts/receipt-1760760166482-nwpprukjy49.png
+curl -I https://vapekhv.ru/uploads/receipts/receipt-1760760166482-nwpprukjy49.png
 ```
 
 ## Ожидаемый результат:
-- URL `https://vapekhv.live/uploads/receipts/file.png` должен возвращать файл с кодом 200
+- URL `https://vapekhv.ru/uploads/receipts/file.png` должен возвращать файл с кодом 200
 - Кеширование на 1 год для статических файлов
 - CORS разрешен для изображений
 
@@ -96,7 +96,7 @@ curl -I https://vapekhv.live/uploads/receipts/receipt-1760760166482-nwpprukjy49.
 ⏰ Создан: 18.10.2025, 04:02:37
 
 
-🧾 Чек: https://vapekhv.live/uploads/receipts/receipt-1760760166482-nwpprukjy49.png\
+🧾 Чек: https://vapekhv.ru/uploads/receipts/receipt-1760760166482-nwpprukjy49.png\
 \
 Сейчас сообщение приходит в таком формате\
 \

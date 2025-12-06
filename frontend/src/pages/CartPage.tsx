@@ -415,7 +415,7 @@ export default function CartPage() {
             disabled={checkoutDisabled}
             className="w-full bg-tg-button text-tg-button-text py-2.5 rounded-xl font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {checkoutDisabled ? 'Минимальный заказ 1000₽' : 'Оформить заказ'}
+            {checkoutDisabled ? 'Минимальный заказ 100₽' : 'Оформить заказ'}
           </button>
         </div>
       </motion.div>

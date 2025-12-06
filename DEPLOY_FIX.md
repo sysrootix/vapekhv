@@ -91,7 +91,7 @@ git push origin main
 Подключитесь к серверу по SSH:
 
 ```bash
-ssh user@vapekhv.live
+ssh user@vapekhv.ru
 ```
 
 Выполните команды:
@@ -276,7 +276,7 @@ ls -la /var/www/vapekhv/uploads/products/
 
 В браузере:
 ```
-https://vapekhv.live/uploads/products/[имя_файла].jpg
+https://vapekhv.ru/uploads/products/[имя_файла].jpg
 ```
 
 ### 4. Проверить базу данных

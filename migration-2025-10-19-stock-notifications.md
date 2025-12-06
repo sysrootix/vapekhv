@@ -127,14 +127,14 @@ psql -U postgres -d vapekhv_db
 ### 2. Тестовый запрос (через API):
 ```bash
 # Получить товар без наличия
-curl https://vapekhv.live/api/products/{productId}
+curl https://vapekhv.ru/api/products/{productId}
 
 # Подписаться на уведомление
-curl -X POST https://vapekhv.live/api/products/{productId}/notify \
+curl -X POST https://vapekhv.ru/api/products/{productId}/notify \
   -H "Authorization: Bearer {token}"
 
 # Проверить подписку
-curl https://vapekhv.live/api/products/{productId}/notify/check \
+curl https://vapekhv.ru/api/products/{productId}/notify/check \
   -H "Authorization: Bearer {token}"
 ```
 

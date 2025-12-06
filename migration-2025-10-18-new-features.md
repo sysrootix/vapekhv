@@ -227,7 +227,7 @@ pm2 logs vapekhv-backend --lines 50
 
 3. Проверить, что все работает:
 ```bash
-curl https://vapekhv.live/api/categories
+curl https://vapekhv.ru/api/categories
 ```
 
 ## Откат миграции (в случае проблем):

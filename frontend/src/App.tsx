@@ -25,12 +25,15 @@ import BottomNav from './components/BottomNav';
 import VPNNotification from './components/VPNNotification';
 import ReviewNotification from './components/ReviewNotification';
 import CreateReviewModal from './components/CreateReviewModal';
+import AgeVerificationModal, { checkAgeVerification } from './components/AgeVerificationModal';
 import ReferralPage from './pages/ReferralPage';
 import toast from 'react-hot-toast';
 
 function App() {
   const { isInitialized } = useTelegramApp();
   const { isAuthenticated, isLoading } = useAuthStore();
+  const [showAgeVerification, setShowAgeVerification] = useState(false);
+  const [ageVerified, setAgeVerified] = useState(false);
 
   useEffect(() => {
     // Expand app to full height
@@ -40,8 +43,32 @@ function App() {
     }
   }, []);
 
+  // Проверяем подтверждение возраста при инициализации
+  useEffect(() => {
+    if (isInitialized && !isLoading) {
+      const isVerified = checkAgeVerification();
+      setAgeVerified(isVerified);
+      setShowAgeVerification(!isVerified);
+    }
+  }, [isInitialized, isLoading]);
+
+  const handleAgeVerificationConfirm = () => {
+    setAgeVerified(true);
+    setShowAgeVerification(false);
+  };
+
   if (!isInitialized || isLoading) {
     return <LoadingScreen />;
+  }
+
+  // Показываем модальное окно подтверждения возраста до показа основного контента
+  if (!ageVerified) {
+    return (
+      <>
+        <AgeVerificationModal isOpen={showAgeVerification} onConfirm={handleAgeVerificationConfirm} />
+        <LoadingScreen />
+      </>
+    );
   }
 
   return (

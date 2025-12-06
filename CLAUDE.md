@@ -209,7 +209,7 @@ npm run lint
 
 ## 📡 API Endpoints
 
-**Base URL**: `https://vapekhv.live/api`
+**Base URL**: `https://vapekhv.ru/api`
 
 ### Authentication
 - `POST /auth/telegram` - вход через Telegram WebApp
@@ -275,7 +275,7 @@ npm run lint
 
 ### Frontend (.env)
 ```env
-VITE_API_URL=https://vapekhv.live/api
+VITE_API_URL=https://vapekhv.ru/api
 VITE_APP_NAME=VapeKHV
 ```
 
@@ -283,12 +283,13 @@ VITE_APP_NAME=VapeKHV
 ```env
 NODE_ENV=production
 PORT=3000
-DOMAIN=vapekhv.live
+DOMAIN=vapekhv.ru
 DATABASE_URL="postgresql://user:password@localhost:5432/vapekhv_db?schema=public"
 TELEGRAM_BOT_TOKEN=your_bot_token
 JWT_SECRET=your_secret_key
 JWT_EXPIRES_IN=7d
-FRONTEND_URL=https://vapekhv.live
+FRONTEND_URL=https://vapekhv.ru
+WEBAPP_URL=https://vapekhv.ru
 ```
 
 ## 📦 Деплой на сервер

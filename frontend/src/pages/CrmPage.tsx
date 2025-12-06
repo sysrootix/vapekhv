@@ -188,9 +188,10 @@ export default function CrmPage() {
         switch (preset) {
           case 'today':
             return { start: today, end: new Date(today.getTime() + 24 * 60 * 60 * 1000) };
-          case 'yesterday':
+          case 'yesterday': {
             const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
             return { start: yesterday, end: today };
+          }
           case 'week':
             return {
               start: new Date(today.getTime() - 6 * 24 * 60 * 60 * 1000),
