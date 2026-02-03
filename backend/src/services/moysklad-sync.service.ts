@@ -476,3 +476,39 @@ export async function syncOrderWithMoySklad(order: OrderWithRelations): Promise<
 
   logger.info(`Заказ ${order.orderNumber} синхронизирован с МойСклад`);
 }
+
+/**
+ * Удалить заказ из МойСклад при отмене
+ * Удаляет заказ покупателя и все связанные документы (отгрузки, оплаты)
+ */
+export async function deleteOrderFromMoySklad(orderNumber: string): Promise<void> {
+  const hasMoySkladConfig =
+    Boolean(moySkladConfig.token) &&
+    Boolean(moySkladConfig.organizationId) &&
+    Boolean(moySkladConfig.storeId);
+
+  if (!hasMoySkladConfig) {
+    logger.warn('Интеграция с МойСклад пропущена: конфигурация неполная');
+    return;
+  }
+
+  try {
+    logger.info(`Попытка удалить заказ ${orderNumber} из МойСклад...`);
+    
+    const result = await moySkladAPI.deleteOrderWithRelatedDocuments(orderNumber);
+    
+    if (result.success) {
+      if (result.deletedOrder) {
+        logger.info(`✅ Заказ ${orderNumber} успешно удален из МойСклад. ${result.message}`);
+      } else {
+        logger.info(`ℹ️ ${result.message}`);
+      }
+    } else {
+      logger.error(`❌ Не удалось удалить заказ ${orderNumber} из МойСклад: ${result.message}`);
+    }
+  } catch (error) {
+    logger.error(`Ошибка при удалении заказа ${orderNumber} из МойСклад:`, error);
+    // Не пробрасываем ошибку - удаление из МойСклад не должно блокировать отмену заказа
+  }
+}
+

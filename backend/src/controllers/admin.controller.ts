@@ -5,7 +5,7 @@ import { prisma } from '../config/database';
 import { logger } from '../config/logger';
 import { AppError } from '../middleware/errorHandler';
 import { sendOrderStatusNotification } from '../services/payment-notification.service';
-import { syncOrderWithMoySklad } from '../services/moysklad-sync.service';
+import { syncOrderWithMoySklad, deleteOrderFromMoySklad } from '../services/moysklad-sync.service';
 import { orderDeliveryService } from '../services/order-delivery.service';
 import { sendReferralRewardNotification } from '../services/bot.service';
 import { referralService } from '../services/referral.service';
@@ -338,6 +338,16 @@ class AdminController {
           await syncOrderWithMoySklad(updatedOrder);
         } catch (moyskladError) {
           logger.error('Ошибка при синхронизации заказа в МойСклад:', moyskladError);
+          // Не выбрасываем ошибку, чтобы основной процесс не прерывался
+        }
+      }
+
+      // Удалить заказ из МойСклад при статусе CANCELLED
+      if (status === 'CANCELLED') {
+        try {
+          await deleteOrderFromMoySklad(updatedOrder.orderNumber);
+        } catch (moyskladError) {
+          logger.error('Ошибка при удалении заказа из МойСклад:', moyskladError);
           // Не выбрасываем ошибку, чтобы основной процесс не прерывался
         }
       }

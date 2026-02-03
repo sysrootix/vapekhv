@@ -495,6 +495,190 @@ export class MoySkladAPI {
       throw error;
     }
   }
+
+  /**
+   * Найти заказ покупателя по номеру заказа (name)
+   */
+  async findCustomerOrderByName(orderNumber: string): Promise<MoySkladCustomerOrder | null> {
+    try {
+      const response = await this.client.get<MoySkladListResponse<MoySkladCustomerOrder>>(
+        '/entity/customerorder',
+        {
+          params: {
+            filter: `name=${orderNumber}`,
+            limit: 1,
+          },
+        }
+      );
+
+      const order = response.data.rows?.[0];
+      if (order) {
+        logger.debug(`Найден заказ покупателя ${orderNumber} в МойСклад (ID: ${order.id})`);
+        return order;
+      }
+
+      return null;
+    } catch (error) {
+      logger.error(`Ошибка поиска заказа покупателя ${orderNumber}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Найти все отгрузки (demands), связанные с заказом покупателя
+   */
+  async findDemandsByCustomerOrder(customerOrderId: string): Promise<MoySkladDemand[]> {
+    try {
+      const response = await this.client.get<MoySkladListResponse<MoySkladDemand>>(
+        '/entity/demand',
+        {
+          params: {
+            filter: `customerOrder=https://api.moysklad.ru/api/remap/1.2/entity/customerorder/${customerOrderId}`,
+          },
+        }
+      );
+
+      logger.debug(`Найдено ${response.data.rows.length} отгрузок для заказа ${customerOrderId}`);
+      return response.data.rows;
+    } catch (error) {
+      logger.error(`Ошибка поиска отгрузок для заказа ${customerOrderId}:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Найти все приходные ордера (cashin), связанные с отгрузкой или заказом
+   */
+  async findCashInByDocument(documentType: 'demand' | 'customerorder', documentId: string): Promise<MoySkladCashIn[]> {
+    try {
+      // Получаем все cashin и фильтруем по operations
+      const response = await this.client.get<MoySkladListResponse<MoySkladCashIn>>(
+        '/entity/cashin',
+        {
+          params: {
+            limit: 100,
+            expand: 'operations',
+          },
+        }
+      );
+
+      // Фильтруем cashin, которые содержат ссылку на наш документ в operations
+      const documentUrl = `https://api.moysklad.ru/api/remap/1.2/entity/${documentType}/${documentId}`;
+      const relatedCashIns = response.data.rows.filter((cashIn: any) => {
+        if (!cashIn.operations) return false;
+        return cashIn.operations.some((op: any) => op.meta?.href === documentUrl);
+      });
+
+      logger.debug(`Найдено ${relatedCashIns.length} приходных ордеров для ${documentType}/${documentId}`);
+      return relatedCashIns;
+    } catch (error) {
+      logger.error(`Ошибка поиска приходных ордеров для ${documentType}/${documentId}:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Удалить заказ и все связанные документы из МойСклад
+   * Удаляет в правильном порядке: cashin -> demand -> customerorder
+   */
+  async deleteOrderWithRelatedDocuments(orderNumber: string): Promise<{
+    success: boolean;
+    deletedCashIns: number;
+    deletedDemands: number;
+    deletedOrder: boolean;
+    message: string;
+  }> {
+    try {
+      // 1. Найти заказ покупателя
+      const customerOrder = await this.findCustomerOrderByName(orderNumber);
+      
+      if (!customerOrder || !customerOrder.id) {
+        logger.info(`Заказ ${orderNumber} не найден в МойСклад, пропускаем удаление`);
+        return {
+          success: true,
+          deletedCashIns: 0,
+          deletedDemands: 0,
+          deletedOrder: false,
+          message: 'Заказ не найден в МойСклад',
+        };
+      }
+
+      logger.info(`Начинаю удаление заказа ${orderNumber} из МойСклад...`);
+
+      let deletedCashIns = 0;
+      let deletedDemands = 0;
+
+      // 2. Найти все отгрузки
+      const demands = await this.findDemandsByCustomerOrder(customerOrder.id);
+
+      // 3. Для каждой отгрузки найти и удалить связанные cashin
+      for (const demand of demands) {
+        if (!demand.id) continue;
+
+        const cashIns = await this.findCashInByDocument('demand', demand.id);
+        
+        for (const cashIn of cashIns) {
+          if (!cashIn.id) continue;
+          
+          try {
+            await this.deleteEntity('cashin', cashIn.id);
+            deletedCashIns++;
+          } catch (error) {
+            logger.warn(`Не удалось удалить cashin ${cashIn.id}:`, error);
+          }
+        }
+      }
+
+      // 4. Найти cashin, связанные напрямую с заказом (если есть)
+      const orderCashIns = await this.findCashInByDocument('customerorder', customerOrder.id);
+      for (const cashIn of orderCashIns) {
+        if (!cashIn.id) continue;
+        
+        try {
+          await this.deleteEntity('cashin', cashIn.id);
+          deletedCashIns++;
+        } catch (error) {
+          logger.warn(`Не удалось удалить cashin ${cashIn.id}:`, error);
+        }
+      }
+
+      // 5. Удалить все отгрузки
+      for (const demand of demands) {
+        if (!demand.id) continue;
+        
+        try {
+          await this.deleteEntity('demand', demand.id);
+          deletedDemands++;
+        } catch (error) {
+          logger.warn(`Не удалось удалить demand ${demand.id}:`, error);
+        }
+      }
+
+      // 6. Удалить заказ покупателя
+      await this.deleteEntity('customerorder', customerOrder.id);
+
+      const message = `Удалено из МойСклад: ${deletedCashIns} оплат, ${deletedDemands} отгрузок, 1 заказ`;
+      logger.info(`Заказ ${orderNumber} успешно удален из МойСклад. ${message}`);
+
+      return {
+        success: true,
+        deletedCashIns,
+        deletedDemands,
+        deletedOrder: true,
+        message,
+      };
+    } catch (error) {
+      logger.error(`Ошибка при удалении заказа ${orderNumber} из МойСклад:`, error);
+      return {
+        success: false,
+        deletedCashIns: 0,
+        deletedDemands: 0,
+        deletedOrder: false,
+        message: error instanceof Error ? error.message : 'Неизвестная ошибка',
+      };
+    }
+  }
+
 }
 
 // Экспорт singleton instance

@@ -5,7 +5,7 @@ import { prisma } from '../config/database';
 import { logger } from '../config/logger';
 import { AppError } from '../middleware/errorHandler';
 import { sendPaymentNotification, sendOrderStatusNotification } from '../services/payment-notification.service';
-import { syncOrderWithMoySklad } from '../services/moysklad-sync.service';
+import { syncOrderWithMoySklad, deleteOrderFromMoySklad } from '../services/moysklad-sync.service';
 import { referralService } from '../services/referral.service';
 import { orderDeliveryService } from '../services/order-delivery.service';
 import { sendReferralRewardNotification } from '../services/bot.service';
@@ -693,6 +693,14 @@ class OrderController {
 
         return updatedOrder;
       });
+
+      // Удалить заказ из МойСклад при отмене
+      try {
+        await deleteOrderFromMoySklad(order.orderNumber);
+      } catch (moyskladError) {
+        logger.error('Ошибка при удалении заказа из МойСклад:', moyskladError);
+        // Не выбрасываем ошибку, чтобы отмена заказа в БД прошла успешно
+      }
 
       logger.info(`Заказ ${order.orderNumber} отменен пользователем ${userId}`);
 
