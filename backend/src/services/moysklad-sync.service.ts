@@ -407,7 +407,7 @@ export async function syncOrderWithMoySklad(order: OrderWithRelations): Promise<
 
   const moyskladOrderPayload: MoySkladCustomerOrder = {
     name: order.orderNumber,
-    moment: formatMoySkladDate(new Date()),
+    moment: formatMoySkladDate(order.createdAt),
     organization: organizationRef,
     agent: {
       meta: agentReference.meta,
@@ -436,7 +436,7 @@ export async function syncOrderWithMoySklad(order: OrderWithRelations): Promise<
 
     const demandPayload: MoySkladDemand = {
       name: `${order.orderNumber}-отгрузка`,
-      moment: formatMoySkladDate(new Date()),
+      moment: formatMoySkladDate(order.createdAt),
       organization: organizationRef,
       agent: agentReference,
       store: storeRef,
@@ -461,7 +461,7 @@ export async function syncOrderWithMoySklad(order: OrderWithRelations): Promise<
 
     const cashInPayload: MoySkladCashIn = {
       name: `${order.orderNumber}-оплата`,
-      moment: formatMoySkladDate(new Date()),
+      moment: formatMoySkladDate(order.createdAt),
       organization: organizationRef,
       agent: agentReference,
       sum: orderTotalCoins,

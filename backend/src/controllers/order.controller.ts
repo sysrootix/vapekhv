@@ -40,14 +40,17 @@ const isBadWeather = async (): Promise<boolean> => {
 };
 
 const calculateDeliveryCost = async (subtotal: number, applyWeatherMultiplier = true): Promise<number> => {
-  let baseCost = 0;
+  let baseCost = -1; // Значение по умолчанию, чтобы не путать с 0 (бесплатная доставка)
+  
   for (const tier of DELIVERY_TIERS) {
     if (subtotal >= tier.threshold) {
       baseCost = tier.cost;
       break;
     }
   }
-  if (baseCost === 0) {
+
+  // Если ни один порог не подошел (меньше минимального порога), берем самую дорогую доставку
+  if (baseCost === -1) {
     baseCost = DELIVERY_TIERS[DELIVERY_TIERS.length - 1].cost;
   }
 

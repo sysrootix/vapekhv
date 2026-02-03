@@ -464,6 +464,37 @@ export class MoySkladAPI {
       throw error;
     }
   }
+  /**
+   * Найти сущность по имени (для очистки дублей)
+   */
+  async findEntityByName<T>(type: string, name: string): Promise<T | null> {
+    try {
+      const response = await this.client.get<MoySkladListResponse<T>>(`/entity/${type}`, {
+        params: {
+          filter: `name=${name}`,
+          limit: 1,
+        },
+      });
+
+      return response.data.rows?.[0] || null;
+    } catch (error) {
+      logger.error(`Ошибка поиска сущности ${type} с именем ${name}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Удалить сущность по ID
+   */
+  async deleteEntity(type: string, id: string): Promise<void> {
+    try {
+      await this.client.delete(`/entity/${type}/${id}`);
+      logger.info(`Сущность ${type}/${id} удалена из МойСклад`);
+    } catch (error) {
+      logger.error(`Ошибка удаления сущности ${type}/${id}:`, error);
+      throw error;
+    }
+  }
 }
 
 // Экспорт singleton instance
