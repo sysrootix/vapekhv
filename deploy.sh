@@ -78,8 +78,21 @@ else
 fi
 echo ""
 
-# Шаг 6: Перезапуск backend через PM2
-echo -e "${BLUE}🔄 Step 6: Restarting backend (PM2)...${NC}"
+# Шаг 6: Проверка и восстановление изображений товаров
+if [ -n "$UPLOADS_DIR" ]; then
+    echo -e "${BLUE}🖼️  Step 6: Repairing missing product images...${NC}"
+    npm run repair:missing-images --workspace=backend
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✅ Product images checked${NC}"
+    else
+        echo -e "${RED}❌ Product image repair failed${NC}"
+        exit 1
+    fi
+    echo ""
+fi
+
+# Шаг 7: Перезапуск backend через PM2
+echo -e "${BLUE}🔄 Step 7: Restarting backend (PM2)...${NC}"
 pm2 restart $PM2_APP_NAME
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✅ Backend restarted${NC}"

@@ -13,6 +13,7 @@
     "db:seed": "ts-node prisma/seed.ts",
     "db:reset": "prisma migrate reset --force",
     "test:promo": "ts-node scripts/testPromoBroadcast.ts",
+    "repair:missing-images": "ts-node src/scripts/repairMissingProductImages.ts",
     "lint": "eslint . --ext .ts --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint . --ext .ts --fix"
   },
